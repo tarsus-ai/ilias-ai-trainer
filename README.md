@@ -212,6 +212,7 @@ docs/screenshots/          the images in this README
 - **Mock mode** (default after installation) makes the whole UI usable without a brain: the mock client answers deterministically, including the interactive demo pages, and records credits like the real one, so plans, limits and analytics can be exercised locally.
 - The plugin is tested end to end with Playwright against ILIAS 9, 10 and 11: clean install from the release zip, update in place, permissions, all three modes, learning progress, copy, configuration pages, plan gating, the monthly limit and the cron job.
 - A version bump needs `composer du` before ILIAS offers **Update** in the plugin list.
+- **Releases** are published by the [Release workflow](.github/workflows/release.yml): bump `$version` in `plugin.php`, add the version's section to `CHANGELOG.md` and push to `main` – the workflow tags the commit, builds `Tarsus-ilias-plugin-<version>.zip` with `git archive` (repository-only files such as `docs/` are left out) and creates the GitHub release with the changelog section as notes.
 
 Issues and pull requests are welcome.
 
