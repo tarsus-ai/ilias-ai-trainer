@@ -1,0 +1,1711 @@
+/* Tarsus for ILIAS.
+   The screens paint their own surfaces (cards, pads, chips, tracks) so they
+   look the same in every ILIAS skin: a light palette here, a dark one for
+   browsers that ask for it. */
+.tarsus-app,
+.tarsus-lightbox {
+    --tz-fg: #1d2125;
+    --tz-ink: #23282d;
+    --tz-muted: #50555c;
+    --tz-faint: #6a7076;
+    --tz-card: #fff;
+    --tz-line: rgba(0, 0, 0, 0.08);
+    --tz-line-soft: rgba(0, 0, 0, 0.06);
+    --tz-line-strong: rgba(0, 0, 0, 0.18);
+    --tz-line-table: rgba(0, 0, 0, 0.125);
+    --tz-pad: #efeff0;
+    --tz-pad-active: #fff;
+    --tz-pad-active-line: rgba(0, 0, 0, 0.1);
+    --tz-pad-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    --tz-chip: rgba(255, 255, 255, 0.45);
+    --tz-chip-ink: #23282d;
+    --tz-reply-pad: rgba(35, 40, 45, 0.07);
+    --tz-reply-hover: rgba(0, 0, 0, 0.08);
+    --tz-soft: #f4f4f2;
+    --tz-badge: #f1f0ec;
+    --tz-row-alt: #f3f5f9;
+    --tz-number-bg: #e3e8f2;
+    --tz-number-fg: #2c3e5a;
+    --tz-track: #e6e9ef;
+    --tz-track-ink: rgba(35, 40, 45, 0.22);
+    --tz-ring-track: rgba(0, 0, 0, 0.08);
+    --tz-band-ring-track: rgba(0, 0, 0, 0.12);
+    --tz-wave: rgba(0, 0, 0, 0.18);
+    --tz-loading-ring: rgba(0, 0, 0, 0.1);
+    --tz-loading-glyph: rgba(35, 40, 45, 0.35);
+    --tz-accent: #2f6fb1;
+    --tz-accent-deep: #275f99;
+    --tz-accent-stroke: #2f6fb1;
+    --tz-accent-soft: rgba(47, 111, 177, 0.12);
+    --tz-focus: #0f6cbf;
+    --tz-success: #57b87b;
+    --tz-success-soft: #e9f7ec;
+    --tz-danger-soft: #fdeef0;
+    --tz-warning-soft: #fff4e0;
+    --tz-danger: #d9534f;
+    --tz-warning: #c77b14;
+    --tz-level-1: #3e9e6f;
+    --tz-level-2: #d98a2b;
+    --tz-level-3: #c8405e;
+    --tz-processing-track: #e3eef6;
+    --tz-composer: #f6f7f9;
+    --tz-card-shadow: 0 4px 16px rgba(35, 23, 90, 0.06);
+    --tz-frame-welcome: linear-gradient(135deg, #b39ddb 0%, #d8a7e8 35%, #f8b5c1 70%, #ffd9a0 100%);
+    --tz-frame-practice: linear-gradient(135deg, #9cc6dc 0%, #aedfd8 35%, #d8f0ec 70%, #a3c3e4 100%);
+    --tz-frame-learn: linear-gradient(135deg, #b8a8e6 0%, #cdb9ec 35%, #ead9f4 70%, #a9b4ea 100%);
+    --tz-frame-complete: linear-gradient(135deg, #a8e0b8 0%, #c4ecc9 35%, #e2f6df 70%, #a9dcc2 100%);
+    --tz-frame-motivation: linear-gradient(135deg, #a9d8ee 0%, #c3e6f4 35%, #e3f3fa 70%, #a5cfe9 100%);
+    --tz-frame-objectives: linear-gradient(135deg, #d9e88a 0%, #e8f2a8 35%, #f4f9d4 70%, #cfe27f 100%);
+    color: var(--tz-fg);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* Utilities                                                            */
+/* ------------------------------------------------------------------ */
+
+.tarsus-app .tarsus-hidden,
+.tarsus-hidden {
+    display: none !important;
+}
+
+.tarsus-app [hidden] {
+    display: none !important;
+}
+
+.tarsus-app .tarsus-center {
+    text-align: center;
+}
+
+.tarsus-app .tarsus-muted {
+    color: var(--tz-muted);
+}
+
+.tarsus-app .tarsus-small {
+    font-size: 0.85rem;
+}
+
+.tarsus-app .tarsus-nowrap {
+    white-space: nowrap;
+}
+
+.tarsus-app .tarsus-h3,
+.tarsus-h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.5rem;
+}
+
+.tarsus-app .tarsus-icon {
+    width: 1em;
+    height: 1em;
+    font-size: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+    vertical-align: -0.15em;
+}
+
+/* Buttons: the plugin's own, so they look alike in every skin. */
+.tarsus-app .tarsus-btn,
+.tarsus-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
+    border: 1px solid var(--tz-line-strong);
+    border-radius: 0.5rem;
+    background: var(--tz-card);
+    color: var(--tz-fg);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tarsus-app .tarsus-btn:hover,
+.tarsus-btn:hover {
+    background: var(--tz-soft);
+    color: var(--tz-fg);
+    text-decoration: none;
+}
+
+.tarsus-app .tarsus-btn:focus-visible,
+.tarsus-btn:focus-visible {
+    outline: 2px solid var(--tz-focus);
+    outline-offset: 2px;
+}
+
+.tarsus-app .tarsus-btn:disabled,
+.tarsus-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.tarsus-app .tarsus-btn--primary,
+.tarsus-btn--primary {
+    background: var(--tz-accent);
+    border-color: var(--tz-accent);
+    color: #fff;
+}
+
+.tarsus-app .tarsus-btn--primary:hover,
+.tarsus-btn--primary:hover {
+    background: var(--tz-accent-deep);
+    border-color: var(--tz-accent-deep);
+    color: #fff;
+}
+
+.tarsus-app .tarsus-btn--warning {
+    border-color: var(--tz-warning);
+    color: var(--tz-warning);
+}
+
+.tarsus-app .tarsus-btn--danger {
+    border-color: var(--tz-danger);
+    color: var(--tz-danger);
+}
+
+.tarsus-app .tarsus-btn--sm,
+.tarsus-btn--sm {
+    padding: 0.25rem 0.65rem;
+    font-size: 0.82rem;
+}
+
+.tarsus-inline-form {
+    display: inline-block;
+    margin: 0 0.5rem 0.75rem 0;
+}
+
+/* Inputs inside cards. */
+.tarsus-app .tarsus-input {
+    display: block;
+    width: 100%;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--tz-line-strong);
+    border-radius: 0.5rem;
+    background: var(--tz-card);
+    color: var(--tz-fg);
+    font: inherit;
+    line-height: 1.4;
+    box-sizing: border-box;
+}
+
+.tarsus-app .tarsus-input:focus {
+    outline: 2px solid var(--tz-focus);
+    outline-offset: 1px;
+}
+
+/* Badges. */
+.tarsus-app .tarsus-badge,
+.tarsus-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    line-height: 1;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--tz-badge, #f1f0ec);
+    color: var(--tz-fg, #1d2125);
+}
+
+.tarsus-badge--light {
+    background: var(--tz-badge);
+    color: var(--tz-fg);
+    font-weight: 400;
+}
+
+.tarsus-badge--neutral {
+    background: var(--tz-pad, #efeff0);
+    color: var(--tz-muted, #50555c);
+}
+
+.tarsus-badge--muted {
+    background: var(--tz-pad, #efeff0);
+    color: var(--tz-faint, #6a7076);
+    font-style: italic;
+}
+
+.tarsus-badge--warning {
+    background: var(--tz-warning-soft, #fff4e0);
+    color: #7a4a05;
+}
+
+.tarsus-badge--success {
+    background: var(--tz-success-soft, #e9f7ec);
+    color: #1f6b3a;
+}
+
+.tarsus-badge--danger {
+    background: var(--tz-danger-soft, #fdeef0);
+    color: #9b2c2c;
+}
+
+.tarsus-badge--info {
+    background: var(--tz-accent-soft, rgba(47, 111, 177, 0.12));
+    color: var(--tz-accent, #2f6fb1);
+}
+
+/* Spinners. */
+.tarsus-app .tarsus-spinner,
+.tarsus-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--tz-loading-ring, rgba(0, 0, 0, 0.1));
+    border-top-color: var(--tz-accent, #2f6fb1);
+    border-radius: 50%;
+    animation: tarsus-turn 0.9s linear infinite;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+.tarsus-app .tarsus-spinner--light {
+    border-color: rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+}
+
+.tarsus-app .tarsus-spinner--inline {
+    width: 0.8rem;
+    height: 0.8rem;
+    margin-left: 0.35rem;
+}
+
+/* Tables (materials, learners, admin). */
+.tarsus-app .tarsus-table-wrap {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.tarsus-app .tarsus-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    background: var(--tz-card);
+}
+
+.tarsus-app .tarsus-table th,
+.tarsus-app .tarsus-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--tz-line);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.tarsus-app .tarsus-table thead th {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--tz-faint);
+    border-bottom: 1px solid var(--tz-line-strong);
+}
+
+.tarsus-app .tarsus-table tbody tr:nth-child(even) {
+    background: var(--tz-row-alt);
+}
+
+.tarsus-app .tarsus-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+/* A switch for the Included column. */
+.tarsus-app .tarsus-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 22px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.tarsus-app .tarsus-switch input {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+
+.tarsus-app .tarsus-switch__track {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: var(--tz-track-ink);
+    transition: background 0.15s ease;
+    pointer-events: none;
+}
+
+.tarsus-app .tarsus-switch__track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease;
+}
+
+.tarsus-app .tarsus-switch input:checked + .tarsus-switch__track {
+    background: var(--tz-success);
+}
+
+.tarsus-app .tarsus-switch input:checked + .tarsus-switch__track::after {
+    transform: translateX(16px);
+}
+
+.tarsus-app .tarsus-switch input:disabled + .tarsus-switch__track {
+    opacity: 0.4;
+}
+
+.tarsus-app .tarsus-switch input:focus-visible + .tarsus-switch__track {
+    outline: 2px solid var(--tz-focus);
+    outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Teacher: materials                                                   */
+/* ------------------------------------------------------------------ */
+
+.tarsus-dashboard__intro {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.tarsus-dashboard__intro p {
+    flex: 1 1 24rem;
+    margin: 0;
+    max-width: 48rem;
+}
+
+.tarsus-dashboard__stats {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.tarsus-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.65rem;
+    background: var(--tz-pad);
+    color: var(--tz-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.tarsus-stat strong {
+    font-size: 1.1rem;
+    color: var(--tz-fg);
+}
+
+.tarsus-dashboard__bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.tarsus-dashboard__message {
+    font-size: 0.85rem;
+    color: var(--tz-muted);
+}
+
+.tarsus-dashboard__message--error {
+    color: var(--tz-danger);
+}
+
+.tarsus-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    border: 1px dashed var(--tz-line-strong);
+    border-radius: 16px;
+    color: var(--tz-muted);
+}
+
+.tarsus-pager {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.5rem 0 1rem;
+}
+
+.tarsus-pager__state {
+    font-size: 0.85rem;
+    color: var(--tz-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Teacher: learners                                                    */
+/* ------------------------------------------------------------------ */
+
+.tarsus-summary {
+    display: grid;
+    grid-template-columns: minmax(16rem, 1fr) minmax(16rem, 1.2fr);
+    gap: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 16px;
+    background: var(--tz-card);
+    box-shadow: var(--tz-card-shadow);
+}
+
+@media (max-width: 767.98px) {
+    .tarsus-summary {
+        grid-template-columns: 1fr;
+    }
+}
+
+.tarsus-summary__hero {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.tarsus-summary__text {
+    min-width: 0;
+    padding-left: 16px;
+    border-left: 1px solid var(--tz-line);
+}
+
+.tarsus-eyebrow {
+    font-size: 0.8rem;
+    color: var(--tz-muted);
+}
+
+.tarsus-headline {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+.tarsus-ring {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: var(--tarsus-ring, 36px);
+    height: var(--tarsus-ring, 36px);
+}
+
+.tarsus-ring svg {
+    position: absolute;
+    inset: 0;
+    transform: rotate(-90deg);
+}
+
+.tarsus-ring__track,
+.tarsus-ring__fill {
+    fill: none;
+    stroke-width: 3.6;
+}
+
+.tarsus-ring__track {
+    stroke: var(--tz-ring-track);
+}
+
+.tarsus-ring__fill {
+    stroke: var(--tz-accent);
+    stroke-linecap: round;
+    stroke-dasharray: 56.55;
+}
+
+.tarsus-ring__value {
+    position: relative;
+    font-size: calc(var(--tarsus-ring, 36px) * 0.27);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.tarsus-summary__dist {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.tarsus-stack {
+    display: flex;
+    gap: 2px;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--tz-track);
+}
+
+.tarsus-stack__part--done,
+.tarsus-dot--done {
+    background: var(--tz-success);
+}
+
+.tarsus-stack__part--open,
+.tarsus-dot--open {
+    background: var(--tz-accent);
+}
+
+.tarsus-stack__part--none,
+.tarsus-dot--none {
+    background: var(--tz-track);
+}
+
+.tarsus-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    font-size: 0.8rem;
+    color: var(--tz-muted);
+}
+
+.tarsus-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 5px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+
+.tarsus-histogram {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: 72px;
+    padding-top: 4px;
+}
+
+.tarsus-histogram__bucket {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    min-width: 0;
+}
+
+.tarsus-histogram__count {
+    font-size: 0.7rem;
+    line-height: 1;
+    color: var(--tz-muted);
+}
+
+.tarsus-histogram__bar {
+    display: flex;
+    align-items: flex-end;
+    flex-grow: 1;
+    width: 100%;
+    margin: 3px 0;
+    border-radius: 5px;
+    background: var(--tz-soft);
+}
+
+.tarsus-histogram__fill {
+    width: 100%;
+    min-height: 3px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+}
+
+.tarsus-histogram__label {
+    font-size: 0.65rem;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--tz-muted);
+}
+
+.tarsus-minibar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 9rem;
+}
+
+.tarsus-minibar__track {
+    display: block;
+    flex-grow: 1;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--tz-track);
+}
+
+.tarsus-minibar__fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
+}
+
+/* ------------------------------------------------------------------ */
+/* The learner's chat                                                   */
+/* ------------------------------------------------------------------ */
+
+.tarsus-chat-box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 60vh;
+}
+
+.tarsus-demo-note {
+    margin: 0 auto 1rem;
+    max-width: 46rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.65rem;
+    background: var(--tz-warning-soft);
+    color: #6b4a0c;
+    font-size: 0.85rem;
+}
+
+.tarsus-chat-box .tarsus-chat-flow {
+    flex: 1 1 auto;
+    padding: 0.75rem 0 1rem;
+    overflow-anchor: none;
+}
+
+.tarsus-feed-loading,
+.tarsus-feed-older {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem 0;
+    color: var(--tz-muted);
+}
+
+.tarsus-feed-older {
+    padding: 0.5rem 0;
+}
+
+/* Back to top: a round button pinned under the top edge of the scrolling column. */
+.tarsus-chat-box .tarsus-top-dock {
+    position: sticky;
+    top: calc(var(--tarsus-nav-offset, 0px) + 0.75rem);
+    height: 0;
+    z-index: 996;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.tarsus-chat-box .tarsus-jump-top {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--tz-line);
+    background: var(--tz-card);
+    color: var(--tz-fg);
+    box-shadow: var(--tz-card-shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+/* Progress: a slim fill bar pinned to the top while the feed scrolls. */
+.tarsus-chat-box .tarsus-progress {
+    position: sticky;
+    top: calc(var(--tarsus-nav-offset, 0px) + 4px);
+    z-index: 996;
+    height: 6px;
+    margin-bottom: 0.6rem;
+    border-radius: 999px;
+    background: var(--tz-track);
+    overflow: hidden;
+}
+
+.tarsus-chat-box .tarsus-progress__fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
+    box-shadow: 0 0 6px rgba(37, 99, 235, 0.35);
+    transition: width 0.5s ease;
+}
+
+/* The composer, pinned to the bottom of the viewport. */
+.tarsus-chat-box .tarsus-chat-form {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 16px;
+    background: var(--tz-composer);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.tarsus-chat-box .tarsus-chat-alert {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    background: var(--tz-danger-soft);
+    color: #9b2c2c;
+    font-size: 0.9rem;
+}
+
+.tarsus-chat-box .tarsus-chat-input {
+    display: block;
+    width: 100%;
+    min-height: 38px;
+    max-height: 160px;
+    padding: 0.5rem 0.4rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--tz-fg);
+    font: inherit;
+    line-height: 1.4;
+    resize: none;
+    box-sizing: border-box;
+}
+
+.tarsus-chat-box .tarsus-chat-input:focus {
+    outline: none;
+}
+
+.tarsus-chat-box .tarsus-composer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.tarsus-chat-box .tarsus-composer-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+/* Interaction mode switcher: a segmented pill toggle inside the composer. */
+.tarsus-mode-switch__group {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 0.65rem;
+    background: var(--tz-pad);
+}
+
+.tarsus-mode-switch__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 0.5rem;
+    padding: 0.375rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--tz-muted);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tarsus-mode-switch__btn:hover {
+    color: var(--tz-fg);
+}
+
+.tarsus-mode-switch__btn:focus-visible {
+    outline: 2px solid var(--tz-focus);
+    outline-offset: 2px;
+}
+
+.tarsus-mode-switch__btn--active {
+    background: var(--tz-pad-active);
+    border-color: var(--tz-pad-active-line);
+    color: var(--tz-fg);
+    font-weight: 600;
+    box-shadow: var(--tz-pad-active-shadow);
+}
+
+@media (max-width: 575.98px) {
+    .tarsus-mode-switch__btn span {
+        display: none;
+    }
+
+    .tarsus-mode-switch__btn {
+        padding: 0.375rem 0.7rem;
+    }
+}
+
+.tarsus-chat-box .tarsus-xp-badge {
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--tz-muted);
+    white-space: nowrap;
+}
+
+/* The reference chip above the composer. */
+.tarsus-chat-box .tarsus-reply-chip {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: 100%;
+    min-height: 24px;
+    padding: 0.2rem 0.25rem 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    background: var(--tz-reply-pad);
+    color: var(--tz-ink);
+}
+
+.tarsus-chat-box .tarsus-reply-chip__title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.tarsus-chat-box .tarsus-reply-chip__clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--tz-muted);
+    cursor: pointer;
+}
+
+.tarsus-chat-box .tarsus-reply-chip__clear:hover,
+.tarsus-chat-box .tarsus-reply-chip__clear:focus-visible {
+    background: var(--tz-reply-hover);
+    color: var(--tz-ink);
+}
+
+/* Conversation cards: centred, comfortably wide, stacked with air. */
+.tarsus-chat-box .tarsus-card {
+    max-width: 46rem;
+    margin: 0 auto 1.25rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 16px;
+    background: var(--tz-card);
+    box-shadow: var(--tz-card-shadow);
+}
+
+.tarsus-chat-box .tarsus-card__inner {
+    padding: 1.25rem 1.5rem;
+}
+
+.tarsus-chat-box .tarsus-card__question,
+.tarsus-chat-box .tarsus-card__answer {
+    display: flex;
+    align-items: flex-start;
+}
+
+.tarsus-chat-box .tarsus-card__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    margin-right: 0.85rem;
+    background: var(--tz-pad);
+}
+
+.tarsus-chat-box .tarsus-card__avatar--empty {
+    display: inline-block;
+}
+
+.tarsus-chat-box .tarsus-card__question-text {
+    white-space: pre-wrap;
+    font-weight: 500;
+    align-self: center;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.tarsus-chat-box .tarsus-card__divider {
+    border: 0;
+    border-top: 2px solid var(--tz-line-strong);
+    border-radius: 1px;
+    margin: 1rem 0;
+}
+
+.tarsus-chat-box .tarsus-card__answer-body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.tarsus-chat-box .tarsus-card__reply {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--tz-muted);
+}
+
+/* The welcome card: a gradient frame around a white body. */
+.tarsus-chat-box .tarsus-card--welcome {
+    border: 0;
+    padding: 8px;
+    background: var(--tz-frame-welcome);
+    box-shadow: 0 10px 28px rgba(35, 23, 90, 0.12);
+}
+
+.tarsus-chat-box .tarsus-card--welcome .tarsus-card__inner {
+    background: var(--tz-card);
+    border-radius: 13px;
+    padding: 2rem 1.75rem 1.75rem;
+}
+
+.tarsus-chat-box .tarsus-welcome-art {
+    margin-bottom: 1rem;
+}
+
+.tarsus-chat-box .tarsus-welcome-art img {
+    width: 130px;
+    max-width: 80%;
+    height: auto;
+    max-height: none;
+    margin: 0;
+}
+
+.tarsus-chat-box .tarsus-card__welcome-text {
+    font-size: 1.05rem;
+}
+
+.tarsus-chat-box .tarsus-card__welcome-text > :last-child,
+.tarsus-chat-box .tarsus-card__answer-body > :last-child,
+.tarsus-chat-box .tarsus-practice-card__feedback > :last-child,
+.tarsus-chat-box .tarsus-learn-slide__text > :last-child {
+    margin-bottom: 0;
+}
+
+.tarsus-chat-box .tarsus-card__answer-body > :first-child {
+    margin-top: 0;
+}
+
+.tarsus-chat-box .tarsus-card__title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0 0 0.75rem;
+}
+
+.tarsus-chat-box .tarsus-card--complete {
+    background: var(--tz-frame-complete);
+    box-shadow: 0 10px 28px rgba(40, 110, 60, 0.1);
+}
+
+.tarsus-chat-box .tarsus-card--motivation {
+    background: var(--tz-frame-motivation);
+    box-shadow: 0 10px 28px rgba(40, 90, 130, 0.1);
+}
+
+.tarsus-chat-box .tarsus-card--objectives {
+    background: var(--tz-frame-objectives);
+    box-shadow: 0 10px 28px rgba(100, 120, 30, 0.1);
+}
+
+/* Rendered Markdown inside a card. */
+.tarsus-app .tarsus-card__answer-body ul,
+.tarsus-app .tarsus-card__answer-body ol,
+.tarsus-app .tarsus-learn-slide__text ul,
+.tarsus-app .tarsus-learn-slide__text ol {
+    padding-left: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.tarsus-app .tarsus-table-wrap table {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    border-collapse: collapse;
+}
+
+.tarsus-app .tarsus-card__answer-body th,
+.tarsus-app .tarsus-card__answer-body td,
+.tarsus-app .tarsus-learn-slide__text th,
+.tarsus-app .tarsus-learn-slide__text td,
+.tarsus-app .tarsus-practice-card__feedback th,
+.tarsus-app .tarsus-practice-card__feedback td {
+    border: 1px solid var(--tz-line-table);
+    padding: 0.25rem 0.5rem;
+}
+
+.tarsus-app .tarsus-card code {
+    word-break: break-word;
+}
+
+.tarsus-app .tarsus-card pre {
+    overflow-x: auto;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background: var(--tz-soft);
+}
+
+.tarsus-app .tarsus-math--display {
+    display: block;
+    text-align: center;
+    margin: 0.5rem 0;
+}
+
+/* Practice question cards (Test knowledge). */
+.tarsus-chat-box .tarsus-practice-card {
+    border: 0;
+    padding: 0 8px 8px;
+    background: var(--tz-frame-practice);
+    box-shadow: 0 10px 28px rgba(24, 74, 90, 0.1);
+}
+
+.tarsus-chat-box .tarsus-practice-card .tarsus-practice-card__inner {
+    background: var(--tz-card);
+    border-radius: 13px;
+    padding: 1rem;
+}
+
+/* The frame band at the top of practice and learning cards. */
+.tarsus-chat-box .tarsus-card__band {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.5rem 1rem;
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-badge,
+.tarsus-chat-box .tarsus-card__band .tarsus-difficulty,
+.tarsus-chat-box .tarsus-card__band .tarsus-learn-ring {
+    height: 24px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    background: var(--tz-chip);
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-badge {
+    color: var(--tz-chip-ink);
+    font-weight: 400;
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-difficulty {
+    padding: 0 0.4rem 5px;
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-learn-ring {
+    width: 24px;
+    padding: 3px;
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-learn-ring__track {
+    stroke: var(--tz-band-ring-track);
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-learn-ring__fill {
+    stroke: var(--tz-accent-stroke);
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-learn-ask {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 24px;
+    margin-left: auto;
+    padding: 0 0.5rem;
+    border: 0;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    line-height: 1;
+    white-space: nowrap;
+    background: var(--tz-chip);
+    color: var(--tz-chip-ink);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tarsus-chat-box .tarsus-card__band .tarsus-learn-ask:hover,
+.tarsus-chat-box .tarsus-card__band .tarsus-learn-ask:focus-visible {
+    background: var(--tz-accent);
+    color: #fff;
+}
+
+/* Difficulty as three ascending bars, filled up to the grade. */
+.tarsus-difficulty {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    align-self: center;
+}
+
+.tarsus-difficulty__bar {
+    width: 4px;
+    border-radius: 1px;
+    background: var(--tz-track-ink);
+}
+
+.tarsus-difficulty__bar:nth-child(1) {
+    height: 6px;
+}
+
+.tarsus-difficulty__bar:nth-child(2) {
+    height: 10px;
+}
+
+.tarsus-difficulty__bar:nth-child(3) {
+    height: 14px;
+}
+
+.tarsus-difficulty__bar--filled {
+    background: var(--tz-ink);
+}
+
+.tarsus-difficulty--1 .tarsus-difficulty__bar--filled {
+    background: var(--tz-level-1);
+}
+
+.tarsus-difficulty--2 .tarsus-difficulty__bar--filled {
+    background: var(--tz-level-2);
+}
+
+.tarsus-difficulty--3 .tarsus-difficulty__bar--filled {
+    background: var(--tz-level-3);
+}
+
+.tarsus-practice-card__question {
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.tarsus-practice-card__question > :last-child {
+    margin-bottom: 0;
+}
+
+.tarsus-practice-card__choices {
+    display: flex;
+    flex-direction: column;
+}
+
+.tarsus-practice-choice {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0.75rem 0.9rem;
+    border-radius: 0.5rem;
+    border-bottom: 1px solid var(--tz-line-soft);
+    cursor: pointer;
+    font-weight: 400;
+}
+
+.tarsus-practice-choice__input {
+    margin: 0;
+}
+
+.tarsus-practice-card--answered .tarsus-practice-choice {
+    cursor: default;
+    color: var(--tz-faint);
+}
+
+.tarsus-practice-choice--correct {
+    background: var(--tz-success-soft);
+    color: var(--tz-fg);
+}
+
+.tarsus-practice-choice--incorrect {
+    background: var(--tz-danger-soft);
+    color: var(--tz-fg);
+}
+
+.tarsus-practice-card__actions {
+    margin-top: 0.75rem;
+}
+
+.tarsus-practice-card__feedback {
+    margin-top: 1rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 0.75rem;
+    background: var(--tz-soft);
+}
+
+.tarsus-practice-card__feedback--correct {
+    background: var(--tz-success-soft);
+}
+
+.tarsus-practice-card__feedback--incorrect {
+    background: var(--tz-danger-soft);
+}
+
+.tarsus-practice-card__feedback--partial {
+    background: var(--tz-warning-soft);
+}
+
+.tarsus-practice-card__score {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.tarsus-practice-card__score-track {
+    flex: 1 1 auto;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--tz-track);
+    overflow: hidden;
+}
+
+.tarsus-practice-card__score-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #f0932b 0%, #f6c453 100%);
+    transition: width 0.5s ease;
+}
+
+.tarsus-practice-card__score-value {
+    flex: 0 0 auto;
+    font-size: 0.875rem;
+    color: var(--tz-muted);
+}
+
+.tarsus-practice-card__variables {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.tarsus-practice-variable {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+    font-weight: 400;
+}
+
+.tarsus-practice-variable__name {
+    min-width: 5rem;
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 0.9rem;
+    color: var(--tz-fg);
+}
+
+.tarsus-practice-variable--incorrect .tarsus-practice-variable__input {
+    border-color: var(--tz-danger);
+    background: var(--tz-danger-soft);
+}
+
+.tarsus-practice-card__table-wrap {
+    overflow-x: auto;
+    margin-bottom: 0.25rem;
+}
+
+.tarsus-practice-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.tarsus-practice-table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--tz-faint);
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--tz-line);
+}
+
+.tarsus-practice-table td {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--tz-line-soft);
+    vertical-align: middle;
+}
+
+.tarsus-practice-table__position {
+    white-space: nowrap;
+}
+
+.tarsus-practice-table__cell {
+    min-width: 7rem;
+}
+
+.tarsus-practice-table__input {
+    max-width: 10rem;
+}
+
+.tarsus-practice-table__cell--incorrect .tarsus-practice-table__input {
+    border-color: var(--tz-danger);
+    background: var(--tz-danger-soft);
+}
+
+/* Build knowledge cards. */
+.tarsus-chat-box .tarsus-learn-card {
+    border: 0;
+    padding: 0 8px 8px;
+    background: var(--tz-frame-learn);
+    box-shadow: 0 10px 28px rgba(70, 50, 120, 0.1);
+}
+
+.tarsus-chat-box .tarsus-learn-card .tarsus-learn-card__inner {
+    background: var(--tz-card);
+    border-radius: 13px;
+    padding: 1rem;
+}
+
+.tarsus-learn-ring {
+    flex-shrink: 0;
+    transform: rotate(-90deg);
+}
+
+.tarsus-learn-ring__track,
+.tarsus-learn-ring__fill {
+    fill: none;
+    stroke-width: 5.33;
+}
+
+.tarsus-learn-ring__track {
+    stroke: var(--tz-ring-track);
+}
+
+.tarsus-learn-ring__fill {
+    stroke: var(--tz-ink);
+    stroke-linecap: round;
+    stroke-dasharray: 56.55;
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+.tarsus-learn-slide__title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 0.6rem;
+}
+
+.tarsus-learn-slide__body {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.tarsus-learn-slide__body--left {
+    flex-direction: row;
+}
+
+.tarsus-learn-slide__body--right {
+    flex-direction: row-reverse;
+}
+
+.tarsus-learn-slide__image {
+    flex: 0 0 38%;
+    max-width: 38%;
+    height: auto;
+    border-radius: 8px;
+    cursor: zoom-in;
+}
+
+.tarsus-learn-slide__image:focus-visible {
+    outline: 3px solid var(--tz-focus);
+    outline-offset: 2px;
+}
+
+.tarsus-learn-slide__text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+@media (max-width: 575.98px) {
+    .tarsus-learn-slide__body,
+    .tarsus-learn-slide__body--right {
+        flex-direction: column;
+    }
+
+    .tarsus-learn-slide__image {
+        max-width: 100%;
+        flex-basis: auto;
+    }
+}
+
+.tarsus-learn-card__nav {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.tarsus-chat-box .tarsus-learn-card .tarsus-practice-card--inslide {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    margin: 0;
+    border: 0;
+}
+
+.tarsus-chat-box .tarsus-learn-card .tarsus-practice-card--inslide .tarsus-practice-card__inner {
+    padding: 0;
+    border-radius: 0;
+}
+
+/* The objectives list. */
+.tarsus-learn-objectives {
+    list-style: none;
+    margin: 1.25rem 0 0;
+    padding: 0;
+    text-align: left;
+}
+
+.tarsus-learn-objectives__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+}
+
+.tarsus-learn-objectives__item:nth-child(odd) {
+    background: var(--tz-row-alt);
+}
+
+.tarsus-learn-objectives__number {
+    flex: 0 0 1.75rem;
+    height: 1.75rem;
+    border-radius: 6px;
+    background: var(--tz-number-bg);
+    color: var(--tz-number-fg);
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tarsus-learn-objectives__text {
+    flex: 1 1 auto;
+}
+
+.tarsus-learn-objectives__item--done .tarsus-learn-objectives__text {
+    text-decoration: line-through;
+    color: var(--tz-faint);
+}
+
+.tarsus-learn-objectives__item .tarsus-badge {
+    flex: 0 0 auto;
+    align-self: center;
+}
+
+/* The narration control. */
+.tarsus-chat-box .tarsus-learn-player {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.tarsus-chat-box .tarsus-learn-player__toggle {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tz-chip);
+    color: var(--tz-chip-ink);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tarsus-chat-box .tarsus-learn-player__toggle .tarsus-icon {
+    font-size: 0.85rem;
+}
+
+.tarsus-chat-box .tarsus-learn-player[data-state="loading"] .tarsus-learn-player__toggle {
+    color: var(--tz-loading-glyph);
+    cursor: progress;
+}
+
+.tarsus-chat-box .tarsus-learn-player[data-state="loading"] .tarsus-learn-player__toggle .tarsus-icon {
+    font-size: 0.6rem;
+}
+
+.tarsus-chat-box .tarsus-learn-player[data-state="loading"] .tarsus-learn-player__toggle::after {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border-radius: 50%;
+    border: 2px solid var(--tz-loading-ring);
+    border-top-color: var(--tz-accent-stroke);
+    animation: tarsus-turn 0.9s linear infinite;
+}
+
+.tarsus-chat-box .tarsus-learn-player[data-state="ready"] .tarsus-learn-player__toggle,
+.tarsus-chat-box .tarsus-learn-player[data-state="playing"] .tarsus-learn-player__toggle {
+    background: var(--tz-accent);
+    color: #fff;
+}
+
+.tarsus-chat-box .tarsus-learn-player__wave {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 20px;
+    width: 12rem;
+    max-width: 40vw;
+}
+
+.tarsus-chat-box .tarsus-learn-player__bar {
+    flex: 1 1 0;
+    min-width: 1px;
+    border-radius: 1px;
+    background: var(--tz-wave);
+}
+
+.tarsus-chat-box .tarsus-learn-player__bar--played {
+    background: var(--tz-accent-stroke);
+}
+
+/* The lightbox for slide illustrations. */
+.tarsus-lightbox {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    max-width: 100vw;
+    max-height: 100vh;
+    width: 100vw;
+    height: 100vh;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+}
+
+.tarsus-lightbox[open] {
+    display: flex;
+}
+
+.tarsus-lightbox::backdrop {
+    background: rgba(20, 24, 30, 0.72);
+    backdrop-filter: blur(4px);
+}
+
+.tarsus-lightbox__image {
+    max-width: min(92vw, 1400px);
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    background: var(--tz-card);
+    padding: 12px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+.tarsus-lightbox__close {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(255, 255, 255, 0.92);
+    color: #23282d;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+/* The processing indicator under the feed. */
+.tarsus-chat-box .tarsus-processing {
+    padding: 0.9rem 1.25rem 0.85rem;
+    background: var(--tz-card);
+    border: 1px solid var(--tz-line-soft);
+    box-shadow: var(--tz-card-shadow);
+}
+
+.tarsus-processing__row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+    font-size: 1.05rem;
+}
+
+.tarsus-processing__glyph {
+    font-size: 1.25rem;
+    animation: tarsus-turn 3s linear infinite;
+}
+
+.tarsus-processing__bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--tz-processing-track);
+    overflow: hidden;
+}
+
+.tarsus-processing__fill {
+    height: 100%;
+    width: 60%;
+    border-radius: 999px;
+    background: #4a98cf;
+    animation: tarsus-run 1.6s ease-in-out infinite;
+}
+
+@keyframes tarsus-turn {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes tarsus-run {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(170%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tarsus-processing__glyph,
+    .tarsus-processing__fill,
+    .tarsus-chat-box .tarsus-learn-player[data-state="loading"] .tarsus-learn-player__toggle::after {
+        animation: none;
+    }
+
+    .tarsus-practice-card__score-fill,
+    .tarsus-chat-box .tarsus-progress__fill,
+    .tarsus-learn-ring__fill {
+        transition: none;
+    }
+}

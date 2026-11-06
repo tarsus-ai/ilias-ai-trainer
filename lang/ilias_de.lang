@@ -1,0 +1,362 @@
+// Tarsus für ILIAS - Deutsch
+// Objekttyp
+obj_xtar#:#Tarsus
+objs_xtar#:#Tarsus
+obj_xtar_duplicate#:#Tarsus-Objekt kopieren
+objs_xtar_duplicate#:#Tarsus-Objekte kopieren
+xtar_add#:#Tarsus hinzufügen
+xtar_new#:#Neues Tarsus-Objekt anlegen
+xtar_read#:#Lesezugriff
+xtar_write#:#Schreibzugriff
+xtar_delete#:#Löschen
+xtar_visible#:#Sichtbar
+xtar_edit_permission#:#Rechte ändern
+xtar_copy#:#Kopieren
+crs_create_xtar#:#Tarsus anlegen
+grp_create_xtar#:#Tarsus anlegen
+fold_create_xtar#:#Tarsus anlegen
+cat_create_xtar#:#Tarsus anlegen
+root_create_xtar#:#Tarsus anlegen
+// Reiter und Allgemeines
+tab_content#:#Lernbegleiter
+tab_materials#:#Materialien
+tab_learners#:#Lernende
+tab_settings#:#Einstellungen
+status#:#Status
+offline#:#Offline
+online#:#Online
+online_info#:#Nur Online-Objekte werden Lernenden angezeigt. Lassen Sie das Objekt offline, bis die Materialien indexiert und einbezogen sind.
+offline_notice#:#Dieses Objekt ist offline: Lernende sehen es noch nicht. Schalten Sie es in den Einstellungen online, sobald Materialien einbezogen sind.
+your_progress#:#Ihr Fortschritt
+total#:#gesamt
+export_csv#:#Als CSV exportieren
+unexpected_error#:#Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.
+session_lost#:#Ihre Sitzung ist abgelaufen. Bitte laden Sie die Seite neu.
+permission_denied#:#Dazu fehlt Ihnen die Berechtigung.
+invalid_request#:#Die Anfrage war ungültig.
+empty_query#:#Bitte geben Sie eine Frage ein.
+empty_answer#:#Bitte beantworten Sie zuerst die Frage.
+info_section#:#Lernbegleiter
+info_modes#:#Modi
+info_no_modes#:#Kein Modus ist eingeschaltet
+info_dqr#:#Schwierigkeitsniveau (DQR)
+info_included#:#Einbezogene Materialien
+no_modes_notice#:#In diesem Objekt ist kein Modus eingeschaltet. Aktivieren Sie in den Einstellungen mindestens einen Modus.
+noscope_teacher#:#Es sind noch keine Materialien einbezogen, der Assistent kann daher nicht antworten. Indexieren Sie Kursmaterial und schalten Sie es unter <a href="%s">Materialien</a> ein.
+demo_note#:#Demo-Modus: Die Antworten stammen aus einem eingebauten Beispiel, nicht vom Tarsus-Brain. Administratoren können den Demo-Modus in der Plugin-Konfiguration abschalten.
+description_info#:#Der Assistent stellt das Objekt mit Titel und Beschreibung vor; eine kurze Beschreibung des Themas hilft ihm.
+cron_title#:#Tarsus: Brain abgleichen
+cron_description#:#Hält das Tarsus-Brain mit dem Magazin in Einklang: zieht gelöschtes Material zurück, sendet geändertes Material erneut, bestätigt ausstehende Uploads und wiederholt Löschungen, die nicht zugestellt werden konnten.
+// Materialien
+materials_intro#:#Das Material dieses Kurses (Dateien, Weblinks, Inhaltsseiten, Wikis, Lernmodule und Glossare). Indexieren Sie es, um es an das Brain zu senden, und schalten Sie es dann in der Spalte „Einbezogen“ ein, damit dieses Objekt es nutzen darf.
+materials_count_total#:#Materialien
+materials_count_indexed#:#indexiert
+materials_count_included#:#einbezogen
+col_material#:#Material
+col_type#:#Typ
+col_status#:#Status
+col_included#:#Einbezogen
+col_actions#:#Aktionen
+bulk_index#:#Diese Seite indexieren
+bulk_include#:#Alle Indexierten dieser Seite einbeziehen
+bulk_sync#:#Diese Seite mit dem Brain abgleichen
+bulk_help#:#Sammelaktionen gelten nur für die auf dieser Seite gelisteten Materialien. Das Brain beantwortet bis zu 10 Ressourcen pro Aufruf, eine Seite kostet also einen Aufruf.
+bulk_done#:#Erledigt.
+sync_done#:#Die Seite ist mit dem Brain abgeglichen.
+too_many_resources#:#Zu viele Ressourcen in einem Stapel: höchstens {max} pro Aufruf.
+invalid_resource#:#Die Ressource gehört nicht zu diesem Kurs.
+action_failed#:#Die angeforderte Aktion konnte nicht auf diese Ressource angewendet werden.
+include_not_indexed#:#Nur indexierte Ressourcen können einbezogen werden. Zuerst indexieren, dann einschalten.
+no_materials#:#Dieser Kurs enthält noch kein indexierbares Material.
+material_gone#:#(aus dem Kurs entfernt)
+action_index#:#Indexieren
+action_reindex#:#Neu indexieren
+action_remove#:#Entfernen
+action_retry#:#Erneut versuchen
+confirmremove_title#:#Aus dem Brain entfernen?
+confirmremove_body#:#Dieses Material wird aus dem Brain entfernt und nicht mehr zur Beantwortung von Fragen verwendet. Sie können es später erneut indexieren.
+pager#:#Seiten
+pager_previous#:#Zurück
+pager_next#:#Weiter
+pager_state#:#Seite {page} von {pages}
+bittype_text#:#Text
+bittype_url#:#Link
+bittype_document#:#Dokument
+bittype_media#:#Medium
+status_notindexed#:#Nicht indexiert
+status_pending#:#Ausstehend
+status_pendingconfirmation#:#Warten auf Bestätigung
+status_indexed#:#Indexiert
+status_pendingreindex#:#Inhalt geändert
+status_pendingdeletion#:#Entfernung ausstehend
+status_error#:#Fehler
+// Lernende
+col_learner#:#Lernende/r
+col_progress#:#Fortschritt
+col_score#:#Bewertung
+col_lp_status#:#Lernfortschritt
+col_last_activity#:#Letzte Aktivität
+avg_progress#:#Ø Fortschritt
+avg_score#:#Ø Bewertung {score}
+n_learners#:#{count} Lernende
+n_completed#:#{count} abgeschlossen
+n_inprogress#:#{count} in Arbeit
+n_notstarted#:#{count} nicht begonnen
+distribution#:#{completed} abgeschlossen, {inprogress} in Arbeit, {notstarted} nicht begonnen
+histogram#:#Lernende nach Fortschritt
+learners_threshold#:#Lernende gelten als abgeschlossen, sobald ihr Fortschritt {threshold} % erreicht.
+no_learners#:#Noch niemand hat dieses Objekt genutzt.
+not_member#:#kein Mitglied
+lp_completed#:#Abgeschlossen
+lp_in_progress#:#In Arbeit
+lp_not_attempted#:#Nicht begonnen
+// Einstellungen
+settings_title#:#Tarsus-Einstellungen
+settings_modes#:#Modi
+settings_general#:#KI-Einstellungen: Allgemein
+settings_ask#:#KI-Einstellungen: Frage stellen
+settings_test#:#KI-Einstellungen: Wissen testen
+settings_build#:#KI-Einstellungen: Wissen aufbauen
+askenabled#:#Frage stellen aktivieren
+askenabled_help#:#Wenn ausgeschaltet, wird der Chat-Modus in diesem Objekt für Lernende ausgeblendet.
+testenabled#:#Wissen testen aktivieren
+testenabled_help#:#Wenn ausgeschaltet, wird der Übungsmodus in diesem Objekt für Lernende ausgeblendet.
+buildenabled#:#Wissen aufbauen aktivieren
+buildenabled_help#:#Wenn ausgeschaltet, wird der Modus Wissen aufbauen in diesem Objekt für Lernende ausgeblendet.
+gifenabled#:#GIFs zulassen
+gifenabled_help#:#Wenn aktiviert, dürfen die Lernkarten GIF-Animationen enthalten. GIFs können mehr AI Credits verbrauchen.
+learningmethod#:#Didaktisches Konzept
+learningmethod_help#:#Das didaktische Konzept des Modus Wissen aufbauen. Microlearning vermittelt Wissen in kurzen, zielgerichteten Einheiten, die sich leicht in den Alltag integrieren lassen und unmittelbar anwendbar sind.
+learningmethod_microlearning#:#Microlearning
+error_modesrequired#:#Aktivieren Sie mindestens einen der Modi.
+conversationstyle#:#Gesprächsstil
+conversationstyle_help#:#Wie der Assistent das Gespräch führt: von Geschlossen (kurze, faktische Antworten) über Lexikalisch, Tutorisch und Sokratisch (leitende Gegenfragen) bis Offen (freies Gespräch).
+style_closed#:#Geschlossen
+style_lexical#:#Lexikalisch
+style_tutorial#:#Tutorisch
+style_socratic#:#Sokratisch
+style_open#:#Offen
+dqr#:#Schwierigkeitsniveau (DQR)
+dqr_help#:#Das DQR-Niveau, auf dem der Assistent antwortet, von 2-jährigen Ausbildungsberufen (Niveau 3) bis Master Professional (Niveau 7).
+dqr_level3#:#2-jährige Ausbildungsberufe
+dqr_level4#:#3-jährige Ausbildungsberufe
+dqr_level5#:#Spezialist
+dqr_level6#:#Bachelor Professional
+dqr_level7#:#Master Professional
+industry#:#Zielgruppe
+industry_help#:#Für wen dieses Objekt gedacht ist: das Fachgebiet bzw. die Domäne, z. B. „Steuerrecht“ oder „E-Commerce“. Hilft dem Assistenten, passende Situationen und die richtige Terminologie zu wählen. Kann leer bleiben.
+taxonomylevels#:#Taxonomiestufen
+taxonomylevels_help#:#Die Taxonomiestufen nach Bloom, auf die die Übungsfragen im Modus „Wissen testen“ abzielen dürfen. Mindestens eine Stufe muss aktiviert bleiben.
+taxonomy_knowledge#:#Wissen
+taxonomy_understanding#:#Verstehen
+taxonomy_application#:#Anwenden
+questiontypes_grade#:#Fragetypen: {grade}
+questiontypes_help#:#Welche Fragetypen der Assistent je Schwierigkeitsgrad des Modus „Wissen testen“ erzeugen darf. Jeder Schwierigkeitsgrad braucht mindestens einen Typ.
+difficulty_easy#:#Einfach
+difficulty_medium#:#Mittel
+difficulty_hard#:#Schwer
+qtype_singlechoice#:#Single Choice
+qtype_truefalse#:#Wahr / Falsch
+qtype_open#:#Offene Frage
+qtype_crossmultiplication#:#Dreisatz
+qtype_tradecosting#:#Tabellenkalkulation
+qtype_unknown#:#Unbekannter Fragetyp
+operators#:#Operatoren
+operators_help#:#Welcher Operatoren-Taxonomie die Übungsfragen folgen. Standard erlaubt alle Operatoren; IHK beschränkt die Fragen auf die vier IHK-Operatoren (nennen, beschreiben, erklären, erläutern).
+operators_standard#:#Standard (alle Operatoren)
+operators_ihk#:#IHK (nennen, beschreiben, erklären, erläutern)
+anticheat#:#Schummelschutz
+anticheat_help#:#Wenn aktiviert, können Lernende den Chat nicht zu einer Übungsfrage befragen, die der Assistent ihnen gerade gestellt hat.
+learntempo#:#Lerntempo
+learntempo_help#:#Steuert zweierlei: wie schnell der Schwierigkeitsgrad der Fragen steigt oder fällt, und wie schnell die Erfahrungspunkte wachsen. Ein höheres Tempo bedeutet weniger Fragen, schnelleren Fortschritt und geringere KI-Nutzung; ein niedrigeres Tempo mehr Fragen und mehr Punkte pro Thema. x1 ist das empfohlene Tempo.
+learntempo_recommended#:#{label} (empfohlen)
+error_taxonomyrequired#:#Aktivieren Sie mindestens eine Taxonomiestufe.
+error_questiontypesrequired#:#Wählen Sie für diesen Schwierigkeitsgrad mindestens einen Fragetyp.
+completionprogress#:#Abgeschlossen ab Fortschritt von
+completionprogress_help#:#Der Lernfortschritt wechselt auf „abgeschlossen“, sobald der vom Brain gemeldete Fortschritt diesen Prozentwert erreicht. „Wissen testen“ zählt den Übungsfortschritt, „Wissen aufbauen“ den Lernfortschritt, beide zusammen den Gesamtfortschritt des Brains. 0 schaltet die Regel ab.
+// Chat
+jump_top#:#Nach oben
+practice_start#:#Starten
+practice_next#:#Weiter
+practice_check#:#Prüfen
+practice_answer_placeholder#:#Schreibe hier deine Antwort...
+practice_nowidget#:#Der Assistent konnte aus den einbezogenen Materialien keine Frage der gewählten Typen erstellen. Versuche es erneut oder bitte deine Lehrkraft, die Fragetypen oder die Materialien anzupassen.
+practice_variable_placeholder#:#Deine Antwort
+practice_table_position#:#Position
+practice_table_rate#:#Satz
+practice_table_amount#:#Betrag
+choice_true#:#Wahr
+choice_false#:#Falsch
+xp#:#XP
+learning_units#:#LU
+practice_score#:#Bewertung der Antwort
+practice_progress#:#Fortschritt
+mode_switch#:#Interaktionsmodus
+mode_build#:#Wissen aufbauen
+mode_test#:#Wissen testen
+mode_ask#:#Frage stellen
+send#:#Senden
+chat_placeholder#:#Stelle eine Frage zu den Kursmaterialien...
+loading_history#:#Unterhaltungsverlauf wird geladen...
+learn_slide_of#:#Folie {current} von {total}
+learn_previous#:#Zurück
+learn_next#:#Weiter
+learn_image_enlarge#:#Bild vergrößern
+learn_image_close#:#Schließen
+learn_audio#:#Lerneinheit anhören
+learn_audio_play#:#Abspielen
+learn_audio_pause#:#Pause
+learn_audio_unavailable#:#Das Brain konnte diese Lerneinheit gerade nicht vorlesen.
+learn_ask_about#:#Dazu fragen
+chat_reply_about#:#Frage zu: {title}
+chat_reply_clear#:#Bezug entfernen
+learn_complete_title#:#Super! Du hast die Lerneinheit geschafft.
+learn_motivation_title#:#Super! Du bist einen Schritt weiter.
+learn_nowidget#:#Der Assistent konnte gerade keine Lerneinheit aus den einbezogenen Materialien erstellen. Bitte versuche es erneut.
+chat_modedisabled#:#Dieser Modus ist in diesem Objekt ausgeschaltet.
+chat_noscope#:#Diesem Assistenten stehen noch keine Materialien zur Verfügung. Eine Lehrkraft muss zuerst Kursinhalte indexieren und in der Spalte „Einbezogen“ einschalten.
+resetchat#:#Chat-Verlauf zurücksetzen
+resetchat_confirm#:#Den gesamten Verlauf mit dem Assistenten in „%s“ löschen: den Chat, alle Übungsfragen und die Erfahrungspunkte? Der Assistent vergisst alles Besprochene, und die nächste Frage beginnt ein neues Gespräch. Dies kann nicht rückgängig gemacht werden.
+resetchat_done#:#Chat, Übungsverlauf und Erfahrungspunkte wurden gelöscht.
+resetchat_failed#:#Deine Unterhaltung konnte gerade nicht gelöscht werden. Bitte versuche es später erneut.
+guardrail_blocked_killswitch#:#Schnittstellenaufrufe sind derzeit von der Administration deaktiviert.
+guardrail_blocked_breaker#:#Das Tarsus-System antwortet langsam und ruht kurzzeitig. Bitte versuche es in wenigen Minuten noch einmal.
+guardrail_blocked_budget#:#Das tägliche Budget ist aufgebraucht. Bitte versuche es morgen erneut.
+guardrail_blocked_ratelimit#:#Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.
+transport_error#:#Das Brain konnte nicht erreicht werden. Bitte versuche es gleich noch einmal.
+err_notconfigured#:#Tarsus ist nicht konfiguriert: Die Administration muss in der Plugin-Konfiguration Basis-URL, API-Schlüssel und Brain-ID hinterlegen oder den Mock-Modus aktivieren.
+err_nobrainselected#:#Es ist kein Tarsus-Brain ausgewählt. Die Administration muss in der Plugin-Konfiguration eines auswählen.
+// Verarbeitungsschritte
+proc_ask_classify#:#Ihre Frage wird nach Thema und Absicht eingeordnet
+proc_ask_search#:#Semantische Suche im indexierten Kurswissen
+proc_ask_media#:#Text-, Bild-, Audio- und Videostellen im Abgleich
+proc_ask_select#:#Die relevantesten Passagen werden ausgewählt
+proc_ask_cube#:#Ihr Stand im Lernwürfel wird gelesen
+proc_ask_dqr#:#Die Erklärtiefe wird auf Ihr DQR-Niveau abgestimmt
+proc_ask_compose#:#Die Antwort wird aus den gefundenen Quellen formuliert
+proc_ask_verify#:#Gegenprüfung der Antwort an den Originalstellen
+proc_ask_polish#:#Letzter Feinschliff der Antwort
+proc_practice_cube_create#:#Ihr Lernwürfel für diesen Kurs wird angelegt
+proc_practice_baseline#:#Ihr Ausgangsniveau für das Thema wird geschätzt
+proc_practice_evaluate#:#Ihre letzten Antworten werden ausgewertet
+proc_practice_compare#:#Erwartete und tatsächliche Trefferquote im Vergleich
+proc_practice_surprise#:#Überraschende Antworten zählen mehr als erwartbare
+proc_practice_reestimate#:#Ihr Themenwert wird neu geschätzt
+proc_practice_align#:#Abgleich von Thema, Taxonomiestufe und Wissensart
+proc_practice_cells#:#Aktive Zellen mit niedrigem Stand werden gesucht
+proc_practice_history#:#Verlauf wird geprüft: Wachstum, Schwankung, Vergessen
+proc_practice_action#:#Die nächste beste Lernaktion wird gewählt
+proc_practice_taxonomy#:#Taxonomiestufe: Wissen, Verstehen oder Anwenden
+proc_practice_difficulty#:#Der Schwierigkeitsgrad wird gesetzt
+proc_practice_format#:#Passendes Aufgabenformat wird ausgewählt
+proc_practice_generate#:#Die Aufgabe wird aus Ihren Kursinhalten erzeugt
+proc_practice_operators#:#Die Fragestellung wird nach den Operatoren formuliert
+proc_practice_options#:#Antwortoptionen und Erklärungen werden ausgearbeitet
+proc_practice_solution#:#Musterlösung und Bewertungsmaßstab werden festgelegt
+proc_practice_polish#:#Letzter Feinschliff Ihrer Aufgabe
+proc_learn_path_create#:#Ihr Lernpfad für diesen Kurs wird angelegt
+proc_learn_progress#:#Ihr Lernfortschritt wird gelesen
+proc_learn_objectives#:#Erreichte und offene Lernziele werden abgeglichen
+proc_learn_cells#:#Offene Zellen im Lernwürfel werden bestimmt
+proc_learn_next#:#Nächstes Lernziel: Wissen, Verstehen oder Anwenden
+proc_learn_passages#:#Passende Passagen aus Ihrem Kurs werden gesammelt
+proc_learn_dqr#:#Die Erklärungen werden auf Ihr DQR-Niveau abgestimmt
+proc_learn_split#:#Die Lerneinheit wird in einzelne Karten aufgeteilt
+proc_learn_examples#:#Beispiele und Bilder werden ausgewählt
+proc_learn_link#:#Anschluss an bereits Gelerntes wird hergestellt
+proc_learn_check#:#Die Lernkarten werden auf Verständlichkeit geprüft
+proc_learn_path_update#:#Ihr Lernpfad wird fortgeschrieben
+proc_learn_polish#:#Letzter Feinschliff Ihrer Lerneinheit
+// Plugin-Konfiguration
+cfg_title#:#Tarsus-Konfiguration
+cfg_tab_settings#:#Einstellungen
+cfg_tab_brains#:#Brains
+cfg_tab_deletions#:#Löschungen
+cfg_tab_status#:#Status
+settings_connection#:#Tarsus-Verbindung
+settings_connection_desc#:#Diese Installation mit Tarsus verbinden. Ein Brain pro Installation.
+apikey#:#API-Schlüssel
+apikey_desc#:#Der Tarsus-API-Schlüssel. Wird in der Datenbank gespeichert und nie an den Browser gesendet.
+apikey_keep#:#Ein Schlüssel ist hinterlegt; lassen Sie das Feld leer, um ihn zu behalten.
+apikey_none#:#Es ist noch kein Schlüssel hinterlegt.
+brainid#:#Brain-ID
+brainid_desc#:#Das einzige von dieser Installation genutzte Tarsus-Brain. Wählen Sie eines der Brains, die der API-Schlüssel erreicht:
+baseurl#:#Basis-URL
+baseurl_desc#:#Die Basis-URL der Tarsus-API. Nur den Host eintragen, z. B. https://api.example.org, ohne den Pfad /api/v1/...
+error_baseurl#:#Geben Sie eine URL ein, die mit http:// oder https:// beginnt.
+settings_assistant#:#Assistent
+settings_assistant_desc#:#Wie sich der KI-Assistent im Chat vorstellt. Eine Identität für die gesamte Installation.
+robotname#:#Name des Assistenten
+robotname_desc#:#Der Name des KI-Assistenten, wie Lernende ihn sehen.
+robotid#:#Assistenten-ID
+robotid_desc#:#Die ID dieses Assistenten auf Tarsus-Seite, wie von Tarsus mitgeteilt. Standard ist der Name.
+robotdescription#:#Beschreibung des Assistenten
+robotdescription_desc#:#Eine kurze Beschreibung des Assistenten, z. B. Rolle oder Anweisungen.
+robotavatar#:#Avatar des Assistenten
+robotavatar_desc#:#Das Bild neben den Antworten des Assistenten im Chat. Quadratische Bilder eignen sich am besten; das Bild wird auf 160 Pixel verkleinert.
+error_avatar#:#Der Avatar konnte nicht als Bild gelesen werden (PNG, JPEG, GIF oder WebP bis 2 MB).
+voice_mode#:#Stimmauswahl
+voice_mode_desc#:#Wie die Stimme gewählt wird, die Lerneinheiten vorliest.
+voice_mode_auto#:#Nach der Sprache der Lernenden (die Stimme unten, wenn es für die Sprache keine gibt)
+voice_mode_fixed#:#Eine Stimme für alle
+voice#:#Stimme
+voice_desc#:#Eine Stimme aus der Liste des Brains. Im festen Modus für alle, im automatischen Modus als Rückfall.
+voice_refresh#:#Stimmenliste neu vom Brain laden
+voices_refreshed#:#{count} Stimmen vom Brain geladen.
+voice_label#:#{alias} ({language}, {gender})
+voice_female#:#weiblich
+voice_male#:#männlich
+settings_guardrails#:#Schutzmechanismen
+settings_guardrails_desc#:#Begrenzen Verfügbarkeit und Credit-Verbrauch. Sie schützen den Endpunkt und das Budget.
+mockmode#:#Mock-Modus (Demo)
+mockmode_desc#:#Wenn aktiviert, wird der gesamte Tarsus-Verkehr von einem deterministischen eingebauten Beispiel bedient: keine Live-API-Aufrufe. Bis zum Abschalten aktiv.
+killswitch#:#Not-Aus
+killswitch_desc#:#Wenn aktiviert, werden alle ausgehenden Aufrufe sofort blockiert.
+ratelimit#:#Ratenbegrenzung (Aufrufe pro Minute)
+ratelimit_desc#:#Maximale Anzahl ausgehender Aufrufe pro Minute (Token-Bucket).
+creditbudget#:#Credit-Budget (pro Tag)
+creditbudget_desc#:#Maximale AI Credits pro Tag, bevor Aufrufe abgelehnt werden.
+brain_col_id#:#Brain-ID
+brain_col_status#:#Status
+brain_col_language#:#Sprache
+brain_col_tag#:#Tag
+brain_col_created#:#Erstellt
+brain_col_action#:#Aktion
+brain_active#:#Aktiv
+brain_inactive#:#Inaktiv
+brain_deleted#:#Gelöscht
+brain_inuse#:#In Verwendung
+brain_activate#:#Aktivieren
+brain_activated#:#Diese Installation verwendet jetzt das Brain „{brain}“.
+brain_activate_failed#:#Dieses Brain kann nicht aktiviert werden: unbekannt für diesen API-Schlüssel oder nicht mehr aktiv.
+brain_none_found#:#Der API-Schlüssel hat keine Brains geliefert. Basis-URL und API-Schlüssel prüfen oder Tarsus um Freischaltung bitten.
+brain_none_selected#:#Es ist noch kein Brain ausgewählt. Indexierung und Chat bleiben blockiert, bis eines aktiviert wird.
+brain_missing#:#Diese Installation ist auf das Brain „{brain}“ eingestellt, der API-Schlüssel kennt es aber nicht mehr. Es wurde vermutlich gelöscht. Bitte unten ein vorhandenes Brain aktivieren.
+deletions_none#:#Alles, was in dieser Installation gelöscht wurde, ist auch im Brain gelöscht.
+deletions_pending#:#Das Brain hat {count} Löschung(en) nicht bestätigt. Das passiert, wenn es im Moment des Löschens nicht erreichbar ist: Der Inhalt ist aus ILIAS verschwunden, kann aber weiterhin Fragen beantworten.
+deletions_resource#:#Ressource
+deletions_container#:#Kurs / Gruppe
+deletions_since#:#Wartet auf Entfernung seit
+deletions_retry#:#Jetzt erneut versuchen
+deletions_retried#:#{count} Löschung(en) abgeschlossen.
+container_gone#:#(gelöscht, Ref {ref})
+status_configured#:#Verbindung konfiguriert
+status_breaker#:#Schutzschalter
+status_breaker_open#:#Offen seit {since}
+status_breaker_closed#:#Geschlossen
+status_failures#:#{count} Fehler in Folge
+status_breaker_reset#:#Der Schutzschalter ist wieder geschlossen.
+status_reset_breaker#:#Schutzschalter zurücksetzen
+status_budget#:#Credit-Budget
+status_budget_value#:#{used} von {budget} Credits am heutigen Tag verbraucht
+status_bucket#:#Ratenbegrenzung
+status_bucket_value#:#{tokens} Aufrufe im Bucket übrig (Kapazität {limit} pro Minute)
+status_test#:#Verbindung testen
+status_test_ok#:#Das Brain hat geantwortet: {count} Brain(s) erreichbar.
+status_index#:#Index-Übersicht
+status_index_none#:#Es wurde noch nichts indexiert.
+status_usage#:#Nutzung der letzten 24 Stunden
+status_usage_none#:#Es wurden keine Aufrufe aufgezeichnet.
+status_operation#:#Operation
+status_calls#:#Aufrufe
+status_credits#:#Credits

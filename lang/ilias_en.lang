@@ -1,0 +1,362 @@
+// Tarsus for ILIAS - English
+// Object type
+obj_xtar#:#Tarsus
+objs_xtar#:#Tarsus
+obj_xtar_duplicate#:#Copy Tarsus object
+objs_xtar_duplicate#:#Copy Tarsus objects
+xtar_add#:#Add Tarsus
+xtar_new#:#Add new Tarsus
+xtar_read#:#Read access
+xtar_write#:#Write access
+xtar_delete#:#Delete
+xtar_visible#:#Visible
+xtar_edit_permission#:#Edit permissions
+xtar_copy#:#Copy
+crs_create_xtar#:#Create Tarsus
+grp_create_xtar#:#Create Tarsus
+fold_create_xtar#:#Create Tarsus
+cat_create_xtar#:#Create Tarsus
+root_create_xtar#:#Create Tarsus
+// Tabs and general
+tab_content#:#Learning companion
+tab_materials#:#Materials
+tab_learners#:#Learners
+tab_settings#:#Settings
+status#:#Status
+offline#:#Offline
+online#:#Online
+online_info#:#Only online objects are shown to learners. Keep the object offline until the materials are indexed and included.
+offline_notice#:#This object is offline: learners do not see it yet. Switch it online in the settings once materials are included.
+your_progress#:#Your progress
+total#:#total
+export_csv#:#Export as CSV
+unexpected_error#:#Something went wrong. Please try again.
+session_lost#:#Your session has expired. Please reload the page.
+permission_denied#:#You are not allowed to do this.
+invalid_request#:#The request was not valid.
+empty_query#:#Please enter a question.
+empty_answer#:#Please answer the question first.
+info_section#:#Learning companion
+info_modes#:#Modes
+info_no_modes#:#No mode is switched on
+info_dqr#:#Difficulty level (DQR)
+info_included#:#Included materials
+no_modes_notice#:#No mode is switched on in this object. Enable at least one mode in the settings.
+noscope_teacher#:#No materials are included yet, so the assistant cannot answer. Index course material and switch it on under <a href="%s">Materials</a>.
+demo_note#:#Demo mode: the answers come from a built-in sample, not from the Tarsus brain. An administrator can switch demo mode off in the plugin configuration.
+description_info#:#The assistant uses the title and the description to introduce the object; a short description of the subject helps it.
+cron_title#:#Tarsus: synchronise the brain
+cron_description#:#Keeps the Tarsus brain in step with the repository: withdraws material that was deleted, re-sends material that changed, confirms pending uploads and retries deletions that could not be delivered.
+// Materials
+materials_intro#:#The material of this course (files, web links, content pages, wikis, learning modules and glossaries). Index it to send it to the brain, then switch it on in the Included column so this object may use it.
+materials_count_total#:#materials
+materials_count_indexed#:#indexed
+materials_count_included#:#included
+col_material#:#Material
+col_type#:#Type
+col_status#:#Status
+col_included#:#Included
+col_actions#:#Actions
+bulk_index#:#Index this page
+bulk_include#:#Include all indexed on this page
+bulk_sync#:#Sync this page with the brain
+bulk_help#:#Bulk actions apply only to the materials listed on this page. The brain answers up to 10 resources per call, so one page costs one call.
+bulk_done#:#Done.
+sync_done#:#The page is in step with the brain.
+too_many_resources#:#Too many resources in one batch: at most {max} may be checked per call.
+invalid_resource#:#The resource does not belong to this course.
+action_failed#:#The requested action could not be applied to this resource.
+include_not_indexed#:#Only indexed resources can be included. Index it first, then switch it on.
+no_materials#:#This course has no indexable material yet.
+material_gone#:#(removed from the course)
+action_index#:#Index
+action_reindex#:#Re-index
+action_remove#:#Remove
+action_retry#:#Retry
+confirmremove_title#:#Remove from the brain?
+confirmremove_body#:#This material will be removed from the brain and will no longer be used to answer questions. You can re-index it again later.
+pager#:#Pages
+pager_previous#:#Previous
+pager_next#:#Next
+pager_state#:#Page {page} of {pages}
+bittype_text#:#Text
+bittype_url#:#Link
+bittype_document#:#Document
+bittype_media#:#Media
+status_notindexed#:#Not indexed
+status_pending#:#Pending
+status_pendingconfirmation#:#Awaiting confirmation
+status_indexed#:#Indexed
+status_pendingreindex#:#Content changed
+status_pendingdeletion#:#Pending removal
+status_error#:#Error
+// Learners
+col_learner#:#Learner
+col_progress#:#Progress
+col_score#:#Score
+col_lp_status#:#Learning progress
+col_last_activity#:#Last activity
+avg_progress#:#Average progress
+avg_score#:#Average score {score}
+n_learners#:#{count} learners
+n_completed#:#{count} completed
+n_inprogress#:#{count} in progress
+n_notstarted#:#{count} not started
+distribution#:#{completed} completed, {inprogress} in progress, {notstarted} not started
+histogram#:#Learners by progress
+learners_threshold#:#A learner counts as completed once the progress reaches {threshold} %.
+no_learners#:#No learner has used this object yet.
+not_member#:#not a member
+lp_completed#:#Completed
+lp_in_progress#:#In progress
+lp_not_attempted#:#Not started
+// Settings
+settings_title#:#Tarsus settings
+settings_modes#:#Modes
+settings_general#:#AI settings: general
+settings_ask#:#AI settings: Ask a question
+settings_test#:#AI settings: Test knowledge
+settings_build#:#AI settings: Build knowledge
+askenabled#:#Enable Ask a question
+askenabled_help#:#When switched off, the chat mode is hidden from learners in this object.
+testenabled#:#Enable Test knowledge
+testenabled_help#:#When switched off, the practice mode is hidden from learners in this object.
+buildenabled#:#Enable Build knowledge
+buildenabled_help#:#When switched off, the Build knowledge mode is hidden from learners in this object.
+gifenabled#:#Add GIFs
+gifenabled_help#:#When enabled, the learning cards may include GIF animations. GIFs can use more AI credits.
+learningmethod#:#Didactic concept
+learningmethod_help#:#The didactic concept the Build knowledge mode follows. Micro-learning teaches in short, focused units that are easy to fit into everyday work and immediately applicable.
+learningmethod_microlearning#:#Microlearning
+error_modesrequired#:#Enable at least one of the modes.
+conversationstyle#:#Conversation style
+conversationstyle_help#:#How the assistant leads the conversation: from Closed (short, factual answers) through Lexical, Tutorial and Socratic (guiding counter-questions) to Open (free-ranging discussion).
+style_closed#:#Closed
+style_lexical#:#Lexical
+style_tutorial#:#Tutorial
+style_socratic#:#Socratic
+style_open#:#Open
+dqr#:#Difficulty level (DQR)
+dqr_help#:#The German Qualifications Framework (DQR) level the assistant pitches its answers at, from 2-year vocational training programmes (level 3) to Master Professional (level 7).
+dqr_level3#:#2-year vocational training programmes
+dqr_level4#:#3-year vocational training programmes
+dqr_level5#:#Specialist
+dqr_level6#:#Bachelor Professional
+dqr_level7#:#Master Professional
+industry#:#Target group
+industry_help#:#Who this object is for: the domain or field of expertise, e.g. "tax law" or "e-commerce". Helps the assistant pick the right situations and terminology. May be left empty.
+taxonomylevels#:#Taxonomy levels
+taxonomylevels_help#:#The Bloom taxonomy levels the practice questions may target in the Test knowledge mode. At least one level must stay enabled.
+taxonomy_knowledge#:#Knowledge
+taxonomy_understanding#:#Understanding
+taxonomy_application#:#Application
+questiontypes_grade#:#Question types: {grade}
+questiontypes_help#:#Which question types the assistant may generate in each difficulty grade of the Test knowledge mode. Every grade needs at least one type.
+difficulty_easy#:#Easy
+difficulty_medium#:#Medium
+difficulty_hard#:#Hard
+qtype_singlechoice#:#Single choice
+qtype_truefalse#:#True / false
+qtype_open#:#Open question
+qtype_crossmultiplication#:#Rule of three
+qtype_tradecosting#:#Spreadsheet calculation
+qtype_unknown#:#Unknown question type
+operators#:#Task operators
+operators_help#:#Which operator taxonomy the practice questions follow. Standard allows any task operator; IHK limits questions to the four IHK operators (name, describe, explain, elaborate).
+operators_standard#:#Standard (any operator)
+operators_ihk#:#IHK (name, describe, explain, elaborate)
+anticheat#:#Cheat prevention
+anticheat_help#:#When enabled, learners cannot ask the chat about a practice question the assistant has just set them.
+learntempo#:#Learning pace
+learntempo_help#:#Steers two things at once: how fast the difficulty of the questions rises or falls, and how fast experience points grow. A faster pace means fewer questions, quicker progress and lower AI usage; a slower pace means more questions and more points per topic. x1 is the recommended pace.
+learntempo_recommended#:#{label} (recommended)
+error_taxonomyrequired#:#Enable at least one taxonomy level.
+error_questiontypesrequired#:#Select at least one question type for this difficulty grade.
+completionprogress#:#Completed at progress of
+completionprogress_help#:#The learning progress switches to "completed" once the learner's progress, as the brain reports it, reaches this percentage. Test knowledge counts its practice progress, Build knowledge its learning progress, both together the brain's overall progress. 0 switches the rule off.
+// Chat
+jump_top#:#Back to top
+practice_start#:#Start
+practice_next#:#Next
+practice_check#:#Check
+practice_answer_placeholder#:#Write your answer here...
+practice_nowidget#:#The assistant could not create a question of the selected types from the included materials. Try again, or ask your teacher to adjust the question types or the included materials.
+practice_variable_placeholder#:#Your answer
+practice_table_position#:#Position
+practice_table_rate#:#Rate
+practice_table_amount#:#Amount
+choice_true#:#True
+choice_false#:#False
+xp#:#XP
+learning_units#:#LU
+practice_score#:#Answer score
+practice_progress#:#Progress
+mode_switch#:#Interaction mode
+mode_build#:#Build knowledge
+mode_test#:#Test knowledge
+mode_ask#:#Ask a question
+send#:#Send
+chat_placeholder#:#Ask a question about the course materials...
+loading_history#:#Loading conversation history...
+learn_slide_of#:#Slide {current} of {total}
+learn_previous#:#Previous
+learn_next#:#Next
+learn_image_enlarge#:#Enlarge image
+learn_image_close#:#Close
+learn_audio#:#Listen to this unit
+learn_audio_play#:#Play
+learn_audio_pause#:#Pause
+learn_audio_unavailable#:#The brain could not read this unit aloud right now.
+learn_ask_about#:#Ask about this
+chat_reply_about#:#Asking about: {title}
+chat_reply_clear#:#Remove the reference
+learn_complete_title#:#Well done! You have completed the learning unit.
+learn_motivation_title#:#Great! One step further.
+learn_nowidget#:#The assistant could not prepare a learning unit from the included materials right now. Please try again.
+chat_modedisabled#:#This mode is switched off in this object.
+chat_noscope#:#No materials are available to this assistant yet. A teacher has to index course content and switch it on in the Included column first.
+resetchat#:#Reset chat history
+resetchat_confirm#:#Erase your entire history with the assistant in "%s": the chat, every practice question and your experience points? The assistant will forget everything you have discussed, and the next question starts a fresh conversation. This cannot be undone.
+resetchat_done#:#Your chat, practice history and experience points have been erased.
+resetchat_failed#:#Your conversation could not be erased right now. Please try again later.
+guardrail_blocked_killswitch#:#API calls are disabled by the administrators at the moment.
+guardrail_blocked_breaker#:#The Tarsus system is responding slowly and is temporarily resting. Please try again in a few minutes.
+guardrail_blocked_budget#:#The daily query budget is used up. Please try again tomorrow.
+guardrail_blocked_ratelimit#:#Too many requests. Please wait a few seconds and try again.
+transport_error#:#Could not contact the brain. Please try again in a moment.
+err_notconfigured#:#Tarsus is not configured: an administrator has to set the base URL, API key and brain ID in the plugin configuration, or enable mock mode.
+err_nobrainselected#:#No Tarsus brain is selected. An administrator has to pick one in the plugin configuration.
+// Processing steps
+proc_ask_classify#:#Your question is sorted by topic and intent
+proc_ask_search#:#Semantic search through the indexed course knowledge
+proc_ask_media#:#Matching text, image, audio and video passages
+proc_ask_select#:#The most relevant passages are selected
+proc_ask_cube#:#Your position in the learning cube is read
+proc_ask_dqr#:#The depth of explanation is tuned to your DQR level
+proc_ask_compose#:#The answer is formulated from the sources found
+proc_ask_verify#:#The answer is cross-checked against the original passages
+proc_ask_polish#:#Final polish of the answer
+proc_practice_cube_create#:#Your learning cube for this course is set up
+proc_practice_baseline#:#Your starting level for the topic is estimated
+proc_practice_evaluate#:#Your latest answers are evaluated
+proc_practice_compare#:#Expected and actual hit rate compared
+proc_practice_surprise#:#Surprising answers count more than expected ones
+proc_practice_reestimate#:#Your topic score is re-estimated
+proc_practice_align#:#Aligning topic, taxonomy level and kind of knowledge
+proc_practice_cells#:#Looking for active cells with a low score
+proc_practice_history#:#Checking the trend: growth, fluctuation, forgetting
+proc_practice_action#:#The next best learning action is chosen
+proc_practice_taxonomy#:#Taxonomy level: knowledge, understanding or application
+proc_practice_difficulty#:#The difficulty is set
+proc_practice_format#:#A fitting task format is chosen
+proc_practice_generate#:#The task is generated from your course contents
+proc_practice_operators#:#The question is phrased according to the operators
+proc_practice_options#:#Answer options and explanations are worked out
+proc_practice_solution#:#Model solution and marking scheme are fixed
+proc_practice_polish#:#Final polish of your task
+proc_learn_path_create#:#Your learning path for this course is set up
+proc_learn_progress#:#Your learning progress is read
+proc_learn_objectives#:#Reached and open learning objectives are compared
+proc_learn_cells#:#Open cells in the learning cube are determined
+proc_learn_next#:#Next objective: knowledge, understanding or application
+proc_learn_passages#:#Fitting passages from your course are gathered
+proc_learn_dqr#:#The explanations are tuned to your DQR level
+proc_learn_split#:#The learning unit is split into single cards
+proc_learn_examples#:#Examples and pictures are selected
+proc_learn_link#:#Links to what you already learned are made
+proc_learn_check#:#The learning cards are checked for clarity
+proc_learn_path_update#:#Your learning path is carried forward
+proc_learn_polish#:#Final polish of your learning unit
+// Plugin configuration
+cfg_title#:#Tarsus configuration
+cfg_tab_settings#:#Settings
+cfg_tab_brains#:#Brains
+cfg_tab_deletions#:#Deletions
+cfg_tab_status#:#Status
+settings_connection#:#Tarsus connection
+settings_connection_desc#:#Connect this installation to Tarsus. One brain per installation.
+apikey#:#API key
+apikey_desc#:#The Tarsus API key. Stored in the database and never sent to the browser.
+apikey_keep#:#A key is stored; leave the field empty to keep it.
+apikey_none#:#No key is stored yet.
+brainid#:#Brain ID
+brainid_desc#:#The single Tarsus brain used by this installation. Pick one of the brains the API key can reach:
+baseurl#:#Base URL
+baseurl_desc#:#The Tarsus API base URL. Enter only the host, e.g. https://api.example.org, without the /api/v1/... path.
+error_baseurl#:#Enter a URL starting with http:// or https://.
+settings_assistant#:#Assistant
+settings_assistant_desc#:#How the AI assistant introduces itself in the chat. One identity for the whole installation.
+robotname#:#Assistant name
+robotname_desc#:#The name of the AI assistant, as learners see it.
+robotid#:#Assistant ID
+robotid_desc#:#The id of this assistant on the Tarsus side, as provided by Tarsus. Defaults to the name.
+robotdescription#:#Assistant description
+robotdescription_desc#:#A short description of the assistant, e.g. its role or instructions.
+robotavatar#:#Assistant avatar
+robotavatar_desc#:#The image shown next to the assistant's answers in the chat. Square images work best; the image is scaled down to 160 pixels.
+error_avatar#:#The avatar could not be read as an image (PNG, JPEG, GIF or WebP up to 2 MB).
+voice_mode#:#Voice selection
+voice_mode_desc#:#How the voice that reads learning units aloud is chosen.
+voice_mode_auto#:#By the learner's language (the voice below when the language has none)
+voice_mode_fixed#:#One voice for everyone
+voice#:#Voice
+voice_desc#:#A voice from the brain's list. Used for everyone in fixed mode, and as the fallback in automatic mode.
+voice_refresh#:#Reload the list of voices from the brain
+voices_refreshed#:#{count} voices loaded from the brain.
+voice_label#:#{alias} ({language}, {gender})
+voice_female#:#female
+voice_male#:#male
+settings_guardrails#:#Guardrails
+settings_guardrails_desc#:#Bound availability and credit spend. These protect the endpoint and the budget.
+mockmode#:#Mock mode (demo)
+mockmode_desc#:#When enabled, all Tarsus traffic is served by a deterministic built-in sample: no live API calls. On until switched off.
+killswitch#:#Kill switch
+killswitch_desc#:#When enabled, all outbound calls are blocked immediately.
+ratelimit#:#Rate limit (calls per minute)
+ratelimit_desc#:#Maximum outbound calls per minute (token bucket).
+creditbudget#:#Credit budget (per day)
+creditbudget_desc#:#Maximum AI credits spent per day before calls are refused.
+brain_col_id#:#Brain ID
+brain_col_status#:#State
+brain_col_language#:#Language
+brain_col_tag#:#Tag
+brain_col_created#:#Created
+brain_col_action#:#Action
+brain_active#:#Active
+brain_inactive#:#Inactive
+brain_deleted#:#Deleted
+brain_inuse#:#In use
+brain_activate#:#Activate
+brain_activated#:#This installation now uses brain "{brain}".
+brain_activate_failed#:#That brain cannot be activated: it is unknown to this API key or no longer active.
+brain_none_found#:#The API key returned no brains. Check the base URL and API key, or ask Tarsus to activate the key.
+brain_none_selected#:#No brain is selected yet. Indexing and chat stay blocked until you activate one.
+brain_missing#:#This installation is configured to use brain "{brain}", but the API key no longer reports it. It was most likely deleted. Activate an existing brain below.
+deletions_none#:#Everything removed from this installation has been removed from the brain.
+deletions_pending#:#The brain has not confirmed {count} deletion(s). This happens when it is unreachable at the moment content is deleted; the content is gone from ILIAS but may still answer questions.
+deletions_resource#:#Resource
+deletions_container#:#Course / group
+deletions_since#:#Awaiting removal since
+deletions_retry#:#Retry now
+deletions_retried#:#{count} deletion(s) completed.
+container_gone#:#(deleted, ref {ref})
+status_configured#:#Connection configured
+status_breaker#:#Circuit breaker
+status_breaker_open#:#Open since {since}
+status_breaker_closed#:#Closed
+status_failures#:#{count} consecutive failures
+status_breaker_reset#:#The circuit breaker is closed again.
+status_reset_breaker#:#Reset circuit breaker
+status_budget#:#Credit budget
+status_budget_value#:#{used} of {budget} credits used in the current day
+status_bucket#:#Rate limit
+status_bucket_value#:#{tokens} calls left in the bucket (capacity {limit} per minute)
+status_test#:#Test connection
+status_test_ok#:#The brain answered: {count} brain(s) reachable.
+status_index#:#Index map
+status_index_none#:#Nothing has been indexed yet.
+status_usage#:#Usage in the last 24 hours
+status_usage_none#:#No calls were recorded.
+status_operation#:#Operation
+status_calls#:#Calls
+status_credits#:#Credits
