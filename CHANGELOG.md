@@ -3,6 +3,10 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [Unreleased]
+
+- Mock mode: the sample brain names no longer contain id-like segments.
+
 ## [1.1.0] – 2026-11-06
 
 ### Added

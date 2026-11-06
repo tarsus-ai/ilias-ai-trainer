@@ -7,7 +7,7 @@ use TarsusIlias\Material\BitType;
 use TarsusIlias\Support\Ilias;
 
 /**
- * Real Tarsus (Flexudy Brain) HTTP client.
+ * Real Tarsus brain HTTP client.
  *
  * Speaks the /api/v1/brain/access/* surface (track/{text,url,document,
  * audio,video}-bits, untrack/multiple-resources, untrack/multiple-assets,
