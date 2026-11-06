@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://tarsus.ai"><img src="https://framerusercontent.com/images/bhXmm51vAp3AcBXb7St6VJakI4.webp?scale-down-to=2048" alt="The Tarsus AI learning coach: a course with learning goals, explanation cards, exercises and progress" width="920"></a>
+  <a href="https://tarsus.ai"><img src="https://framerusercontent.com/images/bhXmm51vAp3AcBXb7St6VJakI4.webp" alt="The Tarsus AI learning coach: a course with learning goals, explanation cards, exercises and progress" width="920"></a>
 </p>
 
 <h1 align="center">Tarsus for ILIAS</h1>
@@ -41,14 +41,14 @@ Tarsus is an AI learning coach for training providers, companies and universitie
 
 | Build knowledge | Test knowledge | Ask a question |
 |:--:|:--:|:--:|
-| <img src="https://framerusercontent.com/images/s0fmuHNzzQzugFWdZ64BNRzBZVE.webp?scale-down-to=1024" alt="Explanation card built from the course material" width="400"> | <img src="https://framerusercontent.com/images/hgagwUKE5rL19zOgU4zCXHDL8wk.webp?scale-down-to=1024" alt="Spreadsheet task with line-by-line feedback" width="400"> | <img src="https://framerusercontent.com/images/Gg6PdLZrXoksmnEkebq2iomzcCM.webp?scale-down-to=1024" alt="The coach answers a question and shows the calculation path" width="400"> |
+| <img src="https://framerusercontent.com/images/s0fmuHNzzQzugFWdZ64BNRzBZVE.webp" alt="Explanation card built from the course material" width="400"> | <img src="https://framerusercontent.com/images/hgagwUKE5rL19zOgU4zCXHDL8wk.webp" alt="Spreadsheet task with line-by-line feedback" width="400"> | <img src="https://framerusercontent.com/images/Gg6PdLZrXoksmnEkebq2iomzcCM.webp" alt="The coach answers a question and shows the calculation path" width="400"> |
 | Explanation cards, one idea at a time, with examples for the target group and optional narration. A check question closes each unit. | Exercises with feedback that moves learners on: single choice, true/false, open questions, rule of three, spreadsheet calculations – with experience points and a progress bar. | Questions in the learner's own words, by text or voice, answered from the included material – with the calculation path when it is a task. |
 
 ### Graphics, simulations and 3D models on demand
 
 | | | |
 |:--:|:--:|:--:|
-| <img src="https://framerusercontent.com/images/Cosivt9X6HrNKgVnRe4uAuwSXI.webp?scale-down-to=1024" alt="Rotatable 3D cylinder with diameter and height" width="400"> | <img src="https://framerusercontent.com/images/uZ93hce6VN7ddmDdqNunRz8mg.webp?scale-down-to=1024" alt="Interactive characteristic curve: a slider moves the operating point" width="400"> | <img src="https://framerusercontent.com/images/XuhQqOxDZ7REyDl40HnvMnVjpms.webp?scale-down-to=1024" alt="Decision tree: what does the body orbit?" width="400"> |
+| <img src="https://framerusercontent.com/images/Cosivt9X6HrNKgVnRe4uAuwSXI.webp" alt="Rotatable 3D cylinder with diameter and height" width="400"> | <img src="https://framerusercontent.com/images/uZ93hce6VN7ddmDdqNunRz8mg.webp" alt="Interactive characteristic curve: a slider moves the operating point" width="400"> | <img src="https://framerusercontent.com/images/XuhQqOxDZ7REyDl40HnvMnVjpms.webp" alt="Decision tree: what does the body orbit?" width="400"> |
 | **3D models** that learners can turn and measure. | **Simulations** where a slider changes the physics and the result follows. | **Diagrams and animations** drawn for the question at hand. |
 
 With the *AI-driven* interaction type the coach answers inside ILIAS with such pages – small HTML programs rendered in a sandboxed frame. See [Interaction types](#interaction-types).
@@ -57,7 +57,7 @@ With the *AI-driven* interaction type the coach answers inside ILIAS with such p
 
 | | | | |
 |:--:|:--:|:--:|:--:|
-| <img src="https://framerusercontent.com/images/sdtCvG7M3Q59Nl80mwa2yOOaMTY.webp?scale-down-to=1024" alt="Single-choice question with explanation" width="300"> | <img src="https://framerusercontent.com/images/du1FTrsuwAElUTZUEEC5v1euI.webp?scale-down-to=1024" alt="Open question with partial credit and feedback on what is missing" width="300"> | <img src="https://framerusercontent.com/images/uNSphTDFSP6R85PZw7wZVvGQK0.webp?scale-down-to=1024" alt="True-or-false task with a check button" width="300"> | <img src="https://framerusercontent.com/images/rmkJPlhI2NqsHY2Xt1UFnddNeoU.webp?scale-down-to=1024" alt="Calculation chain with two correctly computed values" width="300"> |
+| <img src="https://framerusercontent.com/images/sdtCvG7M3Q59Nl80mwa2yOOaMTY.webp" alt="Single-choice question with explanation" width="300"> | <img src="https://framerusercontent.com/images/du1FTrsuwAElUTZUEEC5v1euI.webp" alt="Open question with partial credit and feedback on what is missing" width="300"> | <img src="https://framerusercontent.com/images/uNSphTDFSP6R85PZw7wZVvGQK0.webp" alt="True-or-false task with a check button" width="300"> | <img src="https://framerusercontent.com/images/rmkJPlhI2NqsHY2Xt1UFnddNeoU.webp" alt="Calculation chain with two correctly computed values" width="300"> |
 | Single choice with an explanation | Open questions with partial credit | True or false | Calculation chains and spreadsheets |
 
 ### The right level for every person
