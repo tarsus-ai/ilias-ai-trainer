@@ -5,8 +5,9 @@ namespace TarsusIlias\Support;
 /**
  * Site-wide plugin settings, stored in the plugin's own key/value table.
  *
- * One place to connect ILIAS to Tarsus and to bound traffic and credit
- * spend. Operational switches (kill switch, mock mode, limits) are read
+ * One place to connect ILIAS to Tarsus, to record the customer's plan and
+ * to bound traffic and credit spend. Operational switches (kill switch,
+ * mock mode, limits) are read
  * fresh from the database on every call, bypassing the request cache, so
  * that flipping one mid-run - during a long cron run, say - takes effect
  * immediately.
@@ -20,9 +21,6 @@ final class Config
 
     /** Default outbound calls per minute. */
     public const DEFAULT_RATE_LIMIT = 60;
-
-    /** Default aiCredit budget per period. */
-    public const DEFAULT_CREDIT_BUDGET = 100000;
 
     /** Default assistant name. */
     public const DEFAULT_ROBOT_NAME = 'Tarsus';
@@ -138,12 +136,6 @@ final class Config
     {
         $value = self::fresh('ratelimit');
         return $value === null || $value === '' ? self::DEFAULT_RATE_LIMIT : max(1, (int) $value);
-    }
-
-    public static function creditBudget(): int
-    {
-        $value = self::fresh('creditbudget');
-        return $value === null || $value === '' ? self::DEFAULT_CREDIT_BUDGET : max(0, (int) $value);
     }
 
     public static function robotName(): string

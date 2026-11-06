@@ -16,6 +16,7 @@ use TarsusIlias\Guardrail\Pipeline;
 use TarsusIlias\Output\Markdown;
 use TarsusIlias\Output\Shaper;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Plan;
 use TarsusIlias\Support\UsageMeter;
 use TarsusIlias\Support\Voices;
 
@@ -170,7 +171,7 @@ final class LearnerApi
         if (mb_strlen($query) > self::MAX_QUERY) {
             $query = mb_substr($query, 0, self::MAX_QUERY);
         }
-        if (!$this->settings->askenabled) {
+        if (!$this->settings->askenabled || !Plan::allowsMode('ask')) {
             return self::result('disabled', Ilias::txt('chat_modedisabled'));
         }
         // The answer may only be grounded in what the teacher included -
@@ -204,6 +205,9 @@ final class LearnerApi
                 }
                 return self::result('success', '', [
                     'answer' => Markdown::render((string) ($response['answer'] ?? '')),
+                    // An interactive page (ai-driven interaction), shown in
+                    // a sandboxed frame.
+                    'html' => (string) ($response['html'] ?? ''),
                     'messages' => $messages,
                 ]);
             }
@@ -219,7 +223,7 @@ final class LearnerApi
      */
     public function practiceNext(): array
     {
-        if (!$this->settings->testenabled) {
+        if (!$this->settings->testenabled || !Plan::allowsMode('test')) {
             return self::result('disabled', Ilias::txt('chat_modedisabled'));
         }
         $allowed = $this->scope();
@@ -304,7 +308,8 @@ final class LearnerApi
         }
 
         // A learning unit's check question belongs to Build knowledge.
-        if (!$this->settings->modeEnabled($state === 'learn' ? 'build' : 'test')) {
+        $mode = $state === 'learn' ? 'build' : 'test';
+        if (!$this->settings->modeEnabled($mode) || !Plan::allowsMode($mode)) {
             return self::result('disabled', Ilias::txt('chat_modedisabled'));
         }
         $allowed = $this->scope();
@@ -369,7 +374,7 @@ final class LearnerApi
      */
     public function learnNext(): array
     {
-        if (!$this->settings->buildenabled) {
+        if (!$this->settings->buildenabled || !Plan::allowsMode('build')) {
             return self::result('disabled', Ilias::txt('chat_modedisabled'), ['items' => [], 'complete' => false]);
         }
         $allowed = $this->scope();
@@ -411,8 +416,12 @@ final class LearnerApi
         if ($stackid === '' || !preg_match('/^[A-Za-z0-9_-]{1,100}$/', $stackid)) {
             return self::result('error', Ilias::txt('invalid_request'));
         }
-        if (!$this->settings->buildenabled) {
+        if (!$this->settings->buildenabled || !Plan::allowsMode('build')) {
             return self::result('disabled', Ilias::txt('chat_modedisabled'));
+        }
+        if (!Plan::allowsAudio()) {
+            // Narration is part of Build Knowledge and Pay as you grow.
+            return self::result('disabled', Ilias::txt('plan_feature_unavailable'));
         }
         $allowed = $this->scope();
         if ($allowed === []) {

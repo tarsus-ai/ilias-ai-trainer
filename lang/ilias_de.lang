@@ -221,7 +221,7 @@ resetchat_done#:#Chat, Übungsverlauf und Erfahrungspunkte wurden gelöscht.
 resetchat_failed#:#Deine Unterhaltung konnte gerade nicht gelöscht werden. Bitte versuche es später erneut.
 guardrail_blocked_killswitch#:#Schnittstellenaufrufe sind derzeit von der Administration deaktiviert.
 guardrail_blocked_breaker#:#Das Tarsus-System antwortet langsam und ruht kurzzeitig. Bitte versuche es in wenigen Minuten noch einmal.
-guardrail_blocked_budget#:#Das tägliche Budget ist aufgebraucht. Bitte versuche es morgen erneut.
+guardrail_blocked_budget#:#Die monatlichen AI Credits dieser Installation sind aufgebraucht. Die Administration kann das Limit erhöhen; sonst geht es im nächsten Monat weiter.
 guardrail_blocked_ratelimit#:#Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.
 transport_error#:#Das Brain konnte nicht erreicht werden. Bitte versuche es gleich noch einmal.
 err_notconfigured#:#Tarsus ist nicht konfiguriert: Die Administration muss in der Plugin-Konfiguration Basis-URL, API-Schlüssel und Brain-ID hinterlegen oder den Mock-Modus aktivieren.
@@ -314,8 +314,6 @@ killswitch#:#Not-Aus
 killswitch_desc#:#Wenn aktiviert, werden alle ausgehenden Aufrufe sofort blockiert.
 ratelimit#:#Ratenbegrenzung (Aufrufe pro Minute)
 ratelimit_desc#:#Maximale Anzahl ausgehender Aufrufe pro Minute (Token-Bucket).
-creditbudget#:#Credit-Budget (pro Tag)
-creditbudget_desc#:#Maximale AI Credits pro Tag, bevor Aufrufe abgelehnt werden.
 brain_col_id#:#Brain-ID
 brain_col_status#:#Status
 brain_col_language#:#Sprache
@@ -347,8 +345,6 @@ status_breaker_closed#:#Geschlossen
 status_failures#:#{count} Fehler in Folge
 status_breaker_reset#:#Der Schutzschalter ist wieder geschlossen.
 status_reset_breaker#:#Schutzschalter zurücksetzen
-status_budget#:#Credit-Budget
-status_budget_value#:#{used} von {budget} Credits am heutigen Tag verbraucht
 status_bucket#:#Ratenbegrenzung
 status_bucket_value#:#{tokens} Aufrufe im Bucket übrig (Kapazität {limit} pro Minute)
 status_test#:#Verbindung testen
@@ -360,3 +356,103 @@ status_usage_none#:#Es wurden keine Aufrufe aufgezeichnet.
 status_operation#:#Operation
 status_calls#:#Aufrufe
 status_credits#:#Credits
+// Plan und Credits
+cfg_tab_plan#:#Plan & Credits
+plan_section#:#Abonnement
+plan_section_desc#:#Die Vereinbarung des Kunden mit Tarsus und lern.link. lern.link trägt diese Werte ein; sie bestimmen, welche Funktionen die Objekte anbieten und wie die Nutzung abgerechnet wird.
+plan#:#Plan
+plan_learn#:#Build Knowledge (LEARN)
+plan_learn_desc#:#Alle Funktionen: Frage stellen, Wissen testen, Wissen aufbauen mit Vorlesefunktion, KI-gesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
+plan_practice#:#Knowledge Test (PRACTICE)
+plan_practice_desc#:#Frage stellen und Wissen testen. Kein Wissen aufbauen, keine Vorlesefunktion, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
+plan_ask#:#Ask Question (ASK)
+plan_ask_desc#:#Nur Frage stellen, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
+plan_payg#:#Pay as you grow
+plan_payg_desc#:#Alle Funktionen, kein Kontingent: jede Anfrage wird zum vereinbarten Preis berechnet.
+plan_credits#:#Enthaltene AI Credits pro Monat
+plan_credits_desc#:#Die Credits, die das Abonnement pro Kalendermonat enthält (Standard {default}). Nicht genutzte Credits verfallen. Bei Pay as you grow ohne Bedeutung.
+plan_price#:#Preis pro zusätzlicher Anfrage
+plan_price_desc#:#Kosten einer Anfrage über das Kontingent hinaus (Standard {default}). Bei Pay as you grow der Preis jeder Anfrage.
+plan_currency#:#Währung
+plan_current#:#Aktueller Plan
+plan_default_note#:#noch nicht konfiguriert, Build Knowledge angenommen
+plan_included#:#Enthalten
+plan_included_value#:#{credits} AI Credits pro Monat, danach {price} pro Anfrage
+plan_payg_note#:#Kein Kontingent: jede Anfrage kostet {price}
+plan_mode_unavailable#:#Im aktuellen Plan ({plan}) nicht enthalten.
+plan_interaction_unavailable#:#Verfügbar mit Build Knowledge und Pay as you grow (aktueller Plan: {plan}).
+plan_feature_unavailable#:#Diese Funktion ist im aktuellen Plan nicht enthalten.
+no_modes_plan_notice#:#Keiner der Modi dieses Objekts ist im aktuellen Plan enthalten. Bitte wende dich an die Administration.
+limit_section#:#Monatliches Limit
+limit_section_desc#:#Die maximalen AI Credits, die diese Installation pro Kalendermonat ausgeben darf. Ist es erreicht, werden Anfragen abgelehnt; Lehrende und Administration werden bei 50, 75, 90 und 100 Prozent gewarnt. Eine Erhöhung gilt sofort, eine Verringerung wird vorher bestätigt.
+monthly_limit#:#Monatliches Credit-Limit
+monthly_limit_desc#:#In AI Credits pro Kalendermonat; 0 bedeutet kein Limit. In diesem Monat bisher verbraucht: {used}. Der Plan enthält {included}; der Monat beginnt am {reset} neu.
+monthly_limit_elsewhere#:#Derzeit {limit} AI Credits pro Monat. Limit und Plan werden im Reiter gepflegt:
+monthly_limit_value#:#{limit} Credits pro Monat, {remaining} verbleibend
+no_limit#:#kein Limit
+notify_emails#:#Empfänger der Warnungen
+notify_emails_desc#:#E-Mail-Adressen (eine pro Zeile oder durch Kommas getrennt), die bei {thresholds} des Limits eine Mail erhalten. Leer lassen, um die Administrationsadresse der Installation zu benachrichtigen ({admin}).
+error_email#:#„{email}“ ist keine gültige E-Mail-Adresse.
+limit_reduce_confirm#:#Du senkst das monatliche Limit von {old} auf {new} AI Credits. In diesem Monat sind bereits {used} Credits verbraucht; sobald das neue Limit erreicht ist, werden KI-Anfragen bis zum nächsten Monat oder bis zu einer Erhöhung abgelehnt. Fortfahren?
+usage_local#:#Von dieser Installation gezählt
+usage_local_value#:#{credits} AI Credits in {requests} Anfragen in diesem Monat
+usage_remote#:#Vom Brain berechnet
+usage_remote_none#:#noch nicht abgerufen (der Cron-Job ruft den Wert alle 15 Minuten ab)
+usage_remote_value#:#{credits} AI Credits in diesem Monat (Stand {fetched}); umfasst alles, was dieses Brain nutzt
+usage_charged#:#Über das Kontingent hinaus
+usage_charged_value#:#{requests} Anfragen, etwa {cost}
+usage_charged_none#:#in diesem Monat bisher nichts
+usage_reset#:#Nächster Neubeginn
+usage_refresh#:#Nutzung vom Brain abrufen
+usage_refreshed#:#Das Brain meldet {credits} AI Credits für diesen Monat.
+usage_refresh_failed#:#Die Nutzung konnte nicht vom Brain abgerufen werden.
+usage_breakdown#:#Aufschlüsselung nach Dienst (Angaben des Brains)
+usage_service#:#Dienst
+usage_name#:#Vorgang
+usage_bar_label#:#{used} von {limit} AI Credits in diesem Monat verbraucht ({percent} %)
+usage_bar_nolimit#:#{used} AI Credits in diesem Monat verbraucht (kein Limit)
+status_guardrails#:#Schutzmechanismen
+budget_banner_warning#:#{percent} % der AI Credits dieses Monats sind verbraucht ({used} von {limit}). Der Monat beginnt am {reset} neu; die Administration kann das Limit unter Plugins > Tarsus > Plan & Credits erhöhen.
+budget_banner_exhausted#:#Die AI Credits dieses Monats sind aufgebraucht ({used} von {limit}). KI-Anfragen werden bis zum {reset} abgelehnt, sofern die Administration das Limit nicht unter Plugins > Tarsus > Plan & Credits erhöht.
+budget_exhausted_learner#:#Das monatliche KI-Budget dieser Installation ist aufgebraucht. Der Lernbegleiter antwortet im nächsten Monat wieder – oder früher, sobald die Administration das Limit erhöht.
+budget_mail_subject#:#[{site}] Tarsus: {percent} % der monatlichen AI Credits verbraucht
+budget_mail_subject_exhausted#:#[{site}] Tarsus: die monatlichen AI Credits sind aufgebraucht
+budget_mail_body#:#{percent} % des monatlichen AI-Credit-Limits von {site} sind verbraucht: {used} von {limit} Credits. Der Monat beginnt am {reset} neu. Das Limit lässt sich unter Administration > ILIAS erweitern > Plugins > Tarsus > Konfigurieren > Plan & Credits erhöhen.
+budget_mail_body_exhausted#:#Das monatliche AI-Credit-Limit von {site} ist aufgebraucht: {used} von {limit} Credits. KI-Anfragen werden bis zum {reset} abgelehnt. Das Limit lässt sich unter Administration > ILIAS erweitern > Plugins > Tarsus > Konfigurieren > Plan & Credits erhöhen.
+// Interaktion
+settings_interaction#:#Interaktion
+settings_interaction_desc#:#Wie der Lernbegleiter das Erzeugte darstellt.
+interactiontype#:#Interaktionstyp
+interaction_trainer#:#Trainergesteuert
+interaction_trainer_help#:#Text, Bilder und Fragen wie unten eingestellt.
+interaction_ai#:#KI-gesteuert
+interaction_ai_help#:#Das Brain darf beim Fragen und beim Wissensaufbau mit interaktiven Seiten antworten (Animationen, Simulationen, kleine Werkzeuge). Sie laufen in einer Sandbox und kosten mehr Credits.
+frame_title#:#Interaktiver Inhalt
+frame_enlarge#:#Größer anzeigen
+// Hilfe
+settings_help#:#Hilfe
+settings_help_desc#:#Support-Links und Videos hinter dem Hilfe-Button in jedem Tarsus-Objekt.
+help_links#:#Hilfe-Links
+help_links_desc#:#Ein Link pro Zeile als „Titel | https://…“. YouTube- und Vimeo-Links laufen direkt im Hilfe-Fenster, andere Links öffnen in einem neuen Tab. Leer lassen, um den Hilfe-Button auszublenden.
+help#:#Hilfe
+help_title#:#Hilfe & Videos
+// Analysen
+tab_analytics#:#Analysen
+analytics_requests_month#:#Anfragen in diesem Monat
+analytics_credits_month#:#AI Credits in diesem Monat
+analytics_active_learners#:#aktive Lernende in diesem Monat
+analytics_share#:#der Credits dieser Installation in diesem Monat
+analytics_budget#:#Monatliche AI Credits dieser Installation
+analytics_budget_note#:#Alle Tarsus-Objekte dieser Installation teilen sich die monatlichen Credits. Der Monat beginnt am {reset} neu.
+analytics_chart_title#:#Anfragen pro Tag, letzte 30 Tage
+analytics_chart_label#:#Anfragen pro Tag in den letzten 30 Tagen
+analytics_tooltip#:#{calls} Anfragen, {credits} Credits
+analytics_by_mode#:#Nach Modus, letzte 30 Tage
+analytics_mode#:#Modus
+analytics_top_learners#:#Aktivste Lernende, letzte 30 Tage
+analytics_none#:#Noch keine Anfragen.
+analytics_note#:#Die Zahlen stammen aus dem eigenen Verbrauchsbuch dieser Installation mit den Kostenschätzungen des Brains; die Abrechnung des Brains kann geringfügig abweichen.
+col_lastactivity#:#Letzte Aktivität
+learners_readonly#:#Weder Wissen testen noch Wissen aufbauen ist hier aktiv (ausgeschaltet oder nicht im Plan enthalten), daher hat dieses Objekt weder Punktzahl noch Lernfortschritt: es ist eine reine Nachschlage-Aktivität.
+col_participation#:#Teilnahme
+participated#:#Teilgenommen

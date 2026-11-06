@@ -24,8 +24,11 @@ use TarsusIlias\Index\Repository;
 use TarsusIlias\Index\Status;
 use TarsusIlias\Output\Html;
 use TarsusIlias\Output\Views;
+use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
+use TarsusIlias\Support\Help;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Plan;
 use TarsusIlias\Support\UsageMeter;
 use TarsusIlias\Support\Voices;
 
@@ -62,13 +65,23 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             Ilias::setPlugin($this->getPluginObject());
         }
         $this->tabs->addSubTab('cfg_settings', $this->txt('cfg_tab_settings'), $this->ctrl->getLinkTarget($this, 'configure'));
+        $this->tabs->addSubTab('cfg_plan', $this->txt('cfg_tab_plan'), $this->ctrl->getLinkTarget($this, 'showPlan'));
         $this->tabs->addSubTab('cfg_brains', $this->txt('cfg_tab_brains'), $this->ctrl->getLinkTarget($this, 'showBrains'));
         $this->tabs->addSubTab('cfg_deletions', $this->txt('cfg_tab_deletions'), $this->ctrl->getLinkTarget($this, 'showDeletions'));
         $this->tabs->addSubTab('cfg_status', $this->txt('cfg_tab_status'), $this->ctrl->getLinkTarget($this, 'showStatus'));
         $this->tpl->addCss(Ilias::assetUrl('css/tarsus.css'));
 
+        $banner = Budget::banner();
+        if ($banner !== null) {
+            $this->tpl->setOnScreenMessage($banner['type'], $banner['text']);
+        }
+
         switch ($cmd) {
             case 'saveSettings':
+            case 'showPlan':
+            case 'savePlan':
+            case 'confirmPlan':
+            case 'refreshUsage':
             case 'showBrains':
             case 'activateBrain':
             case 'showDeletions':
@@ -190,12 +203,21 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         $rate->allowDecimals(false);
         $form->addItem($rate);
 
-        $budget = new ilNumberInputGUI($this->txt('creditbudget'), 'creditbudget');
-        $budget->setInfo($this->txt('creditbudget_desc'));
-        $budget->setMinValue(0);
-        $budget->setSize(10);
-        $budget->allowDecimals(false);
-        $form->addItem($budget);
+        $limitnote = new ilNonEditableValueGUI($this->txt('monthly_limit'), 'monthly_limit_note', true);
+        $limitnote->setValue($this->txt('monthly_limit_elsewhere', ['limit' => Budget::hasLimit() ? number_format(Budget::limit()) : $this->txt('no_limit')])
+            . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showPlan')) . '">' . $this->txt('cfg_tab_plan') . '</a>');
+        $form->addItem($limitnote);
+
+        // Help.
+        $section = new ilFormSectionHeaderGUI();
+        $section->setTitle($this->txt('settings_help'));
+        $section->setInfo($this->txt('settings_help_desc'));
+        $form->addItem($section);
+
+        $help = new ilTextAreaInputGUI($this->txt('help_links'), Help::KEY);
+        $help->setInfo($this->txt('help_links_desc'));
+        $help->setRows(5);
+        $form->addItem($help);
 
         $form->addCommandButton('saveSettings', $this->lng->txt('save'));
         return $form;
@@ -236,7 +258,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             'mockmode' => Config::mockMode(),
             'killswitch' => Config::killswitch(),
             'ratelimit' => Config::rateLimit(),
-            'creditbudget' => Config::creditBudget(),
+            Help::KEY => (string) Config::get(Help::KEY, ''),
         ]);
         /** @var ilImageFileInputGUI $avatar */
         $avatar = $form->getItemByPostVar('robot_avatar');
@@ -278,7 +300,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         Config::set('mockmode', $form->getInput('mockmode') ? '1' : '0');
         Config::set('killswitch', $form->getInput('killswitch') ? '1' : '0');
         Config::set('ratelimit', (string) max(1, (int) $form->getInput('ratelimit')));
-        Config::set('creditbudget', (string) max(0, (int) $form->getInput('creditbudget')));
+        Config::set(Help::KEY, Config::bmp(trim((string) $form->getInput(Help::KEY))));
 
         /** @var ilImageFileInputGUI $avatar */
         $avatar = $form->getItemByPostVar('robot_avatar');
@@ -352,6 +374,250 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $this->tpl->setOnScreenMessage('failure', $this->txt('transport_error'), true);
         }
         $this->ctrl->redirect($this, 'configure');
+    }
+
+    // ------------------------------------------------------------------
+    // Plan and credits
+    // ------------------------------------------------------------------
+
+    private function showPlan(?ilPropertyFormGUI $form = null): void
+    {
+        $this->tabs->activateSubTab('cfg_plan');
+        if ($form === null) {
+            $form = $this->initPlanForm();
+            $form->setValuesByArray([
+                'plan' => Plan::current(),
+                'plan_credits' => Plan::isPayAsYouGrow() ? '' : (string) Plan::includedCredits(),
+                'plan_price' => number_format(Plan::pricePerRequest(), 2, '.', ''),
+                'plan_currency' => Plan::currency(),
+                'monthly_limit' => (string) Budget::limit(),
+                'notify_emails' => (string) Config::get('notify_emails', ''),
+            ]);
+        }
+        $this->tpl->setContent('<div class="tarsus-app">' . $this->usagePanel() . '</div>' . $form->getHTML());
+    }
+
+    private function initPlanForm(): ilPropertyFormGUI
+    {
+        $form = new ilPropertyFormGUI();
+        $form->setFormAction($this->ctrl->getFormAction($this, 'savePlan'));
+        $form->setTitle($this->txt('cfg_tab_plan'));
+
+        $section = new ilFormSectionHeaderGUI();
+        $section->setTitle($this->txt('plan_section'));
+        $section->setInfo($this->txt('plan_section_desc'));
+        $form->addItem($section);
+
+        $plan = new ilRadioGroupInputGUI($this->txt('plan'), 'plan');
+        foreach (Plan::ALL as $key) {
+            $plan->addOption(new ilRadioOption($this->txt('plan_' . $key), $key, $this->txt('plan_' . $key . '_desc')));
+        }
+        $plan->setRequired(true);
+        $form->addItem($plan);
+
+        $credits = new ilNumberInputGUI($this->txt('plan_credits'), 'plan_credits');
+        $credits->setInfo($this->txt('plan_credits_desc', ['default' => number_format(Plan::DEFAULT_CREDITS)]));
+        $credits->setMinValue(0);
+        $credits->setSize(10);
+        $credits->allowDecimals(false);
+        $form->addItem($credits);
+
+        $price = new ilNumberInputGUI($this->txt('plan_price'), 'plan_price');
+        $price->setInfo($this->txt('plan_price_desc', ['default' => number_format(Plan::DEFAULT_PRICE, 2)]));
+        $price->setMinValue(0);
+        $price->setSize(8);
+        $price->allowDecimals(true);
+        $price->setDecimals(2);
+        $form->addItem($price);
+
+        $currency = new ilTextInputGUI($this->txt('plan_currency'), 'plan_currency');
+        $currency->setMaxLength(8);
+        $currency->setSize(6);
+        $form->addItem($currency);
+
+        $section = new ilFormSectionHeaderGUI();
+        $section->setTitle($this->txt('limit_section'));
+        $section->setInfo($this->txt('limit_section_desc'));
+        $form->addItem($section);
+
+        $limit = new ilNumberInputGUI($this->txt('monthly_limit'), 'monthly_limit');
+        $limit->setInfo($this->txt('monthly_limit_desc', [
+            'used' => number_format(Budget::used()),
+            'included' => number_format(Plan::includedCredits()),
+            'reset' => Views::date(Budget::nextMonthStart()),
+        ]));
+        $limit->setMinValue(0);
+        $limit->setSize(10);
+        $limit->allowDecimals(false);
+        $limit->setRequired(true);
+        $form->addItem($limit);
+
+        $emails = new ilTextAreaInputGUI($this->txt('notify_emails'), 'notify_emails');
+        $emails->setInfo($this->txt('notify_emails_desc', ['admin' => Html::e(Ilias::setting('admin_email')), 'thresholds' => implode(' %, ', Budget::THRESHOLDS) . ' %']));
+        $emails->setRows(2);
+        $form->addItem($emails);
+
+        $form->addCommandButton('savePlan', $this->lng->txt('save'));
+        return $form;
+    }
+
+    /**
+     * Read and validate the plan form; null when it is invalid (the form
+     * is shown again with the alerts).
+     *
+     * @return array<string, string>|null
+     */
+    private function planInput(ilPropertyFormGUI $form): ?array
+    {
+        if (!$form->checkInput()) {
+            $form->setValuesByPost();
+            $this->showPlan($form);
+            return null;
+        }
+        $plan = (string) $form->getInput('plan');
+        if (!in_array($plan, Plan::ALL, true)) {
+            $plan = Plan::LEARN;
+        }
+        $emails = trim((string) $form->getInput('notify_emails'));
+        foreach (preg_split('/[\s,;]+/', $emails) ?: [] as $address) {
+            if ($address !== '' && !filter_var($address, FILTER_VALIDATE_EMAIL)) {
+                $form->getItemByPostVar('notify_emails')->setAlert($this->txt('error_email', ['email' => Html::e($address)]));
+                $form->setValuesByPost();
+                $this->showPlan($form);
+                return null;
+            }
+        }
+        return [
+            'plan' => $plan,
+            'plan_credits' => (string) max(0, (int) $form->getInput('plan_credits')),
+            'plan_price' => number_format(max(0, (float) str_replace(',', '.', (string) $form->getInput('plan_price'))), 2, '.', ''),
+            'plan_currency' => Config::bmp(mb_substr(trim((string) $form->getInput('plan_currency')), 0, 8)),
+            'monthly_limit' => (string) max(0, (int) $form->getInput('monthly_limit')),
+            'notify_emails' => Config::bmp($emails),
+        ];
+    }
+
+    private function savePlan(): void
+    {
+        $form = $this->initPlanForm();
+        $values = $this->planInput($form);
+        if ($values === null) {
+            return;
+        }
+        $old = Budget::limit();
+        $new = (int) $values['monthly_limit'];
+        if ($new > 0 && ($old === 0 || $new < $old)) {
+            // Lowering the limit (or introducing one) can block requests
+            // this very month: confirm it first.
+            $this->tabs->activateSubTab('cfg_plan');
+            $confirm = new ilConfirmationGUI();
+            $confirm->setFormAction($this->ctrl->getFormAction($this, 'confirmPlan'));
+            $confirm->setHeaderText($this->txt('limit_reduce_confirm', [
+                'old' => $old > 0 ? number_format($old) : $this->txt('no_limit'),
+                'new' => number_format($new),
+                'used' => number_format(Budget::used()),
+            ]));
+            $confirm->setConfirm($this->lng->txt('confirm'), 'confirmPlan');
+            $confirm->setCancel($this->lng->txt('cancel'), 'showPlan');
+            foreach ($values as $key => $value) {
+                $confirm->addHiddenItem('plan_' . $key, $value);
+            }
+            $this->tpl->setContent($confirm->getHTML());
+            return;
+        }
+        $this->storePlan($values);
+    }
+
+    private function confirmPlan(): void
+    {
+        $body = Ilias::postBody();
+        $values = [];
+        foreach (['plan', 'plan_credits', 'plan_price', 'plan_currency', 'monthly_limit', 'notify_emails'] as $key) {
+            $values[$key] = (string) ($body['plan_' . $key] ?? '');
+        }
+        if (!in_array($values['plan'], Plan::ALL, true)) {
+            $this->ctrl->redirect($this, 'showPlan');
+        }
+        $values['plan_credits'] = (string) max(0, (int) $values['plan_credits']);
+        $values['plan_price'] = number_format(max(0, (float) $values['plan_price']), 2, '.', '');
+        $values['monthly_limit'] = (string) max(0, (int) $values['monthly_limit']);
+        $this->storePlan($values);
+    }
+
+    /**
+     * @param array<string, string> $values
+     */
+    private function storePlan(array $values): void
+    {
+        $old = Budget::limit();
+        $planchanged = Plan::current() !== $values['plan'];
+        Config::set('plan', $values['plan']);
+        Config::set('plan_credits', $values['plan_credits']);
+        Config::set('plan_price', $values['plan_price']);
+        Config::set('plan_currency', $values['plan_currency']);
+        Config::set('monthly_limit', $values['monthly_limit']);
+        Config::set('notify_emails', $values['notify_emails']);
+        $new = (int) $values['monthly_limit'];
+        if ($new !== $old) {
+            // The thresholds moved: warn afresh when they are crossed again.
+            Budget::resetWarnings();
+            Budget::checkThresholds();
+        }
+        if ($planchanged) {
+            // Another plan means other active modes, and with them another
+            // score and progress for every learner.
+            foreach (ilObject::_getObjectsByType('xtar') as $object) {
+                \TarsusIlias\Activity\Scoring::pushAll((int) $object['obj_id']);
+            }
+        }
+        $this->tpl->setOnScreenMessage('success', $this->lng->txt('settings_saved'), true);
+        $this->ctrl->redirect($this, 'showPlan');
+    }
+
+    private function refreshUsage(): void
+    {
+        $before = Budget::remote();
+        $after = Budget::refreshRemote(true);
+        if ($after === null || ($before !== null && $after['fetched'] === $before['fetched'])) {
+            $this->tpl->setOnScreenMessage('failure', $this->txt('usage_refresh_failed'), true);
+        } else {
+            $this->tpl->setOnScreenMessage('success', $this->txt('usage_refreshed', ['credits' => number_format($after['credits'])]), true);
+        }
+        $this->ctrl->redirect($this, 'showStatus');
+    }
+
+    /**
+     * The plan, this month's usage and the cost estimate.
+     */
+    private function usagePanel(): string
+    {
+        $remote = Budget::remote();
+        $overage = Budget::overage();
+        $local = Budget::localCredits();
+        $rows = [
+            [$this->txt('plan_included'), Plan::isPayAsYouGrow()
+                ? $this->txt('plan_payg_note', ['price' => Html::e(Plan::money(Plan::pricePerRequest()))])
+                : $this->txt('plan_included_value', ['credits' => number_format(Plan::includedCredits()), 'price' => Html::e(Plan::money(Plan::pricePerRequest()))])],
+            [$this->txt('usage_local'), $this->txt('usage_local_value', ['credits' => number_format($local), 'requests' => number_format(Budget::localRequests())])],
+            [$this->txt('usage_remote'), $remote === null
+                ? $this->txt('usage_remote_none')
+                : $this->txt('usage_remote_value', ['credits' => number_format($remote['credits']), 'fetched' => Html::e(Views::date($remote['fetched']))])],
+            [$this->txt('monthly_limit'), Budget::hasLimit()
+                ? $this->txt('monthly_limit_value', ['limit' => number_format(Budget::limit()), 'remaining' => number_format(Budget::remaining())])
+                : $this->txt('no_limit')],
+            [$this->txt('usage_charged'), $overage['charged'] > 0
+                ? $this->txt('usage_charged_value', ['requests' => number_format($overage['charged']), 'cost' => Html::e(Plan::money($overage['cost']))])
+                : $this->txt('usage_charged_none')],
+            [$this->txt('usage_reset'), Html::e(Views::date(Budget::nextMonthStart()))],
+        ];
+        return Views::planUsage([
+            'plan' => Plan::label() . (Plan::isConfigured() ? '' : ' (' . $this->txt('plan_default_note') . ')'),
+            'used' => Budget::used(),
+            'limit' => Budget::limit(),
+            'level' => Budget::level(),
+            'rows' => $rows,
+            'items' => $remote === null ? [] : $remote['items'],
+        ]);
     }
 
     // ------------------------------------------------------------------
@@ -509,7 +775,6 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         $this->tabs->activateSubTab('cfg_status');
         $snapshot = (new Pipeline())->snapshot();
         $breaker = $snapshot['breaker'];
-        $budget = $snapshot['budget'];
         $bucket = $snapshot['bucket'];
 
         $rows = [
@@ -518,7 +783,6 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             [$this->txt('killswitch'), Config::killswitch() ? $this->lng->txt('yes') : $this->lng->txt('no')],
             [$this->txt('status_breaker'), ($breaker->state === 'open' ? $this->txt('status_breaker_open', ['since' => Views::date((int) $breaker->opensince)]) : $this->txt('status_breaker_closed'))
                 . ' (' . $this->txt('status_failures', ['count' => (int) $breaker->failurecount]) . ')'],
-            [$this->txt('status_budget'), $this->txt('status_budget_value', ['used' => (int) $budget->creditsused, 'budget' => Config::creditBudget()])],
             [$this->txt('status_bucket'), $this->txt('status_bucket_value', [
                 // A bucket never used yet is full.
                 'tokens' => number_format((int) $bucket->lastrefill === 0 ? (float) Config::rateLimit() : (float) $bucket->tokens, 1),
@@ -532,7 +796,11 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             . '<button type="submit" name="cmd[testConnection]" class="btn btn-default tarsus-btn tarsus-btn--primary">' . $this->txt('status_test') . '</button></form>'
             . '<form method="post" action="' . Html::e($this->ctrl->getFormAction($this, 'resetBreaker')) . '" class="tarsus-inline-form">'
             . '<button type="submit" name="cmd[resetBreaker]" class="btn btn-default tarsus-btn">' . $this->txt('status_reset_breaker') . '</button></form>'
+            . '<form method="post" action="' . Html::e($this->ctrl->getFormAction($this, 'refreshUsage')) . '" class="tarsus-inline-form">'
+            . '<button type="submit" name="cmd[refreshUsage]" class="btn btn-default tarsus-btn">' . Html::icon('refresh') . '<span>' . $this->txt('usage_refresh') . '</span></button></form>'
             . '</div>';
+        $html .= $this->usagePanel();
+        $html .= '<h3 class="tarsus-h3">' . $this->txt('status_guardrails') . '</h3>';
         $html .= '<div class="tarsus-table-wrap"><table class="tarsus-table"><tbody>';
         foreach ($rows as [$label, $value]) {
             $html .= '<tr><th scope="row" style="width:30%">' . $label . '</th><td>' . Html::e($value) . '</td></tr>';

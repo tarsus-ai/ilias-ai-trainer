@@ -118,11 +118,22 @@ class HttpClient implements ClientInterface
                 continue;
             }
 
+            $page = self::htmlOf($bit, $data);
+            $question = self::str($data['question'] ?? '');
+            if ($page !== '' && $question !== '') {
+                $items[] = ['kind' => 'exchange', 'query' => $question, 'answer' => '', 'html' => $page];
+                continue;
+            }
+            if ($page !== '') {
+                $items[] = self::pageStack($widget, $bit, $data, $page);
+                continue;
+            }
+
             $answer = self::str($data['answer'] ?? '');
             if ($answer !== '') {
                 $items[] = [
                     'kind' => 'exchange',
-                    'query' => self::str($data['question'] ?? ''),
+                    'query' => $question,
                     'answer' => $answer,
                 ];
                 continue;
@@ -293,6 +304,33 @@ class HttpClient implements ClientInterface
         return $brains;
     }
 
+    public function getUsage(int $start, int $end): array
+    {
+        $body = $this->send('GET', 'awareness/get/usage', [
+            'brain_id' => $this->brain(),
+            'start_timestamp' => (string) max(0, $start),
+            'end_timestamp' => (string) max($start, $end),
+        ]);
+
+        $items = [];
+        $total = 0;
+        foreach ((array) ($body['awareness']['usage'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $credits = (int) round((float) ($entry['aiCredits'] ?? 0));
+            $total += $credits;
+            $items[] = [
+                'key' => self::str($entry['key'] ?? ''),
+                'name' => self::str($entry['name'] ?? ''),
+                'service' => self::str($entry['service'] ?? ''),
+                'credits' => $credits,
+            ];
+        }
+
+        return ['total' => $total, 'items' => $items, 'credits' => 0];
+    }
+
     public function listVoices(): array
     {
         $body = $this->send('GET', 'awareness/list/clone-voices', ['brain_id' => $this->brain()]);
@@ -346,8 +384,64 @@ class HttpClient implements ClientInterface
             'operators' => self::operators($params),
             'anti_cheat' => !empty($params['anticheat']) ? 'true' : 'false',
             'learn_tempo' => self::learnTempo($params),
+            // trainer-driven: text and pictures; ai-driven: the brain may
+            // answer with interactive HTML pages (plan permitting).
+            'interaction_type' => self::interactionType($params),
             'resource_ids' => json_encode(array_values($params['resourceids'] ?? [])),
         ];
+    }
+
+    private static function interactionType(array $params): string
+    {
+        $type = (string) ($params['interactiontype'] ?? '');
+        return $type === 'ai-driven' ? 'ai-driven' : 'trainer-driven';
+    }
+
+    /**
+     * The interactive HTML page a widget carries, '' when it carries none.
+     *
+     * With ai-driven interaction the brain answers with HTML pages (HTML,
+     * CSS and script: animations, simulations, small tools). The field
+     * that holds the page is not fixed yet, so a few names are accepted,
+     * and a text or answer that is itself a document counts too. Plain
+     * Markdown with the odd inline tag is not a page.
+     *
+     * @param array<string, mixed> $bit
+     * @param array<string, mixed> $data
+     */
+    private static function htmlOf(array $bit, array $data): string
+    {
+        foreach (['html', 'htmlContent', 'html_content', 'htmlPage', 'page', 'interactiveContent', 'interactive_content'] as $key) {
+            foreach ([$data, $bit] as $source) {
+                $value = $source[$key] ?? null;
+                if (is_string($value) && trim($value) !== '' && self::looksLikePage($value)) {
+                    return $value;
+                }
+            }
+        }
+        $type = strtolower((string) ($bit['type'] ?? ''));
+        $pagelike = strpos($type, 'html') !== false || strpos($type, 'interactive') !== false || strpos($type, 'animation') !== false;
+        foreach (['answer', 'text', 'content'] as $key) {
+            foreach ([$data, $bit] as $source) {
+                $value = $source[$key] ?? null;
+                if (is_string($value) && trim($value) !== '' && ($pagelike || self::looksLikePage($value))) {
+                    return $value;
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Whether a string is an HTML page rather than Markdown.
+     */
+    public static function looksLikePage(string $value): bool
+    {
+        $head = ltrim(substr($value, 0, 200));
+        if (stripos($head, '<!doctype') === 0 || stripos($head, '<html') === 0) {
+            return true;
+        }
+        return (bool) preg_match('~<(script|style|svg|canvas|input|button|form|select|textarea|video|iframe|body|head)\b~i', $value);
     }
 
     public function generateWidgets(array $params): array
@@ -377,13 +471,21 @@ class HttpClient implements ClientInterface
         // Collect both rather than matching widget types by name, so new
         // informational widgets surface instead of vanishing.
         $answer = '';
+        $html = '';
         $messages = [];
         foreach ((array) ($body['activity']['widgets'] ?? []) as $widget) {
             if (!is_array($widget)) {
                 continue;
             }
             $bit = (array) ($widget['bit'] ?? []);
-            $answertext = self::str(((array) ($bit['data'] ?? []))['answer'] ?? '');
+            $data = (array) ($bit['data'] ?? []);
+            $page = self::htmlOf($bit, $data);
+            if ($page !== '') {
+                // AI-driven interaction: the answer is an interactive page.
+                $html = $page;
+                continue;
+            }
+            $answertext = self::str($data['answer'] ?? '');
             if ($answertext !== '') {
                 $answer = $answertext;
                 continue;
@@ -397,6 +499,7 @@ class HttpClient implements ClientInterface
 
         return [
             'answer' => $answer,
+            'html' => $html,
             'messages' => $messages,
             // The response carries no cost figure; a grounded answer is
             // priced at about 6 credits.
@@ -605,6 +708,21 @@ class HttpClient implements ClientInterface
                     ];
                     continue;
                 }
+                $page = self::htmlOf($bit, $data);
+                if ($page !== '') {
+                    // An interactive slide (ai-driven interaction).
+                    $slides[] = [
+                        'id' => self::str($slide['_id'] ?? ''),
+                        'kind' => 'html',
+                        'taxonomylevel' => self::str($data['taxonomyLevel'] ?? ''),
+                        'title' => self::str($data['title'] ?? ($bit['title'] ?? '')),
+                        'text' => '',
+                        'html' => $page,
+                        'image' => '',
+                        'imageposition' => 'right',
+                    ];
+                    continue;
+                }
                 $text = self::str($data['text'] ?? ($bit['text'] ?? ''));
                 $title = self::str($data['title'] ?? ($bit['title'] ?? ''));
                 if ($text === '' && $title === '') {
@@ -631,6 +749,14 @@ class HttpClient implements ClientInterface
 
         $bit = (array) ($widget['bit'] ?? []);
         $type = (string) ($bit['type'] ?? '');
+        $data = (array) ($bit['data'] ?? []);
+        if (!in_array($type, self::QUESTION_WIDGET_TYPES, true) && !isset($data['answer'])) {
+            $page = self::htmlOf($bit, $data);
+            if ($page !== '') {
+                // A page outside a stack shows as a one-slide unit.
+                return self::pageStack($widget, $bit, $data, $page);
+            }
+        }
         if ($type === 'courseCompleteWidget' || $type === 'successWidget') {
             // The brain's farewell once every objective is done.
             return [
@@ -673,6 +799,33 @@ class HttpClient implements ClientInterface
         }
 
         return null;
+    }
+
+    /**
+     * A standalone interactive page as a one-slide stack.
+     *
+     * @param array<string, mixed> $widget
+     * @param array<string, mixed> $bit
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function pageStack(array $widget, array $bit, array $data, string $page): array
+    {
+        $id = self::str($widget['stackId'] ?? ($widget['_id'] ?? ''));
+        return [
+            'kind' => 'stack',
+            'id' => $id,
+            'slides' => [[
+                'id' => self::str($widget['_id'] ?? $id),
+                'kind' => 'html',
+                'taxonomylevel' => self::str($data['taxonomyLevel'] ?? ''),
+                'title' => self::str($data['title'] ?? ($bit['title'] ?? '')),
+                'text' => '',
+                'html' => $page,
+                'image' => '',
+                'imageposition' => 'right',
+            ]],
+        ];
     }
 
     /**

@@ -9,10 +9,17 @@ use TarsusIlias\Support\Ilias;
  *
  * With every answer the brain reports the learner's experience points
  * (Test knowledge) and learning units (Build knowledge) with their totals,
- * plus three progress percentages. The latest figures are kept per learner
- * and object: the score is the share of what could be earned in the modes
- * the teacher switched on (0-100), and the learning progress compares the
- * matching progress figure with the teacher's completion threshold.
+ * plus its progress percentages. The latest figures are kept per learner
+ * and object. Which figure is the score and which the progress depends on
+ * the active modes (switched on and included in the plan):
+ *
+ *   Test knowledge only:  score = XP in percent,  progress = practiceProgress
+ *   Build knowledge only: score = LU in percent,  progress = learnProgress
+ *   both:                 score = XP in percent,  progress = LU in percent
+ *   neither:              no score, no progress (a read-only activity)
+ *
+ * The learning progress compares that progress with the teacher's
+ * completion threshold.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -140,47 +147,47 @@ final class Scoring
     }
 
     /**
-     * The score (0-100): Test knowledge alone earned/total XP, Build
-     * knowledge alone earned/total units, both their mean, neither (chat
-     * only) no score.
+     * Whether a score and a progress exist at all: at least one of Test
+     * knowledge and Build knowledge is active. Otherwise the object is a
+     * read-only activity (Ask a question alone).
+     */
+    public static function measurable(Settings $settings): bool
+    {
+        return $settings->modeActive('test') || $settings->modeActive('build');
+    }
+
+    /**
+     * The score (0-100): the experience points in percent whenever Test
+     * knowledge is active, the learning units in percent when only Build
+     * knowledge is; null when neither is.
      */
     public static function grade(Settings $settings, ?\stdClass $row): ?float
     {
-        $test = $settings->testenabled;
-        $build = $settings->buildenabled;
+        $test = $settings->modeActive('test');
+        $build = $settings->modeActive('build');
         if (!$test && !$build) {
             return null;
         }
         if ($row === null) {
             return 0.0;
         }
-        $parts = [];
-        if ($test) {
-            $parts[] = self::share($row->earnedxp, $row->totalxp);
-        }
-        if ($build) {
-            $parts[] = self::share($row->earnedunits, $row->totalunits);
-        }
-        return round(array_sum($parts) / count($parts), 2);
+        return round($test ? self::share($row->earnedxp, $row->totalxp) : self::share($row->earnedunits, $row->totalunits), 2);
     }
 
     /**
      * The progress percentage (0-100) the completion rule looks at: Test
-     * knowledge alone its practice progress, Build knowledge alone its
-     * learning progress, both the brain's overall progress.
+     * knowledge alone the brain's practiceProgress, Build knowledge alone
+     * its learnProgress, both the learning units in percent; neither none.
      */
     public static function progress(Settings $settings, ?\stdClass $row): float
     {
         if ($row === null) {
             return 0.0;
         }
-        $test = $settings->testenabled;
-        $build = $settings->buildenabled;
+        $test = $settings->modeActive('test');
+        $build = $settings->modeActive('build');
         if ($test && $build) {
-            $value = $row->progress;
-            if ($value <= 0) {
-                $value = ($row->practiceprogress + $row->learnprogress) / 2;
-            }
+            $value = self::share($row->earnedunits, $row->totalunits);
         } elseif ($build) {
             $value = $row->learnprogress;
         } elseif ($test) {
@@ -192,11 +199,12 @@ final class Scoring
     }
 
     /**
-     * The learning progress status of a learner.
+     * The learning progress status of a learner. A read-only activity
+     * (neither Test nor Build knowledge active) has none.
      */
     public static function lpStatus(Settings $settings, ?\stdClass $row): int
     {
-        if ($row === null) {
+        if ($row === null || !self::measurable($settings)) {
             return self::LP_NOT_ATTEMPTED;
         }
         if ($settings->completionprogress > 0 && self::progress($settings, $row) >= $settings->completionprogress) {

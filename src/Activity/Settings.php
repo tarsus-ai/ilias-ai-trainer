@@ -4,6 +4,7 @@ namespace TarsusIlias\Activity;
 
 use TarsusIlias\Support\Config;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Plan;
 
 /**
  * The settings of one Tarsus object: availability, the didactic AI
@@ -36,6 +37,8 @@ final class Settings
     public bool $buildenabled = true;
     public bool $gifenabled = false;
     public string $learningmethod = Didactics::METHOD_MICROLEARNING;
+    /** trainer-driven (text and pictures) or ai-driven (interactive pages). */
+    public string $interactiontype = Plan::INTERACTION_TRAINER;
     /** Completion threshold in percent; 0 switches the rule off. */
     public int $completionprogress = self::DEFAULT_COMPLETION;
 
@@ -68,6 +71,7 @@ final class Settings
         $settings->buildenabled = !empty($row['build_on']);
         $settings->gifenabled = !empty($row['gif_on']);
         $settings->learningmethod = Didactics::learningMethod((string) ($row['learn_method'] ?? ''));
+        $settings->interactiontype = self::interaction((string) ($row['interaction'] ?? ''));
         $settings->completionprogress = max(0, min(100, (int) ($row['compl_progress'] ?? self::DEFAULT_COMPLETION)));
         return $settings;
     }
@@ -90,8 +94,44 @@ final class Settings
             'build_on' => ['integer', $this->buildenabled ? 1 : 0],
             'gif_on' => ['integer', $this->gifenabled ? 1 : 0],
             'learn_method' => ['text', Didactics::learningMethod($this->learningmethod)],
+            'interaction' => ['text', self::interaction($this->interactiontype)],
             'compl_progress' => ['integer', max(0, min(100, $this->completionprogress))],
         ]);
+    }
+
+    /**
+     * A valid interaction type; trainer-driven for anything else.
+     */
+    public static function interaction(string $value): string
+    {
+        return in_array($value, Plan::INTERACTIONS, true) ? $value : Plan::INTERACTION_TRAINER;
+    }
+
+    /**
+     * The interaction type that is actually in effect: the object's wish,
+     * bounded by the plan.
+     */
+    public function effectiveInteraction(): string
+    {
+        return Plan::interactionType($this->interactiontype);
+    }
+
+    /**
+     * Whether a mode is switched on here and included in the plan.
+     */
+    public function modeActive(string $mode): bool
+    {
+        return $this->modeEnabled($mode) && Plan::allowsMode($mode);
+    }
+
+    /**
+     * The modes the plan allows this object to offer, in switcher order.
+     *
+     * @return string[]
+     */
+    public function availableModes(): array
+    {
+        return array_values(array_filter($this->modes(), static fn(string $mode): bool => Plan::allowsMode($mode)));
     }
 
     public static function delete(int $objid): void

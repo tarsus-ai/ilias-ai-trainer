@@ -129,3 +129,13 @@ if (!$ilDB->tableExists('rep_robj_xtar_grd')) {
     $ilDB->addPrimaryKey('rep_robj_xtar_grd', ['g_name']);
 }
 ?>
+<#8>
+<?php
+// Interaction type per object: trainer-driven (text and pictures) or
+// ai-driven (interactive pages), plan permitting.
+if ($ilDB->tableExists('rep_robj_xtar_data') && !$ilDB->tableColumnExists('rep_robj_xtar_data', 'interaction')) {
+    $ilDB->addTableColumn('rep_robj_xtar_data', 'interaction', [
+        'type' => 'text', 'length' => 32, 'notnull' => true, 'default' => 'trainer-driven',
+    ]);
+}
+?>

@@ -226,15 +226,20 @@ final class Shaper
                 continue;
             }
             $isquestion = (($slide['kind'] ?? 'text') === 'question') && is_array($slide['question'] ?? null);
+            // An interactive page (ai-driven interaction) is passed through
+            // untouched: the browser shows it in a sandboxed frame, never
+            // in the page itself.
+            $ispage = !$isquestion && ($slide['kind'] ?? 'text') === 'html' && trim((string) ($slide['html'] ?? '')) !== '';
             $level = (string) ($isquestion ? ($slide['question']['taxonomylevel'] ?? '') : ($slide['taxonomylevel'] ?? ''));
             $out = [
                 'id' => (string) ($slide['id'] ?? ''),
-                'kind' => $isquestion ? 'question' : 'text',
+                'kind' => $isquestion ? 'question' : ($ispage ? 'html' : 'text'),
                 'taxonomy' => self::taxonomy($level),
                 'taxonomyicon' => self::taxonomyIcon($level),
                 'title' => (string) ($slide['title'] ?? ''),
-                'text' => Markdown::render((string) ($slide['text'] ?? '')),
-                'image' => self::image((string) ($slide['image'] ?? '')),
+                'text' => $ispage ? '' : Markdown::render((string) ($slide['text'] ?? '')),
+                'html' => $ispage ? (string) $slide['html'] : '',
+                'image' => $ispage ? '' : self::image((string) ($slide['image'] ?? '')),
                 'imageposition' => ($slide['imageposition'] ?? 'right') === 'left' ? 'left' : 'right',
             ];
             if ($isquestion) {
@@ -270,6 +275,7 @@ final class Shaper
                     'kind' => 'exchange',
                     'query' => (string) ($item['query'] ?? ''),
                     'answer' => Markdown::render((string) ($item['answer'] ?? '')),
+                    'html' => (string) ($item['html'] ?? ''),
                 ];
             case 'practice':
                 return self::practiceItem($item);

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v = s / t</title>
+<style>
+  :root { --ink: #1f2a3c; --muted: #5b6676; --blue: #2d6cb5; --orange: #c8651a; --line: #d9e0ea; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink); background: #fff; }
+  .wrap { padding: 4px 2px 8px; }
+  h1 { font-size: 1.25rem; margin: 0 0 .35rem; }
+  p { margin: 0 0 .75rem; color: var(--muted); line-height: 1.45; }
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px 22px;
+    background: radial-gradient(circle, #c9d2df 1px, transparent 1.2px) 0 0 / 18px 18px, #f6f8fb; }
+  .label { text-align: center; font-size: 1.1rem; color: var(--ink); margin-bottom: 6px; }
+  .track { position: relative; height: 10px; border-radius: 6px; background: var(--blue); margin: 14px 18px; }
+  .track::before, .track::after { content: ""; position: absolute; top: 50%; width: 20px; height: 20px; border-radius: 50%; background: #16213a; transform: translate(-50%, -50%); }
+  .track::before { left: 0; } .track::after { left: 100%; }
+  .runner { position: absolute; top: 50%; left: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 4px rgba(200,101,26,.18); transform: translate(-50%, -50%); }
+  .time { text-align: center; color: var(--muted); font-size: 1.05rem; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; margin-top: 14px; }
+  .control label { display: flex; justify-content: space-between; font-weight: 600; font-size: .95rem; margin-bottom: 4px; }
+  .control output { color: var(--blue); }
+  input[type=range] { width: 100%; accent-color: var(--blue); }
+  .result { margin-top: 14px; padding: 12px 16px; border-radius: 12px; background: #eef4fb; border-left: 4px solid var(--blue); font-size: 1.05rem; }
+  .result b { font-size: 1.25rem; color: var(--blue); }
+  @media (max-width: 520px) { .controls { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 data-i18n="title"></h1>
+  <p data-i18n="intro"></p>
+  <div class="stage">
+    <div class="label" data-i18n="distance"></div>
+    <div class="track"><div class="runner" id="runner"></div></div>
+    <div class="time" data-i18n="time"></div>
+  </div>
+  <div class="controls">
+    <div class="control"><label><span data-i18n="s"></span><output id="sOut"></output></label><input id="s" type="range" min="10" max="200" step="5" value="60"></div>
+    <div class="control"><label><span data-i18n="t"></span><output id="tOut"></output></label><input id="t" type="range" min="1" max="60" step="1" value="10"></div>
+  </div>
+  <div class="result" id="result"></div>
+</div>
+<script>
+(function () {
+  var lang = document.documentElement.lang === 'de' ? 'de' : 'en';
+  var L = {
+    de: {title: 'Geschwindigkeit aus Strecke und Zeit', intro: 'Stelle Strecke und Zeit ein und sieh sofort, wie die Geschwindigkeit entsteht. Der Punkt bewegt sich mit der berechneten Geschwindigkeit.',
+      distance: 'Strecke s', time: 'benötigte Zeit t', s: 'Strecke s', t: 'Zeit t', result: 'v = s / t = {s} m / {t} s = <b>{v} m/s</b> (≈ {kmh} km/h)'},
+    en: {title: 'Speed from distance and time', intro: 'Set distance and time and watch how the speed follows. The dot moves at the computed speed.',
+      distance: 'distance s', time: 'time needed t', s: 'distance s', t: 'time t', result: 'v = s / t = {s} m / {t} s = <b>{v} m/s</b> (≈ {kmh} km/h)'}
+  }[lang];
+  document.querySelectorAll('[data-i18n]').forEach(function (n) { n.textContent = L[n.getAttribute('data-i18n')]; });
+  var s = document.getElementById('s'), t = document.getElementById('t'), runner = document.getElementById('runner');
+  var start = performance.now();
+  function update() {
+    var sv = +s.value, tv = +t.value, v = sv / tv;
+    document.getElementById('sOut').textContent = sv + ' m';
+    document.getElementById('tOut').textContent = tv + ' s';
+    document.getElementById('result').innerHTML = L.result.replace('{s}', sv).replace('{t}', tv).replace('{v}', v.toFixed(2).replace(/\.?0+$/, '')).replace('{kmh}', (v * 3.6).toFixed(1));
+  }
+  function animate(now) {
+    var tv = +t.value, phase = ((now - start) / 1000) % tv / tv;
+    runner.style.left = (phase * 100) + '%';
+    requestAnimationFrame(animate);
+  }
+  s.addEventListener('input', update); t.addEventListener('input', update);
+  update(); requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>

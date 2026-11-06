@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>d, h</title>
+<style>
+  :root { --ink: #1f2a3c; --muted: #5b6676; --blue: #2d6cb5; --orange: #c8651a; --line: #d9e0ea; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink); background: #fff; }
+  .wrap { padding: 4px 2px 8px; }
+  h1 { font-size: 1.25rem; margin: 0 0 .35rem; }
+  p { margin: 0 0 .75rem; color: var(--muted); line-height: 1.45; }
+  .stage { border: 1px solid var(--line); border-radius: 14px; padding: 10px; touch-action: none; cursor: grab;
+    background: radial-gradient(circle, #c9d2df 1px, transparent 1.2px) 0 0 / 18px 18px, #f6f8fb; }
+  canvas { display: block; width: 100%; height: auto; }
+  .caption { text-align: center; color: var(--muted); font-size: .92rem; margin-top: 6px; }
+  .bar { display: flex; align-items: center; gap: 14px; margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+  button { font: inherit; font-weight: 600; color: #fff; background: var(--blue); border: 0; border-radius: 10px; padding: 10px 16px; cursor: pointer; }
+  .note { flex: 1; padding: 10px 14px; border-left: 4px solid var(--blue); background: #eef4fb; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 data-i18n="title"></h1>
+  <p data-i18n="intro"></p>
+  <div class="stage" id="stage"><canvas id="c" width="760" height="460"></canvas><div class="caption" data-i18n="caption"></div></div>
+  <div class="bar"><button id="toggle"></button><div class="note" data-i18n="note"></div></div>
+</div>
+<script>
+(function () {
+  var lang = document.documentElement.lang === 'de' ? 'de' : 'en';
+  var L = {
+    de: {title: 'Durchmesser und Höhe in 3D', intro: 'Eine drehbare Ansicht macht den Unterschied deutlich: d ist die Strecke quer über die runde Fläche, h die senkrechte Strecke von unten nach oben.',
+      caption: 'Quer: d · Senkrecht: h. Ziehe die Darstellung zum Drehen.', note: 'Die Ansicht dreht sich. Die markierten Strecken bleiben dieselben.', pause: 'Drehung pausieren', play: 'Drehung fortsetzen', d: 'd: quer', h: 'h: senkrecht'},
+    en: {title: 'Diameter and height in 3D', intro: 'A rotating view makes the difference clear: d runs across the round face, h runs vertically from bottom to top.',
+      caption: 'Across: d · Vertical: h. Drag the picture to rotate it.', note: 'The view rotates. The marked lengths stay the same.', pause: 'Pause rotation', play: 'Resume rotation', d: 'd: across', h: 'h: vertical'}
+  }[lang];
+  document.querySelectorAll('[data-i18n]').forEach(function (n) { n.textContent = L[n.getAttribute('data-i18n')]; });
+  var canvas = document.getElementById('c'), ctx = canvas.getContext('2d'), toggle = document.getElementById('toggle'), stage = document.getElementById('stage');
+  var W = canvas.width, H = canvas.height, R = 120, HH = 260, yaw = 0.6, pitch = 0.35, running = true, drag = null;
+  toggle.textContent = L.pause;
+  function project(p) {
+    var x = p[0] * Math.cos(yaw) - p[2] * Math.sin(yaw), z = p[0] * Math.sin(yaw) + p[2] * Math.cos(yaw);
+    var y = p[1] * Math.cos(pitch) - z * Math.sin(pitch), zz = p[1] * Math.sin(pitch) + z * Math.cos(pitch);
+    var s = 700 / (700 + zz);
+    return [W / 2 + x * s, H / 2 - y * s, zz];
+  }
+  function ring(y) { var pts = []; for (var i = 0; i <= 48; i++) { var a = i / 48 * Math.PI * 2; pts.push(project([R * Math.cos(a), y, R * Math.sin(a)])); } return pts; }
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    var top = ring(HH / 2), bottom = ring(-HH / 2);
+    ctx.fillStyle = 'rgba(45,108,181,.14)'; ctx.strokeStyle = '#4a5568'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); top.forEach(function (p, i) { i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); bottom.slice().reverse().forEach(function (p) { ctx.lineTo(p[0], p[1]); }); ctx.closePath(); ctx.fill();
+    for (var i = 0; i < 48; i += 3) { ctx.beginPath(); ctx.moveTo(top[i][0], top[i][1]); ctx.lineTo(bottom[i][0], bottom[i][1]); ctx.strokeStyle = top[i][2] > 0 ? '#b8c2d1' : '#4a5568'; ctx.stroke(); }
+    [bottom, top].forEach(function (r, k) { ctx.beginPath(); r.forEach(function (p, i) { i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.strokeStyle = '#2b3445'; ctx.lineWidth = 2; ctx.stroke(); if (k) { ctx.fillStyle = 'rgba(45,108,181,.22)'; ctx.fill(); } });
+    var a = project([-R, HH / 2, 0]), b = project([R, HH / 2, 0]);
+    ctx.strokeStyle = '#2d6cb5'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    var c = project([-R * 0.8, HH / 2, -R * 0.6]), d = project([-R * 0.8, -HH / 2, -R * 0.6]);
+    ctx.strokeStyle = '#c8651a'; ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.stroke();
+    ctx.fillStyle = '#16213a'; ctx.font = 'bold 20px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(L.d, (a[0] + b[0]) / 2, Math.min(a[1], b[1]) - 16);
+    ctx.textAlign = 'right'; ctx.fillText(L.h, Math.min(c[0], d[0]) - 12, (c[1] + d[1]) / 2);
+  }
+  function loop() { if (running && !drag) yaw += 0.008; draw(); requestAnimationFrame(loop); }
+  toggle.addEventListener('click', function () { running = !running; toggle.textContent = running ? L.pause : L.play; });
+  stage.addEventListener('pointerdown', function (e) { drag = {x: e.clientX, y: e.clientY, yaw: yaw, pitch: pitch}; stage.setPointerCapture(e.pointerId); });
+  stage.addEventListener('pointermove', function (e) { if (!drag) return; yaw = drag.yaw + (e.clientX - drag.x) / 120; pitch = Math.max(-1.2, Math.min(1.2, drag.pitch + (e.clientY - drag.y) / 160)); });
+  stage.addEventListener('pointerup', function () { drag = null; }); stage.addEventListener('pointercancel', function () { drag = null; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'ArrowLeft') yaw -= 0.1; if (e.key === 'ArrowRight') yaw += 0.1; if (e.key === 'ArrowUp') pitch -= 0.1; if (e.key === 'ArrowDown') pitch += 0.1; });
+  loop();
+})();
+</script>
+</body>
+</html>

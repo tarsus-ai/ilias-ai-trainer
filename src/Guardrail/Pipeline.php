@@ -3,15 +3,18 @@
 namespace TarsusIlias\Guardrail;
 
 use TarsusIlias\Client\TransportException;
+use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
 
 /**
  * Client-side guardrails for every outbound Tarsus call.
  *
- * Gate order: kill switch -> circuit breaker -> credit budget -> rate
- * limit -> send. A success resets the failure counter and charges the
- * budget; repeated transport failures trip the breaker. The pipeline never
- * sleeps: retries are the caller's business.
+ * Gate order: kill switch -> circuit breaker -> monthly credit limit ->
+ * rate limit -> send. A success resets the failure counter; repeated
+ * transport failures trip the breaker. The monthly limit only gates calls
+ * that cost credits: reading the feed or the usage figures stays possible
+ * when the month's credits are spent. The pipeline never sleeps: retries
+ * are the caller's business.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -23,9 +26,6 @@ class Pipeline
 
     /** Seconds the breaker stays open before a trial call. */
     public const BREAKER_COOLDOWN = 300;
-
-    /** Length of a credit-budget period in seconds. */
-    public const BUDGET_PERIOD = 86400;
 
     private StateStore $store;
 
@@ -89,21 +89,11 @@ class Pipeline
     }
 
     /**
-     * Refuse the call when it would exceed the credit budget of the period.
+     * Refuse a charged call when it would cross the monthly credit limit.
      */
     private function guardBudget(int $estimatedcredits): void
     {
-        $budget = Config::creditBudget();
-
-        $row = $this->store->mutate('budget', function (\stdClass $row): void {
-            $now = time();
-            if ((int) $row->periodstart === 0 || $now - (int) $row->periodstart >= self::BUDGET_PERIOD) {
-                $row->creditsused = 0;
-                $row->periodstart = $now;
-            }
-        });
-
-        if ((int) $row->creditsused + $estimatedcredits > $budget) {
+        if ($estimatedcredits > 0 && Budget::wouldExceed($estimatedcredits)) {
             throw new BlockedException('budget');
         }
     }
@@ -156,12 +146,6 @@ class Pipeline
             $row->failurecount = 0;
             $row->state = 'closed';
         });
-
-        if ($credits > 0) {
-            $this->store->mutate('budget', function (\stdClass $row) use ($credits): void {
-                $row->creditsused = (int) $row->creditsused + $credits;
-            });
-        }
     }
 
     /**
@@ -173,7 +157,6 @@ class Pipeline
     {
         return [
             'breaker' => $this->store->get('breaker'),
-            'budget' => $this->store->get('budget'),
             'bucket' => $this->store->get('bucket'),
         ];
     }

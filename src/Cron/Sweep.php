@@ -3,6 +3,7 @@
 namespace TarsusIlias\Cron;
 
 use TarsusIlias\Index\Reconciler;
+use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
 use TarsusIlias\Support\Ilias;
 
@@ -34,15 +35,20 @@ final class Sweep
             Ilias::log('cron run failed: ' . $e->getMessage(), 'error');
             return ['ok' => false, 'acted' => false, 'message' => substr($e->getMessage(), 0, 250)];
         }
+        // The brain's own usage figure for the month, for the limit and
+        // the warnings.
+        $usage = Budget::refreshRemote(true);
         $acted = ($summary['withdrawn'] + $summary['uploaded'] + $summary['confirmed']) > 0;
         $message = sprintf(
-            '%d course(s) checked: %d withdrawn, %d changed, %d re-sent, %d confirmed, %d failed.',
+            '%d course(s) checked: %d withdrawn, %d changed, %d re-sent, %d confirmed, %d failed. Credits this month: %s%s.',
             $summary['containers'],
             $summary['withdrawn'],
             $summary['changed'],
             $summary['uploaded'],
             $summary['confirmed'],
-            $summary['failed']
+            $summary['failed'],
+            number_format(Budget::used()),
+            Budget::hasLimit() ? ' of ' . number_format(Budget::limit()) . ($usage === null ? ' (brain figure unavailable)' : '') : ''
         );
         return ['ok' => $summary['failed'] === 0, 'acted' => $acted, 'message' => $message];
     }

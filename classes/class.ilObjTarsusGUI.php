@@ -31,8 +31,12 @@ use TarsusIlias\Output\Presenter;
 use TarsusIlias\Output\Views;
 use TarsusIlias\Service\LearnerApi;
 use TarsusIlias\Service\ManagerApi;
+use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
+use TarsusIlias\Support\Help;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Plan;
+use TarsusIlias\Support\UsageMeter;
 
 class ilObjTarsusGUI extends ilObjectPluginGUI
 {
@@ -92,6 +96,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             case 'showMaterials':
             case 'showLearners':
             case 'exportLearners':
+            case 'showAnalytics':
             case 'editSettings':
             case 'updateSettings':
                 $this->checkPermission('write');
@@ -139,6 +144,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         if ($this->access->checkAccess('write', '', $ref)) {
             $this->tabs->addTab('materials', $this->txt('tab_materials'), $this->ctrl->getLinkTarget($this, 'showMaterials'));
             $this->tabs->addTab('learners', $this->txt('tab_learners'), $this->ctrl->getLinkTarget($this, 'showLearners'));
+            $this->tabs->addTab('analytics', $this->txt('tab_analytics'), $this->ctrl->getLinkTarget($this, 'showAnalytics'));
             $this->tabs->addTab('settings', $this->txt('tab_settings'), $this->ctrl->getLinkTarget($this, 'editSettings'));
         }
 
@@ -158,7 +164,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $settings = $this->tarsus()->getSettings();
         $info->addSection($this->txt('info_section'));
         $modes = [];
-        foreach ($settings->modes() as $mode) {
+        foreach ($settings->availableModes() as $mode) {
             $modes[] = $this->txt('mode_' . $mode);
         }
         $info->addProperty($this->txt('info_modes'), $modes === [] ? $this->txt('info_no_modes') : implode(', ', $modes));
@@ -231,9 +237,10 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             // Statistics only.
         }
 
-        $modes = $settings->modes();
+        $this->budgetBanner();
+        $modes = $settings->availableModes();
         if ($modes === []) {
-            $this->tpl->setOnScreenMessage('info', $this->txt('no_modes_notice'));
+            $this->tpl->setOnScreenMessage('info', $this->txt($settings->modes() === [] ? 'no_modes_notice' : 'no_modes_plan_notice'));
             $this->tpl->setContent('');
             return;
         }
@@ -275,6 +282,10 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
                 'audio' => 'ajaxAudio',
             ]),
             'modes' => $modes,
+            // Narration of learning units is part of Build Knowledge and
+            // Pay as you grow.
+            'audio' => Plan::allowsAudio(),
+            'interactive' => $settings->effectiveInteraction() === Plan::INTERACTION_AI,
             'pageSize' => LearnerApi::FEED_PAGE_SIZE,
             'userAvatar' => $useravatar,
             'robotAvatar' => $robotavatar,
@@ -292,7 +303,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
                 'practice_variable_placeholder', 'practice_table_position', 'practice_table_rate', 'practice_table_amount',
                 'practice_score', 'xp', 'learning_units', 'learn_slide_of', 'learn_previous', 'learn_next',
                 'learn_image_enlarge', 'learn_image_close', 'learn_audio', 'learn_audio_play', 'learn_audio_pause',
-                'learn_ask_about', 'chat_reply_about', 'chat_reply_clear', 'learn_complete_title',
+                'learn_ask_about', 'chat_reply_about', 'chat_reply_clear', 'learn_complete_title', 'frame_title', 'frame_enlarge',
                 'learn_motivation_title', 'mode_build', 'mode_test', 'mode_ask', 'unexpected_error', 'session_lost',
                 'proc_ask_classify', 'proc_ask_search', 'proc_ask_media', 'proc_ask_select', 'proc_ask_cube',
                 'proc_ask_dqr', 'proc_ask_compose', 'proc_ask_verify', 'proc_ask_polish',
@@ -309,7 +320,34 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             ]),
         ];
 
-        $this->tpl->setContent(Views::chat('tarsus-chat-' . $object->getId(), $config));
+        $this->tpl->setContent(Views::chat('tarsus-chat-' . $object->getId(), $config, Views::help(Help::links(), 'tarsus-help-chat')));
+    }
+
+    /**
+     * Tell teachers how much of the month's AI credits is used, and
+     * learners when the month's credits are spent.
+     */
+    private function budgetBanner(): void
+    {
+        if ($this->checkPermissionBool('write')) {
+            $banner = Budget::banner();
+            if ($banner !== null) {
+                $this->tpl->setOnScreenMessage($banner['type'], $banner['text']);
+            }
+            return;
+        }
+        if (Budget::exhausted()) {
+            $this->tpl->setOnScreenMessage('info', $this->txt('budget_exhausted_learner'));
+        }
+    }
+
+    /**
+     * The help button for the teacher's screens; '' when no links are configured.
+     */
+    private function helpHtml(): string
+    {
+        $help = Views::help(Help::links(), 'tarsus-help-' . $this->object->getId());
+        return $help === '' ? '' : '<div class="tarsus-app tarsus-help-row">' . $help . '</div>';
     }
 
     private function confirmResetChat(): void
@@ -393,6 +431,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     private function showMaterials(): void
     {
         $this->tabs->activateTab('materials');
+        $this->budgetBanner();
         $object = $this->tarsus();
         $containerref = $object->getContainerRefId();
 
@@ -547,6 +586,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     private function showLearners(): void
     {
         $this->tabs->activateTab('learners');
+        $this->budgetBanner();
         $object = $this->tarsus();
         $settings = $object->getSettings();
         $overview = (new Learners($object->getId(), $object->getContainerRefId(), $settings))->overview();
@@ -555,7 +595,95 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $this->toolbar->addFormButton($this->txt('export_csv'), 'exportLearners');
 
         $this->includeAssets();
-        $this->tpl->setContent(Views::learners($overview, $settings->testenabled, $settings->buildenabled, $settings->completionprogress));
+        $this->tpl->setContent($this->helpHtml()
+            . Views::learners($overview, $settings->modeActive('test'), $settings->modeActive('build'), $settings->completionprogress));
+    }
+
+    // ------------------------------------------------------------------
+    // Analytics
+    // ------------------------------------------------------------------
+
+    /**
+     * Usage of this object: requests and credits this month, the last 30
+     * days, the split by mode and the most active learners - from the
+     * local ledger, so no brain call is needed.
+     */
+    private function showAnalytics(): void
+    {
+        $this->tabs->activateTab('analytics');
+        $this->budgetBanner();
+        $object = $this->tarsus();
+        $objid = $object->getId();
+        $meter = new UsageMeter();
+        $monthstart = Budget::monthStart();
+        $since = strtotime('-29 days', (int) mktime(0, 0, 0));
+
+        $month = ['requests' => 0, 'credits' => 0];
+        foreach ($meter->summary($monthstart, $objid) as $figures) {
+            $month['requests'] += (int) $figures['calls'];
+            $month['credits'] += (int) $figures['credits'];
+        }
+        $installation = Budget::localCredits();
+        $month['learners'] = $meter->activeUsers($monthstart, $objid);
+        $month['share'] = $installation > 0 ? $month['credits'] / $installation * 100 : 0.0;
+
+        $daily = $meter->daily($since, $objid);
+        $days = [];
+        for ($i = 0; $i < 30; $i++) {
+            $time = strtotime('+' . $i . ' days', $since);
+            $key = date('Y-m-d', $time);
+            $days[] = [
+                'label' => Views::date($time),
+                'short' => date('d.m.', $time),
+                'calls' => (int) ($daily[$key]['calls'] ?? 0),
+                'credits' => (int) ($daily[$key]['credits'] ?? 0),
+            ];
+        }
+
+        $groups = [
+            'ask' => ['label' => $this->txt('mode_ask'), 'icon' => 'mode_ask', 'ops' => ['chat_ask']],
+            'test' => ['label' => $this->txt('mode_test'), 'icon' => 'mode_test', 'ops' => ['practice_next', 'practice_eval']],
+            'build' => ['label' => $this->txt('mode_build'), 'icon' => 'mode_build', 'ops' => ['learn_next', 'learn_check']],
+            'audio' => ['label' => $this->txt('learn_audio'), 'icon' => 'audio', 'ops' => ['learn_audio']],
+        ];
+        $summary = $meter->summary($since, $objid);
+        $modes = [];
+        foreach ($groups as $group) {
+            $calls = 0;
+            $credits = 0;
+            foreach ($group['ops'] as $op) {
+                $calls += (int) ($summary[$op]['calls'] ?? 0);
+                $credits += (int) ($summary[$op]['credits'] ?? 0);
+            }
+            $modes[] = ['label' => $group['label'], 'icon' => $group['icon'], 'calls' => $calls, 'credits' => $credits];
+        }
+
+        $top = [];
+        foreach ($meter->perUser($since, $objid, 8) as $row) {
+            $name = '';
+            try {
+                $name = trim((string) ilObjUser::_lookupFullname($row['usrid']));
+            } catch (Throwable $e) {
+                $name = '';
+            }
+            $top[] = ['name' => $name !== '' ? $name : '#' . $row['usrid'], 'calls' => $row['calls'], 'credits' => $row['credits'], 'last' => $row['last']];
+        }
+
+        $data = [
+            'month' => $month,
+            'days' => $days,
+            'modes' => $modes,
+            'top' => $top,
+            'budget' => [
+                'used' => Budget::used(),
+                'limit' => Budget::limit(),
+                'level' => Budget::level(),
+                'reset' => Views::date(Budget::nextMonthStart()),
+            ],
+        ];
+
+        $this->includeAssets();
+        $this->tpl->setContent(Views::analytics($data, Views::help(Help::links(), 'tarsus-help-analytics')));
     }
 
     private function exportLearners(): void
@@ -604,11 +732,13 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     private function editSettings(?ilPropertyFormGUI $form = null): void
     {
         $this->tabs->activateTab('settings');
+        $this->budgetBanner();
         if ($form === null) {
             $form = $this->initSettingsForm();
             $this->fillSettingsForm($form);
         }
-        $this->tpl->setContent($form->getHTML());
+        $this->includeAssets();
+        $this->tpl->setContent($this->helpHtml() . $form->getHTML());
     }
 
     private function initSettingsForm(): ilPropertyFormGUI
@@ -637,9 +767,32 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $form->addItem($section);
         foreach (['ask', 'test', 'build'] as $mode) {
             $box = new ilCheckboxInputGUI($this->txt($mode . 'enabled'), $mode . 'enabled');
-            $box->setInfo($this->txt($mode . 'enabled_help'));
+            if (Plan::allowsMode($mode)) {
+                $box->setInfo($this->txt($mode . 'enabled_help'));
+            } else {
+                // Not part of the customer's plan: shown, explained, locked.
+                $box->setDisabled(true);
+                $box->setInfo($this->txt($mode . 'enabled_help') . ' <strong>' . $this->txt('plan_mode_unavailable', ['plan' => Plan::label()]) . '</strong>');
+            }
             $form->addItem($box);
         }
+
+        // Interaction.
+        $section = new ilFormSectionHeaderGUI();
+        $section->setTitle($this->txt('settings_interaction'));
+        $section->setInfo($this->txt('settings_interaction_desc'));
+        $form->addItem($section);
+
+        $interaction = new ilRadioGroupInputGUI($this->txt('interactiontype'), 'interactiontype');
+        $trainer = new ilRadioOption($this->txt('interaction_trainer'), Plan::INTERACTION_TRAINER, $this->txt('interaction_trainer_help'));
+        $interaction->addOption($trainer);
+        $ai = new ilRadioOption($this->txt('interaction_ai'), Plan::INTERACTION_AI, $this->txt('interaction_ai_help')
+            . (Plan::allowsAiDriven() ? '' : ' <strong>' . $this->txt('plan_interaction_unavailable', ['plan' => Plan::label()]) . '</strong>'));
+        if (!Plan::allowsAiDriven()) {
+            $ai->setDisabled(true);
+        }
+        $interaction->addOption($ai);
+        $form->addItem($interaction);
 
         // General didactics.
         $section = new ilFormSectionHeaderGUI();
@@ -774,6 +927,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             'learntempo' => (string) $settings->learntempo,
             'learningmethod' => $settings->learningmethod,
             'gifenabled' => $settings->gifenabled,
+            'interactiontype' => $settings->interactiontype,
             'completionprogress' => $settings->completionprogress,
         ];
         foreach (Didactics::GRADES as $grade) {
@@ -793,8 +947,13 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
 
         $errors = false;
         $modesOn = false;
+        $current = $this->tarsus()->getSettings();
+        $wanted = [];
         foreach (['ask', 'test', 'build'] as $mode) {
-            if ($form->getInput($mode . 'enabled')) {
+            // A locked box posts nothing: keep the stored value, so a plan
+            // upgrade later finds the teacher's choice intact.
+            $wanted[$mode] = Plan::allowsMode($mode) ? (bool) $form->getInput($mode . 'enabled') : $current->modeEnabled($mode);
+            if ($wanted[$mode] && Plan::allowsMode($mode)) {
                 $modesOn = true;
             }
         }
@@ -828,9 +987,12 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $settings = $object->getSettings();
         $settings->objid = $object->getId();
         $settings->online = (bool) $form->getInput('online');
-        $settings->askenabled = (bool) $form->getInput('askenabled');
-        $settings->testenabled = (bool) $form->getInput('testenabled');
-        $settings->buildenabled = (bool) $form->getInput('buildenabled');
+        $settings->askenabled = $wanted['ask'];
+        $settings->testenabled = $wanted['test'];
+        $settings->buildenabled = $wanted['build'];
+        $interaction = (string) $form->getInput('interactiontype');
+        $settings->interactiontype = ($interaction === Plan::INTERACTION_AI && !Plan::allowsAiDriven())
+            ? $current->interactiontype : \TarsusIlias\Activity\Settings::interaction($interaction);
         $settings->dqr = (int) $form->getInput('dqr');
         $settings->industry = (string) $form->getInput('industry');
         $settings->anticheat = (bool) $form->getInput('anticheat');

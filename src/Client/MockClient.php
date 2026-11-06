@@ -201,14 +201,32 @@ class MockClient implements ClientInterface
                 . "| DQR level | " . (int) ($params['dqr'] ?? 6) . " |\n\n"
                 . 'A formula for good measure: $a^2 + b^2 = c^2$';
         }
-        $state['feed'][] = ['kind' => 'exchange', 'query' => $query, 'answer' => $answer];
+        $html = '';
+        if (($params['interactiontype'] ?? '') === 'ai-driven') {
+            // AI-driven interaction: the answer is an interactive page.
+            $turn = (int) ($state['pageturn'] ?? 0);
+            $state['pageturn'] = $turn + 1;
+            $html = self::page(['speed', 'discharge', 'cylinder'][$turn % 3], self::de($params));
+        }
+        $state['feed'][] = ['kind' => 'exchange', 'query' => $query, 'answer' => $html === '' ? $answer : '', 'html' => $html];
         $this->save($params, $state);
 
         return [
-            'answer' => $answer,
+            'answer' => $html === '' ? $answer : '',
+            'html' => $html,
             'messages' => $messages,
             'credits' => 6,
         ];
+    }
+
+    /**
+     * One of the bundled interactive demo pages, in the user's language.
+     */
+    private static function page(string $name, bool $de): string
+    {
+        $file = dirname(__DIR__, 2) . '/templates/mock/' . $name . '.html';
+        $html = is_file($file) ? (string) file_get_contents($file) : '';
+        return str_replace('{{lang}}', $de ? 'de' : 'en', $html);
     }
 
     public function generatePracticeWidget(array $params): array
@@ -286,7 +304,7 @@ class MockClient implements ClientInterface
                     'text' => $de ? 'Stark - weiter zum nächsten Ziel!' : 'Great - on to the next goal!',
                 ];
             }
-            $items[] = $this->mockStack($state, $step, $de);
+            $items[] = $this->mockStack($state, $step, $de, ($params['interactiontype'] ?? '') === 'ai-driven');
         }
         if ($step > self::STACKS) {
             $state['lcomplete'] = true;
@@ -310,7 +328,7 @@ class MockClient implements ClientInterface
      * @param array<string, mixed> $state
      * @return array<string, mixed>
      */
-    private function mockStack(array &$state, int $step, bool $de): array
+    private function mockStack(array &$state, int $step, bool $de, bool $interactive = false): array
     {
         $stackid = 'mock-stack-' . $step . '-' . substr(sha1(uniqid('', true)), 0, 6);
         $svg = 'data:image/svg+xml;base64,' . base64_encode(
@@ -329,10 +347,18 @@ class MockClient implements ClientInterface
         ];
         $state['questions'][$qid] = $question + ['state' => 'learn'];
 
+        $pages = [];
+        if ($interactive) {
+            // AI-driven interaction: one slide is an interactive page.
+            $pages[] = ['id' => $stackid . '-p', 'kind' => 'html', 'taxonomylevel' => 'ANWENDEN',
+                'title' => $de ? 'Probiere es aus' : 'Try it yourself', 'text' => '', 'image' => '', 'imageposition' => 'right',
+                'html' => self::page(['cylinder', 'speed', 'discharge'][$step % 3], $de)];
+        }
+
         return [
             'kind' => 'stack',
             'id' => $stackid,
-            'slides' => [
+            'slides' => array_merge([
                 ['id' => $stackid . '-1', 'kind' => 'text', 'taxonomylevel' => 'WISSEN',
                     'title' => $de ? 'Einheit ' . $step . ': Das Wichtigste' : 'Unit ' . $step . ': the essentials',
                     'text' => $de ? "Micro-Learning teilt Wissen in **kurze Einheiten**.\n\n- eine Idee pro Folie\n- direkt anwendbar"
@@ -343,11 +369,12 @@ class MockClient implements ClientInterface
                     'text' => $de ? "Kurze Einheiten passen in den Alltag und werden öfter wiederholt - so bleibt mehr hängen."
                         : "Short units fit into everyday work and get repeated more often - so more of it sticks.",
                     'image' => $svg, 'imageposition' => $step % 2 === 0 ? 'right' : 'left'],
+            ], $pages, [
                 ['id' => $qid, 'kind' => 'question', 'title' => '', 'text' => '', 'image' => '', 'imageposition' => 'right',
                     'question' => self::publicQuestion($qid, $question) + ['kind' => 'practice', 'answered' => false,
                         'score' => null, 'correct' => null, 'feedback' => '', 'useranswer' => '', 'useranswers' => [],
                         'answer' => '', 'answers' => [], 'usertable' => [], 'answertable' => []]],
-            ],
+            ]),
         ];
     }
 
@@ -530,6 +557,48 @@ class MockClient implements ClientInterface
             'progress' => self::progressOf($state),
             'credits' => 0,
         ];
+    }
+
+    public function getUsage(int $start, int $end): array
+    {
+        $this->maybeFail();
+        // The demo brain charges what the local ledger counted, split over
+        // the services the real usage report names.
+        $db = \TarsusIlias\Support\Ilias::db();
+        $res = $db->queryF(
+            'SELECT op_name, SUM(credits) credits FROM ' . \TarsusIlias\Support\UsageMeter::TABLE . ' WHERE created >= %s AND created <= %s GROUP BY op_name',
+            ['integer', 'integer'],
+            [$start, $end]
+        );
+        $services = [
+            'answeredQuery' => ['Answered Search', 'search', 0],
+            'questionGeneration' => ['Question Generation', 'assets', 0],
+            'answerEvaluation' => ['Answer Evaluation', 'assets', 0],
+            'bitsGeneration' => ['Nugget Generation', 'assets', 0],
+            'audioGeneration' => ['Audio Generation', 'assets', 0],
+        ];
+        while ($row = $db->fetchAssoc($res)) {
+            $op = (string) $row['op_name'];
+            $credits = (int) $row['credits'];
+            $key = 'questionGeneration';
+            if (strpos($op, 'ask') !== false) {
+                $key = 'answeredQuery';
+            } elseif (strpos($op, 'eval') !== false || strpos($op, 'check') !== false) {
+                $key = 'answerEvaluation';
+            } elseif (strpos($op, 'audio') !== false) {
+                $key = 'audioGeneration';
+            } elseif (strpos($op, 'learn') !== false) {
+                $key = 'bitsGeneration';
+            }
+            $services[$key][2] += $credits;
+        }
+        $items = [];
+        $total = 0;
+        foreach ($services as $key => [$name, $service, $credits]) {
+            $items[] = ['key' => $key, 'name' => $name, 'service' => $service, 'credits' => $credits];
+            $total += $credits;
+        }
+        return ['total' => $total, 'items' => $items, 'credits' => 0];
     }
 
     public function resetConversation(string $contextid, string $userid): void

@@ -1709,3 +1709,347 @@
         transition: none;
     }
 }
+
+/* ------------------------------------------------------------------
+   Interactive pages (ai-driven interaction): sandboxed frames
+   ------------------------------------------------------------------ */
+.tarsus-frame {
+    position: relative;
+    margin-top: 0.75rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 12px;
+    background: var(--tz-card);
+    overflow: hidden;
+}
+
+.tarsus-card__answer-body .tarsus-frame:first-child {
+    margin-top: 0;
+}
+
+.tarsus-frame__iframe {
+    display: block;
+    width: 100%;
+    height: 420px;
+    border: 0;
+    background: #fff;
+    transition: height 0.2s ease;
+}
+
+.tarsus-frame__enlarge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--tz-line);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--tz-fg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.15s ease;
+}
+
+.tarsus-frame__enlarge:hover,
+.tarsus-frame__enlarge:focus-visible {
+    opacity: 1;
+}
+
+.tarsus-lightbox--page {
+    cursor: default;
+}
+
+.tarsus-lightbox__page {
+    width: min(94vw, 1500px);
+    height: 90vh;
+    border: 0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+/* ------------------------------------------------------------------
+   Help button and panel
+   ------------------------------------------------------------------ */
+.tarsus-help {
+    position: relative;
+    display: inline-flex;
+    pointer-events: auto;
+}
+
+.tarsus-chat-box .tarsus-top-dock .tarsus-help {
+    margin-right: 0.5rem;
+}
+
+.tarsus-help-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+}
+
+.tarsus-help__button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 2.25rem;
+    padding: 0 0.85rem 0 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--tz-line);
+    background: var(--tz-card);
+    color: var(--tz-fg);
+    font: inherit;
+    font-size: 0.9rem;
+    box-shadow: var(--tz-card-shadow);
+    cursor: pointer;
+}
+
+.tarsus-help__button[aria-expanded="true"] {
+    background: var(--tz-accent);
+    border-color: var(--tz-accent);
+    color: #fff;
+}
+
+.tarsus-help__panel {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 997;
+    width: min(26rem, calc(100vw - 2rem));
+    max-height: min(70vh, 36rem);
+    overflow: auto;
+    padding: 0.75rem 1rem 1rem;
+    border-radius: 14px;
+    border: 1px solid var(--tz-line);
+    background: var(--tz-card);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+    color: var(--tz-fg);
+    text-align: left;
+}
+
+.tarsus-help__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.tarsus-help__close {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--tz-muted);
+    cursor: pointer;
+}
+
+.tarsus-help__close:hover {
+    background: var(--tz-soft);
+}
+
+.tarsus-help__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tarsus-help__item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 0.5rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--tz-line-soft);
+}
+
+.tarsus-help__item:first-child {
+    border-top: 0;
+}
+
+.tarsus-help__icon {
+    color: var(--tz-accent);
+}
+
+.tarsus-help__embed {
+    grid-column: 1 / -1;
+    aspect-ratio: 16 / 9;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+}
+
+.tarsus-help__embed:empty {
+    display: none;
+}
+
+.tarsus-help__video {
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+/* ------------------------------------------------------------------
+   Usage bar (monthly AI credits)
+   ------------------------------------------------------------------ */
+.tarsus-usage {
+    --tz-usage: var(--tz-accent);
+    min-width: 12rem;
+}
+
+.tarsus-usage--notice { --tz-usage: #4b8bd1; }
+.tarsus-usage--warning { --tz-usage: var(--tz-warning); }
+.tarsus-usage--critical { --tz-usage: #d9641f; }
+.tarsus-usage--exhausted { --tz-usage: var(--tz-danger); }
+
+.tarsus-usage__track {
+    position: relative;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--tz-track);
+    overflow: hidden;
+}
+
+.tarsus-usage__fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--tz-usage);
+    transition: width 0.4s ease;
+}
+
+.tarsus-usage__mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.85);
+}
+
+.tarsus-usage__label {
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--tz-muted);
+}
+
+/* ------------------------------------------------------------------
+   Analytics and plan panels
+   ------------------------------------------------------------------ */
+.tarsus-panel {
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 14px;
+    background: var(--tz-card);
+}
+
+.tarsus-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.tarsus-stat-card {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 14px;
+    background: var(--tz-card);
+}
+
+.tarsus-stat-card__value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--tz-ink);
+}
+
+.tarsus-stat-card__label {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: var(--tz-muted);
+}
+
+.tarsus-analytics__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1rem;
+}
+
+.tarsus-chart {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-top: 0.5rem;
+}
+
+.tarsus-chart__grid {
+    stroke: var(--tz-line-table);
+    stroke-width: 1;
+}
+
+.tarsus-chart__tick {
+    fill: var(--tz-faint);
+    font-size: 12px;
+}
+
+.tarsus-chart__bar {
+    fill: var(--tz-accent);
+}
+
+.tarsus-chart__bar--empty {
+    fill: var(--tz-track);
+}
+
+.tarsus-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.tarsus-icon--inline {
+    vertical-align: -3px;
+    color: var(--tz-muted);
+}
+
+.tarsus-plan-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.tarsus-plan-head__usage {
+    flex: 1 1 18rem;
+    max-width: 32rem;
+}
+
+.tarsus-details summary {
+    cursor: pointer;
+    color: var(--tz-accent);
+    margin: 0.5rem 0;
+}
+
+@media (max-width: 600px) {
+    .tarsus-lightbox__page {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+    }
+}
+
+.tarsus-readonly-note {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 12px;
+    background: var(--tz-soft);
+    color: var(--tz-muted);
+}

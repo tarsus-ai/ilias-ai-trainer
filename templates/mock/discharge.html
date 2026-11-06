@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u(t)</title>
+<style>
+  :root { --ink: #1f2a3c; --muted: #5b6676; --blue: #2d6cb5; --orange: #c8651a; --line: #d9e0ea; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink); background: #fff; }
+  .wrap { padding: 4px 2px 8px; }
+  h1 { font-size: 1.25rem; margin: 0 0 .35rem; }
+  p { margin: 0 0 .75rem; color: var(--muted); line-height: 1.45; }
+  .stage { border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+    background: radial-gradient(circle, #c9d2df 1px, transparent 1.2px) 0 0 / 18px 18px, #f6f8fb; }
+  canvas { display: block; width: 100%; height: auto; }
+  .caption { text-align: center; color: var(--muted); font-size: .92rem; margin-top: 6px; }
+  .panel { margin-top: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; }
+  .panel label { font-weight: 600; display: block; margin-bottom: 6px; }
+  .panel output { color: var(--blue); }
+  input[type=range] { width: 100%; accent-color: var(--blue); }
+  .reading { margin-top: 6px; font-size: 1.05rem; }
+  .reading b { color: var(--orange); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 data-i18n="title"></h1>
+  <p data-i18n="intro"></p>
+  <div class="stage"><canvas id="c" width="760" height="420"></canvas><div class="caption" data-i18n="caption"></div></div>
+  <div class="panel">
+    <label><span data-i18n="marker"></span>: <output id="tOut"></output></label>
+    <input id="t" type="range" min="0" max="30" step="0.5" value="0">
+    <div class="reading" id="reading"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var lang = document.documentElement.lang === 'de' ? 'de' : 'en';
+  var L = {
+    de: {title: 'Entladekurve: erst schnell, dann langsam', intro: 'Bewege den Marker entlang der Zeitachse und schau, wie stark die Spannung des Kondensators sinkt. Am Anfang fällt die Kurve steil, später verläuft sie flacher.',
+      caption: 'Schematische Entladekurve mit τ = 6 s.', marker: 'Marker auf der Zeitachse', steep: 'anfangs: steil', flat: 'später: flach', reading: 'Bei t = {t} s beträgt u<sub>C</sub> noch <b>{u} V</b> ({p} % von 10 V).', x: 't (s)', y: 'u<sub>C</sub> (V)'},
+    en: {title: 'Discharge curve: fast first, then slow', intro: 'Move the marker along the time axis and watch how much the capacitor voltage drops. The curve falls steeply at first and flattens later.',
+      caption: 'Schematic discharge curve with τ = 6 s.', marker: 'Marker on the time axis', steep: 'at first: steep', flat: 'later: flat', reading: 'At t = {t} s the voltage u<sub>C</sub> is still <b>{u} V</b> ({p} % of 10 V).', x: 't (s)', y: 'uC (V)'}
+  }[lang];
+  document.querySelectorAll('[data-i18n]').forEach(function (n) { n.textContent = L[n.getAttribute('data-i18n')]; });
+  var canvas = document.getElementById('c'), ctx = canvas.getContext('2d'), slider = document.getElementById('t');
+  var U0 = 10, tau = 6, T = 30, W = canvas.width, H = canvas.height, m = {l: 90, r: 40, t: 40, b: 70};
+  function x(t) { return m.l + (W - m.l - m.r) * t / T; }
+  function y(u) { return H - m.b - (H - m.t - m.b) * u / U0; }
+  function u(t) { return U0 * Math.exp(-t / tau); }
+  function draw() {
+    var tm = +slider.value;
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = '#d4dbe6'; ctx.lineWidth = 1;
+    for (var g = 0; g <= T; g += 6) { ctx.beginPath(); ctx.moveTo(x(g), y(0)); ctx.lineTo(x(g), y(U0)); ctx.stroke(); }
+    for (var v = 0; v <= U0; v += 5) { ctx.beginPath(); ctx.moveTo(x(0), y(v)); ctx.lineTo(x(T), y(v)); ctx.stroke(); }
+    ctx.strokeStyle = '#2b3445'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(x(0), y(U0) - 10); ctx.lineTo(x(0), y(0)); ctx.lineTo(x(T) + 10, y(0)); ctx.stroke();
+    ctx.fillStyle = '#2b3445'; ctx.font = '20px system-ui, sans-serif'; ctx.textAlign = 'center';
+    for (g = 0; g <= T; g += 6) ctx.fillText(g, x(g), y(0) + 28);
+    ctx.textAlign = 'right'; [0, 5, 10].forEach(function (v) { ctx.fillText(v, x(0) - 12, y(v) + 7); });
+    ctx.textAlign = 'left'; ctx.fillText(L.x.replace(/<[^>]+>/g, ''), x(T) - 40, y(0) + 56); ctx.fillText(L.y.replace(/<[^>]+>/g, ''), x(0) - 60, y(U0) - 18);
+    ctx.strokeStyle = '#2d6cb5'; ctx.lineWidth = 4; ctx.beginPath();
+    for (var t = 0; t <= T; t += 0.1) { var px = x(t), py = y(u(t)); t === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+    ctx.stroke();
+    ctx.fillStyle = '#c8651a'; ctx.font = 'bold 20px system-ui, sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(L.steep, x(4), y(7.2)); ctx.fillStyle = '#2d6cb5'; ctx.fillText(L.flat, x(16), y(2.3));
+    ctx.strokeStyle = '#c8651a'; ctx.lineWidth = 2; ctx.setLineDash([6, 5]);
+    ctx.beginPath(); ctx.moveTo(x(tm), y(0)); ctx.lineTo(x(tm), y(u(tm))); ctx.lineTo(x(0), y(u(tm))); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#16213a'; ctx.beginPath(); ctx.arc(x(tm), y(u(tm)), 9, 0, Math.PI * 2); ctx.fill();
+    document.getElementById('tOut').textContent = tm + ' s';
+    document.getElementById('reading').innerHTML = L.reading.replace('{t}', tm).replace('{u}', u(tm).toFixed(2)).replace('{p}', (u(tm) / U0 * 100).toFixed(0));
+  }
+  slider.addEventListener('input', draw); draw();
+})();
+</script>
+</body>
+</html>

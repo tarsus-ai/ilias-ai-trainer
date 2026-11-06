@@ -317,4 +317,69 @@ final class Ilias
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : [];
     }
+
+    /**
+     * A date in the user's presentation format.
+     */
+    public static function date(int $timestamp): string
+    {
+        try {
+            return \ilDatePresentation::formatDate(new \ilDateTime($timestamp, IL_CAL_UNIX));
+        } catch (\Throwable $e) {
+            return date('Y-m-d H:i', $timestamp);
+        }
+    }
+
+    /**
+     * A global ILIAS setting (the "common" module), '' when unset.
+     */
+    public static function setting(string $key): string
+    {
+        try {
+            return (string) self::dic()->settings()->get($key, '');
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
+    /**
+     * The installation's title for mails and banners.
+     */
+    public static function siteTitle(): string
+    {
+        $title = '';
+        try {
+            $title = trim((string) self::dic()->clientIni()->readVariable('client', 'name'));
+        } catch (\Throwable $e) {
+            $title = '';
+        }
+        if ($title === '' && defined('CLIENT_ID')) {
+            $title = (string) CLIENT_ID;
+        }
+        return $title !== '' ? $title : 'ILIAS';
+    }
+
+    /**
+     * Send a plain-text mail from the system sender. Failures are logged,
+     * never thrown: a warning mail must not break the request it rides on.
+     *
+     * @param string[] $recipients
+     */
+    public static function mail(array $recipients, string $subject, string $body): bool
+    {
+        try {
+            $mail = new \ilMimeMail();
+            /** @var \ilMailMimeSenderFactory $factory */
+            $factory = self::dic()['mail.mime.sender.factory'];
+            $mail->From($factory->system());
+            $mail->To(array_values($recipients));
+            $mail->Subject($subject);
+            $mail->Body($body);
+            $mail->Send();
+            return true;
+        } catch (\Throwable $e) {
+            self::log('mail failed: ' . $e->getMessage());
+            return false;
+        }
+    }
 }

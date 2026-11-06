@@ -54,6 +54,7 @@ final class Conversation
             'learningmethod' => $settings->learningmethod,
             'anticheat' => $settings->anticheat,
             'learntempo' => $settings->learntempo,
+            'interactiontype' => $settings->effectiveInteraction(),
             'robotname' => Config::robotName(),
             'robotid' => Config::robotId(),
             'robotdescription' => Config::robotDescription(),

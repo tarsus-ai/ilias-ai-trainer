@@ -498,8 +498,13 @@
         return card;
     };
 
-    Chat.prototype.exchangeCard = function (question, answerHtml, reply) {
+    Chat.prototype.exchangeCard = function (question, answerHtml, reply, pageHtml) {
         var self = this;
+        var body = el('div', {'class': 'tarsus-card__answer-body', 'data-region': 'card-answer', html: answerHtml || ''});
+        if (pageHtml) {
+            // AI-driven interaction: the answer is an interactive page.
+            body.appendChild(this.frame(pageHtml, question));
+        }
         return el('div', {'class': 'tarsus-card', 'data-region': 'tarsus-chat-card'}, el('div', {'class': 'tarsus-card__inner'}, [
             reply ? el('div', {'class': 'tarsus-card__reply', 'aria-label': this.t('chat_reply_about', {title: reply}), html: this.icon('reply')},
                 el('span', {text: reply})) : null,
@@ -510,7 +515,7 @@
             el('hr', {'class': 'tarsus-card__divider'}),
             el('div', {'class': 'tarsus-card__answer'}, [
                 this.avatar(this.config.robotAvatar, this.config.robotName),
-                el('div', {'class': 'tarsus-card__answer-body', 'data-region': 'card-answer', html: answerHtml || ''})
+                body
             ])
         ]));
     };
@@ -520,6 +525,104 @@
             return el('span', {'class': 'tarsus-card__avatar tarsus-card__avatar--empty', 'aria-hidden': 'true'});
         }
         return el('img', {'class': 'tarsus-card__avatar', src: src, alt: alt || ''});
+    };
+
+    // --- interactive pages (ai-driven interaction) ----------------------
+    //
+    // The brain's HTML pages run in a sandboxed frame: scripts may run,
+    // but the page has an opaque origin and no access to ILIAS, its
+    // cookies or this document. A small reporter appended to the page
+    // posts its height so the frame fits its content.
+
+    // The content's real extent is the lowest edge of any element (a
+    // document's scrollHeight never drops below the frame's own height, so
+    // it could only ever grow the frame).
+    var FRAME_REPORTER = '<script>(function(){var l=0;function r(){try{var b=document.body;if(!b){return;}var h=0,e=b.getElementsByTagName("*"),y=window.pageYOffset||0;'
+        + 'for(var i=0;i<e.length&&i<5000;i++){var c=e[i].getBoundingClientRect();if(c.bottom+y>h){h=c.bottom+y;}}'
+        + 'h=Math.ceil(h)+parseFloat(getComputedStyle(b).marginBottom||0)+8;'
+        + 'if(Math.abs(h-l)>2){l=h;parent.postMessage({type:"tarsus:height",height:h},"*");}}catch(x){}}'
+        + 'window.addEventListener("load",r);document.addEventListener("DOMContentLoaded",r);'
+        + 'if(window.ResizeObserver&&document.documentElement){new ResizeObserver(r).observe(document.documentElement);}setInterval(r,1500);})();<' + '/script>';
+
+    function withReporter(html) {
+        var index = html.search(/<\/body\s*>/i);
+        if (index === -1) {
+            return html + FRAME_REPORTER;
+        }
+        return html.slice(0, index) + FRAME_REPORTER + html.slice(index);
+    }
+
+    function sizeFrames(event) {
+        var data = event.data;
+        if (!data || data.type !== 'tarsus:height') {
+            return;
+        }
+        var frames = document.querySelectorAll('.tarsus-frame__iframe');
+        for (var i = 0; i < frames.length; i++) {
+            if (frames[i].contentWindow === event.source) {
+                var height = Math.max(120, Math.min(1600, parseInt(data.height, 10) || 0));
+                frames[i].style.height = height + 'px';
+                return;
+            }
+        }
+    }
+    if (!window.__tarsusFrameSizer) {
+        window.__tarsusFrameSizer = true;
+        window.addEventListener('message', sizeFrames);
+    }
+
+    Chat.prototype.frame = function (html, title) {
+        var iframe = el('iframe', {
+            'class': 'tarsus-frame__iframe', sandbox: 'allow-scripts allow-forms allow-pointer-lock',
+            referrerpolicy: 'no-referrer', loading: 'lazy', title: title || this.t('frame_title')
+        });
+        iframe.setAttribute('srcdoc', withReporter(html || ''));
+        var frame = el('div', {'class': 'tarsus-frame', 'data-region': 'frame'}, [
+            iframe,
+            el('button', {type: 'button', 'class': 'tarsus-frame__enlarge', 'data-action': 'frame-enlarge',
+                title: this.t('frame_enlarge'), 'aria-label': this.t('frame_enlarge'), html: this.icon('enlarge')})
+        ]);
+        frame.__html = html || '';
+        frame.__title = title || '';
+        return frame;
+    };
+
+    Chat.prototype.openPage = function (html, title) {
+        var self = this;
+        var dialog = document.querySelector('.tarsus-lightbox--page');
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.className = 'tarsus-lightbox tarsus-lightbox--page';
+            var close = el('button', {type: 'button', 'class': 'tarsus-lightbox__close', 'aria-label': this.t('learn_image_close'), text: '×'});
+            close.addEventListener('click', function () {
+                dialog.close();
+            });
+            dialog.addEventListener('close', function () {
+                var old = dialog.querySelector('iframe');
+                if (old) {
+                    old.remove();
+                }
+            });
+            dialog.appendChild(close);
+            document.body.appendChild(dialog);
+        }
+        var old = dialog.querySelector('iframe');
+        if (old) {
+            old.remove();
+        }
+        var iframe = el('iframe', {
+            'class': 'tarsus-lightbox__page', sandbox: 'allow-scripts allow-forms allow-pointer-lock',
+            referrerpolicy: 'no-referrer', title: title || self.t('frame_title')
+        });
+        iframe.setAttribute('srcdoc', html || '');
+        dialog.appendChild(iframe);
+        if (!dialog.open) {
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            } else {
+                dialog.setAttribute('open', '');
+            }
+        }
     };
 
     Chat.prototype.objectivesCard = function (item) {
@@ -692,7 +795,7 @@
             }
         });
 
-        var player = el('span', {'class': 'tarsus-learn-player', 'data-region': 'audio-player', 'data-state': 'idle'}, [
+        var player = this.config.audio === false ? null : el('span', {'class': 'tarsus-learn-player', 'data-region': 'audio-player', 'data-state': 'idle'}, [
             el('button', {type: 'button', 'class': 'tarsus-learn-player__toggle', 'data-action': 'audio-toggle', title: this.t('learn_audio'), 'aria-label': this.t('learn_audio')}, [
                 el('span', {'data-region': 'audio-speaker', html: this.icon('audio')}),
                 el('span', {'data-region': 'audio-play', 'class': 'tarsus-hidden', html: this.icon('audio_play')}),
@@ -701,7 +804,9 @@
             el('span', {'class': 'tarsus-learn-player__wave tarsus-hidden', 'data-region': 'audio-wave', 'aria-hidden': 'true'}),
             el('audio', {'data-region': 'audio', preload: 'auto'})
         ]);
-        band.appendChild(player);
+        if (player) {
+            band.appendChild(player);
+        }
 
         slides.forEach(function (slide, index) {
             var label = slide.taxonomy || (slide.question && slide.question.taxonomy) || self.t('mode_build');
@@ -731,6 +836,12 @@
                 });
                 qcard.appendChild(self.practiceBody(question));
                 node.appendChild(qcard);
+            } else if (slide.kind === 'html' && slide.html) {
+                // An interactive page (ai-driven interaction).
+                if (slide.title) {
+                    node.appendChild(el('h5', {'class': 'tarsus-learn-slide__title', text: slide.title}));
+                }
+                node.appendChild(self.frame(slide.html, slide.title));
             } else {
                 if (slide.title) {
                     node.appendChild(el('h5', {'class': 'tarsus-learn-slide__title', text: slide.title}));
@@ -978,7 +1089,7 @@
             if (item.kind === 'message') {
                 cards = [self.noticeCard('', item.title, item.text)];
             } else if (item.kind === 'exchange') {
-                cards = [self.exchangeCard(item.query, item.answer, '')];
+                cards = [self.exchangeCard(item.query, item.answer, '', item.html || '')];
             } else if (['objectives', 'stack', 'complete', 'motivation'].indexOf(item.kind) !== -1) {
                 cards = self.learnCards(item);
             } else {
@@ -1669,7 +1780,7 @@
             (result.messages || []).forEach(function (message) {
                 self.attach(self.noticeCard('', message.title, message.text), null, true);
             });
-            self.attach(self.exchangeCard(query, result.answer, reply ? reply.title : ''), null, true);
+            self.attach(self.exchangeCard(query, result.answer, reply ? reply.title : '', result.html || ''), null, true);
             self.setReply(null);
             self.scrollToEnd();
         }).catch(function (error) {
@@ -1750,6 +1861,14 @@
             var picture = target.closest('[data-action="enlarge"]');
             if (picture && self.root.contains(picture)) {
                 self.openLightbox(picture.getAttribute('src'));
+                return;
+            }
+            var enlarge = target.closest('[data-action="frame-enlarge"]');
+            if (enlarge && self.root.contains(enlarge)) {
+                var frame = enlarge.closest('[data-region="frame"]');
+                if (frame) {
+                    self.openPage(frame.__html || '', frame.__title || '');
+                }
                 return;
             }
             var toggle = target.closest('[data-action="audio-toggle"]');
@@ -2092,7 +2211,52 @@
 
     var TarsusIlias = window.TarsusIlias = window.TarsusIlias || {};
 
+    // --- help panel -----------------------------------------------------
+    //
+    // The help button opens a panel of support links and videos
+    // (configured by the administrator). Videos are embedded only once the
+    // panel opens, so a page never loads a player the learner did not ask for.
+
+    function bootHelp(panelRoot) {
+        var button = panelRoot.querySelector('[data-action="help-toggle"]');
+        var panel = panelRoot.querySelector('[data-region="help-panel"]');
+        if (!button || !panel || button.getAttribute('data-booted') === '1') {
+            return;
+        }
+        button.setAttribute('data-booted', '1');
+        var embedded = false;
+        var setOpen = function (open) {
+            show(panel, open);
+            button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open && !embedded) {
+                embedded = true;
+                panel.querySelectorAll('[data-embed]').forEach(function (slot) {
+                    var iframe = el('iframe', {
+                        'class': 'tarsus-help__video', src: slot.getAttribute('data-embed'), loading: 'lazy',
+                        allow: 'accelerometer; encrypted-media; picture-in-picture; fullscreen', allowfullscreen: true,
+                        referrerpolicy: 'strict-origin-when-cross-origin', title: slot.getAttribute('data-title') || ''
+                    });
+                    slot.appendChild(iframe);
+                });
+            }
+        };
+        button.addEventListener('click', function () {
+            setOpen(panel.classList.contains('tarsus-hidden'));
+        });
+        panel.querySelectorAll('[data-action="help-close"]').forEach(function (close) {
+            close.addEventListener('click', function () {
+                setOpen(false);
+            });
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && !panel.classList.contains('tarsus-hidden')) {
+                setOpen(false);
+            }
+        });
+    }
+
     TarsusIlias.boot = function () {
+        document.querySelectorAll('.tarsus-help').forEach(bootHelp);
         document.querySelectorAll('.tarsus-app[data-config]').forEach(function (root) {
             if (root.getAttribute('data-booted') === '1') {
                 return;

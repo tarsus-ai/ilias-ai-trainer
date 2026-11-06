@@ -221,7 +221,7 @@ resetchat_done#:#Your chat, practice history and experience points have been era
 resetchat_failed#:#Your conversation could not be erased right now. Please try again later.
 guardrail_blocked_killswitch#:#API calls are disabled by the administrators at the moment.
 guardrail_blocked_breaker#:#The Tarsus system is responding slowly and is temporarily resting. Please try again in a few minutes.
-guardrail_blocked_budget#:#The daily query budget is used up. Please try again tomorrow.
+guardrail_blocked_budget#:#The monthly AI credits of this installation are used up. The administrator can raise the limit; otherwise it starts afresh next month.
 guardrail_blocked_ratelimit#:#Too many requests. Please wait a few seconds and try again.
 transport_error#:#Could not contact the brain. Please try again in a moment.
 err_notconfigured#:#Tarsus is not configured: an administrator has to set the base URL, API key and brain ID in the plugin configuration, or enable mock mode.
@@ -314,8 +314,6 @@ killswitch#:#Kill switch
 killswitch_desc#:#When enabled, all outbound calls are blocked immediately.
 ratelimit#:#Rate limit (calls per minute)
 ratelimit_desc#:#Maximum outbound calls per minute (token bucket).
-creditbudget#:#Credit budget (per day)
-creditbudget_desc#:#Maximum AI credits spent per day before calls are refused.
 brain_col_id#:#Brain ID
 brain_col_status#:#State
 brain_col_language#:#Language
@@ -347,8 +345,6 @@ status_breaker_closed#:#Closed
 status_failures#:#{count} consecutive failures
 status_breaker_reset#:#The circuit breaker is closed again.
 status_reset_breaker#:#Reset circuit breaker
-status_budget#:#Credit budget
-status_budget_value#:#{used} of {budget} credits used in the current day
 status_bucket#:#Rate limit
 status_bucket_value#:#{tokens} calls left in the bucket (capacity {limit} per minute)
 status_test#:#Test connection
@@ -360,3 +356,103 @@ status_usage_none#:#No calls were recorded.
 status_operation#:#Operation
 status_calls#:#Calls
 status_credits#:#Credits
+// Plan and credits
+cfg_tab_plan#:#Plan & credits
+plan_section#:#Subscription
+plan_section_desc#:#The customer's agreement with Tarsus and lern.link. lern.link sets these figures; they decide which features the objects offer and how usage is priced.
+plan#:#Plan
+plan_learn#:#Build Knowledge (LEARN)
+plan_learn_desc#:#Every feature: Ask a question, Test knowledge, Build knowledge with narration, AI-driven interaction. Includes a monthly amount of AI credits; further requests are charged per request.
+plan_practice#:#Knowledge Test (PRACTICE)
+plan_practice_desc#:#Ask a question and Test knowledge. No Build knowledge, no narration, trainer-driven interaction only. Includes a monthly amount of AI credits; further requests are charged per request.
+plan_ask#:#Ask Question (ASK)
+plan_ask_desc#:#Ask a question only, trainer-driven interaction only. Includes a monthly amount of AI credits; further requests are charged per request.
+plan_payg#:#Pay as you grow
+plan_payg_desc#:#Every feature, no included credits: each request is charged at the agreed price.
+plan_credits#:#Included AI credits per month
+plan_credits_desc#:#The credits the subscription includes per calendar month (default {default}). Unused credits do not carry over. Not used on Pay as you grow.
+plan_price#:#Price per additional request
+plan_price_desc#:#What one request beyond the included credits costs (default {default}). On Pay as you grow, the price of every request.
+plan_currency#:#Currency
+plan_current#:#Current plan
+plan_default_note#:#not yet configured, Build Knowledge assumed
+plan_included#:#Included
+plan_included_value#:#{credits} AI credits per month, then {price} per request
+plan_payg_note#:#No included credits: every request costs {price}
+plan_mode_unavailable#:#Not included in the current plan ({plan}).
+plan_interaction_unavailable#:#Available with Build Knowledge and Pay as you grow (current plan: {plan}).
+plan_feature_unavailable#:#This feature is not part of the current plan.
+no_modes_plan_notice#:#None of this object's modes is included in the current plan. Please contact your administrator.
+limit_section#:#Monthly limit
+limit_section_desc#:#The most AI credits this installation may spend per calendar month. Requests are refused once it is reached, and teachers and administrators are warned at 50, 75, 90 and 100 percent. Raising the limit takes effect at once; lowering it asks for confirmation.
+monthly_limit#:#Monthly credit limit
+monthly_limit_desc#:#In AI credits per calendar month; 0 means no limit. Used so far this month: {used}. The plan includes {included}; the month resets on {reset}.
+monthly_limit_elsewhere#:#Currently {limit} AI credits per month. The limit and the plan are set on the tab
+monthly_limit_value#:#{limit} credits per month, {remaining} remaining
+no_limit#:#no limit
+notify_emails#:#Warning recipients
+notify_emails_desc#:#E-mail addresses (one per line or separated by commas) that receive a mail when {thresholds} of the limit are reached. Leave empty to notify the installation's administrator address ({admin}).
+error_email#:#"{email}" is not a valid e-mail address.
+limit_reduce_confirm#:#You are lowering the monthly limit from {old} to {new} AI credits. {used} credits are already used this month; once the new limit is reached, AI requests are refused until next month or until the limit is raised again. Continue?
+usage_local#:#Counted by this installation
+usage_local_value#:#{credits} AI credits in {requests} requests this month
+usage_remote#:#Charged by the brain
+usage_remote_none#:#not fetched yet (the cron job fetches it every 15 minutes)
+usage_remote_value#:#{credits} AI credits this month (as of {fetched}); covers everything using this brain
+usage_charged#:#Beyond the included credits
+usage_charged_value#:#{requests} requests, about {cost}
+usage_charged_none#:#nothing so far this month
+usage_reset#:#Next reset
+usage_refresh#:#Refresh usage from the brain
+usage_refreshed#:#The brain reports {credits} AI credits for this month.
+usage_refresh_failed#:#The usage could not be fetched from the brain.
+usage_breakdown#:#Breakdown by service (brain figures)
+usage_service#:#Service
+usage_name#:#Operation
+usage_bar_label#:#{used} of {limit} AI credits used this month ({percent} %)
+usage_bar_nolimit#:#{used} AI credits used this month (no limit)
+status_guardrails#:#Guardrails
+budget_banner_warning#:#{percent} % of this month's AI credits are used ({used} of {limit}). The month resets on {reset}; an administrator can raise the limit under Plugins > Tarsus > Plan & credits.
+budget_banner_exhausted#:#This month's AI credits are used up ({used} of {limit}). AI requests are refused until {reset} unless an administrator raises the limit under Plugins > Tarsus > Plan & credits.
+budget_exhausted_learner#:#The monthly AI budget of this installation is used up. The learning companion will answer again next month, or sooner once an administrator raises the limit.
+budget_mail_subject#:#[{site}] Tarsus: {percent} % of the monthly AI credits used
+budget_mail_subject_exhausted#:#[{site}] Tarsus: the monthly AI credits are used up
+budget_mail_body#:#{percent} % of the monthly AI credit limit of {site} is used: {used} of {limit} credits. The month resets on {reset}. To raise the limit, open Administration > Extending ILIAS > Plugins > Tarsus > Configure > Plan & credits.
+budget_mail_body_exhausted#:#The monthly AI credit limit of {site} is used up: {used} of {limit} credits. AI requests are refused until {reset}. To raise the limit, open Administration > Extending ILIAS > Plugins > Tarsus > Configure > Plan & credits.
+// Interaction
+settings_interaction#:#Interaction
+settings_interaction_desc#:#How the learning companion presents what it generates.
+interactiontype#:#Interaction type
+interaction_trainer#:#Trainer-driven
+interaction_trainer_help#:#Text, pictures and questions as configured below.
+interaction_ai#:#AI-driven
+interaction_ai_help#:#The brain may answer with interactive pages (animations, simulations, small tools) when asked a question and in Build knowledge. They run in a sandbox and cost more credits.
+frame_title#:#Interactive content
+frame_enlarge#:#Show larger
+// Help
+settings_help#:#Help
+settings_help_desc#:#Support links and videos behind the help button in every Tarsus object.
+help_links#:#Help links
+help_links_desc#:#One link per line as "Title | https://...". YouTube and Vimeo links play inside the help panel; other links open in a new tab. Leave empty to hide the help button.
+help#:#Help
+help_title#:#Help & videos
+// Analytics
+tab_analytics#:#Analytics
+analytics_requests_month#:#requests this month
+analytics_credits_month#:#AI credits this month
+analytics_active_learners#:#active learners this month
+analytics_share#:#of this installation's credits this month
+analytics_budget#:#Monthly AI credits of this installation
+analytics_budget_note#:#All Tarsus objects of this installation share the monthly credits. The month resets on {reset}.
+analytics_chart_title#:#Requests per day, last 30 days
+analytics_chart_label#:#Requests per day over the last 30 days
+analytics_tooltip#:#{calls} requests, {credits} credits
+analytics_by_mode#:#By mode, last 30 days
+analytics_mode#:#Mode
+analytics_top_learners#:#Most active learners, last 30 days
+analytics_none#:#No requests yet.
+analytics_note#:#Figures come from this installation's own ledger with the brain's cost estimates; the brain's invoice may differ slightly.
+col_lastactivity#:#Last activity
+learners_readonly#:#Neither Test knowledge nor Build knowledge is active here (switched off, or not included in the plan), so this object has no score and no learning progress: it is a read-only activity.
+col_participation#:#Participation
+participated#:#Took part

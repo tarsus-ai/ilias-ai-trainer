@@ -81,6 +81,13 @@ interface ClientInterface
     public function listVoices(): array;
 
     /**
+     * What the brain charged between two Unix timestamps.
+     *
+     * @return array{total: int, items: array<int, array{key: string, name: string, service: string, credits: int}>, credits: int}
+     */
+    public function getUsage(int $start, int $end): array;
+
+    /**
      * Ask the activity chat and return the assistant's answer.
      *
      * @param array<string, mixed> $params Conversation parameters incl. 'query'.
