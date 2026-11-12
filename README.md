@@ -42,7 +42,7 @@ Tarsus is an AI learning coach for training providers, companies and universitie
 | Build knowledge | Test knowledge | Ask a question |
 |:--:|:--:|:--:|
 | <img src="https://framerusercontent.com/images/s0fmuHNzzQzugFWdZ64BNRzBZVE.webp" alt="Explanation card built from the course material" width="400"> | <img src="https://framerusercontent.com/images/hgagwUKE5rL19zOgU4zCXHDL8wk.webp" alt="Spreadsheet task with line-by-line feedback" width="400"> | <img src="https://framerusercontent.com/images/Gg6PdLZrXoksmnEkebq2iomzcCM.webp" alt="The coach answers a question and shows the calculation path" width="400"> |
-| Explanation cards, one idea at a time, with examples for the target group and optional narration. A check question closes each unit. | Exercises with feedback that moves learners on: single choice, true/false, open questions, rule of three, spreadsheet calculations – with experience points and a progress bar. | Questions in the learner's own words, by text or voice, answered from the included material – with the calculation path when it is a task. |
+| Explanation cards, one idea at a time, with examples for the target group and optional narration. A check question closes each unit. | Exercises with feedback that moves learners on: single choice, true/false, open questions, rule of three, spreadsheet calculations and accounting exercises – with experience points and a progress bar. | Questions in the learner's own words, by text or voice, answered from the included material – with the calculation path when it is a task. |
 
 ### Graphics, simulations and 3D models on demand
 
@@ -58,7 +58,7 @@ With the *AI-driven* interaction type the coach answers inside ILIAS with such p
 | | | | |
 |:--:|:--:|:--:|:--:|
 | <img src="https://framerusercontent.com/images/sdtCvG7M3Q59Nl80mwa2yOOaMTY.webp" alt="Single-choice question with explanation" width="300"> | <img src="https://framerusercontent.com/images/du1FTrsuwAElUTZUEEC5v1euI.webp" alt="Open question with partial credit and feedback on what is missing" width="300"> | <img src="https://framerusercontent.com/images/uNSphTDFSP6R85PZw7wZVvGQK0.webp" alt="True-or-false task with a check button" width="300"> | <img src="https://framerusercontent.com/images/rmkJPlhI2NqsHY2Xt1UFnddNeoU.webp" alt="Calculation chain with two correctly computed values" width="300"> |
-| Single choice with an explanation | Open questions with partial credit | True or false | Calculation chains and spreadsheets |
+| Single choice with an explanation | Open questions with partial credit | True or false | Calculation chains, spreadsheets and accounting exercises |
 
 ### The right level for every person
 

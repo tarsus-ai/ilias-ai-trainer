@@ -5,6 +5,7 @@ All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 
 ## [Unreleased]
 
+- New question type **Accounting exercise** (German: *Buchhaltung*) in the Test knowledge settings. It requests `accountingWidget`; the brain answers with spreadsheet-type tasks, so display and evaluation are unchanged.
 - Mock mode: the sample brain names no longer contain id-like segments.
 
 ## [1.1.0] – 2026-11-06
