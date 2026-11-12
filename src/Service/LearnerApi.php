@@ -16,6 +16,7 @@ use TarsusIlias\Guardrail\Pipeline;
 use TarsusIlias\Output\Markdown;
 use TarsusIlias\Output\Shaper;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Interactions;
 use TarsusIlias\Support\Plan;
 use TarsusIlias\Support\UsageMeter;
 use TarsusIlias\Support\Voices;
@@ -24,11 +25,12 @@ use TarsusIlias\Support\Voices;
  * The learner's side of a Tarsus object: the interleaved feed and the
  * three modes (Ask a question, Test knowledge, Build knowledge).
  *
- * Every call checks the mode switch and the scope first - an empty scope
- * never reaches the brain - then goes through the guardrails pipeline,
- * records the brain's figures for the learning progress and meters the
- * credits. Results are plain arrays with a 'status' (success, noscope,
- * disabled, blocked, error) and a user-facing 'error'.
+ * Every call checks the package and the mode switch, then the scope - an
+ * empty scope never reaches the brain - then goes through the guardrails
+ * pipeline, records the brain's figures for the learning progress and
+ * meters the AI interactions as the partner agreement counts them
+ * ({@see Interactions}). Results are plain arrays with a 'status'
+ * (success, noscope, disabled, blocked, error) and a user-facing 'error'.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -190,9 +192,9 @@ final class LearnerApi
 
         return $this->guarded(
             fn() => $this->client->generateWidgets($params),
-            6,
+            Interactions::forGenerate(),
             function (array $response): array {
-                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'chat_ask', (int) ($response['credits'] ?? 6));
+                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'chat_ask', (int) ($response['credits'] ?? Interactions::forGenerate()));
                 Scoring::touch($this->objid, $this->userId());
                 $messages = [];
                 foreach ((array) ($response['messages'] ?? []) as $message) {
@@ -234,7 +236,7 @@ final class LearnerApi
 
         return $this->guarded(
             fn() => $this->client->generatePracticeWidget($params),
-            6,
+            Interactions::forGenerate(),
             function (array $response): array {
                 $widgets = array_values(array_filter(
                     (array) ($response['widgets'] ?? []),
@@ -244,7 +246,7 @@ final class LearnerApi
                     return self::result('error', Ilias::txt('practice_nowidget'));
                 }
                 Scoring::record($this->objid, $this->userId(), (array) ($response['progress'] ?? []));
-                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'practice_next', (int) ($response['credits'] ?? 6));
+                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'practice_next', (int) ($response['credits'] ?? Interactions::forGenerate()));
                 return self::result('success', '', [
                     'widgets' => array_map([Shaper::class, 'widget'], $widgets),
                     'progress' => Shaper::progress((array) ($response['progress'] ?? [])),
@@ -330,11 +332,13 @@ final class LearnerApi
 
         return $this->guarded(
             fn() => $this->client->evaluatePracticeAnswer($params),
-            6,
+            // Single choice and true/false are corrected without the AI and
+            // cost nothing, so they pass even when the month is spent.
+            Interactions::forEvaluation($widgettype),
             function (array $response) use ($widgettype, $state): array {
                 Scoring::record($this->objid, $this->userId(), (array) ($response['progress'] ?? []));
                 $this->usage->record($this->containerref, $this->objid, $this->userId(),
-                    $state === 'learn' ? 'learn_check' : 'practice_eval', (int) ($response['credits'] ?? 6));
+                    $state === 'learn' ? 'learn_check' : 'practice_eval', (int) ($response['credits'] ?? Interactions::forEvaluation($widgettype)));
 
                 $choices = [];
                 foreach ((array) ($response['choices'] ?? []) as $choice) {
@@ -385,14 +389,14 @@ final class LearnerApi
 
         return $this->guarded(
             fn() => $this->client->generateLearnWidget($params),
-            6,
+            Interactions::forGenerate(),
             function (array $response): array {
                 $items = array_values(array_filter((array) ($response['items'] ?? []), 'is_array'));
                 if ($items === []) {
                     return self::result('error', Ilias::txt('learn_nowidget'), ['items' => [], 'complete' => false]);
                 }
                 Scoring::record($this->objid, $this->userId(), (array) ($response['progress'] ?? []));
-                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'learn_next', (int) ($response['credits'] ?? 6));
+                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'learn_next', (int) ($response['credits'] ?? Interactions::forGenerate()));
                 // Only the brain's own farewell ends the course: the learn
                 // progress may reach 100 while objectives are still open.
                 $done = in_array('complete', array_column($items, 'kind'), true);
@@ -420,7 +424,7 @@ final class LearnerApi
             return self::result('disabled', Ilias::txt('chat_modedisabled'));
         }
         if (!Plan::allowsAudio()) {
-            // Narration is part of Build Knowledge and Pay as you grow.
+            // The audio explainer is part of Build Knowledge and Pay as you grow.
             return self::result('disabled', Ilias::txt('plan_feature_unavailable'));
         }
         $allowed = $this->scope();
@@ -432,12 +436,12 @@ final class LearnerApi
 
         return $this->guarded(
             fn() => $this->client->generateStackAudio($params),
-            6,
+            Interactions::forAudioExplainer(),
             function (array $response): array {
                 if (($response['audio'] ?? '') === '') {
                     return self::result('error', Ilias::txt('learn_audio_unavailable'));
                 }
-                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'learn_audio', (int) ($response['credits'] ?? 6));
+                $this->usage->record($this->containerref, $this->objid, $this->userId(), 'learn_audio', (int) ($response['credits'] ?? Interactions::forAudioExplainer()));
                 $mimetype = (string) ($response['mimetype'] ?? 'audio/wav');
                 return self::result('success', '', [
                     'audio' => 'data:' . $mimetype . ';base64,' . preg_replace('/\s+/', '', (string) $response['audio']),

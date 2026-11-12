@@ -9,6 +9,11 @@ namespace TarsusIlias\Client;
  * a concrete client. A deterministic mock backs it in mock mode; the HTTP
  * client speaks to the live brain.
  *
+ * The 'credits' figure every charged result carries is the number of AI
+ * interactions the call counts for under the Tarsus partner agreement
+ * ({@see \TarsusIlias\Support\Interactions}); it feeds the local ledger,
+ * the monthly limit and the cost estimate.
+ *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
  */

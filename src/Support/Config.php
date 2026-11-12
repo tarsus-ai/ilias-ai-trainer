@@ -118,6 +118,26 @@ final class Config
     }
 
     /**
+     * The Tarsus license key of an existing Tarsus customer. Such a
+     * customer carries it in addition to the API key and in place of a
+     * brain ID; the plugin sends it with every call, and Tarsus - not the
+     * partner - bills the usage. Empty for partner customers.
+     */
+    public static function licenseKey(): string
+    {
+        return trim((string) self::get('license_key', ''));
+    }
+
+    /**
+     * Whether the connection is complete: base URL, API key, and a brain
+     * ID or a license key.
+     */
+    public static function isConnected(): bool
+    {
+        return self::baseUrl() !== '' && self::apiKey() !== '' && (self::brainId() !== '' || self::licenseKey() !== '');
+    }
+
+    /**
      * Mock mode defaults to on (fresh install), so no code path can reach a
      * live endpoint by accident.
      */

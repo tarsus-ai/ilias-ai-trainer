@@ -3,16 +3,24 @@
 namespace TarsusIlias\Support;
 
 /**
- * The customer's Tarsus subscription and what it includes.
+ * The customer's Tarsus package and what it includes.
  *
- * Four plans exist. Build Knowledge (LEARN) and Pay as you grow include
- * everything; Knowledge Test (PRACTICE) has no Build knowledge, no
- * narration and no AI-driven interaction; Ask Question (ASK) additionally
- * has no Test knowledge. The subscription plans include a monthly amount
- * of AI credits (100,000 by default) that does not carry over; requests
- * beyond it are charged per request (0.32 EUR by default). Pay as you grow
- * includes no credits: every request is charged. Custom agreements change
- * the figures, so lern.link sets them in the plugin configuration.
+ * Four packages exist, and each contains the one before it: Ask Question
+ * (ASK) answers questions from the documents; Knowledge Test (PRACTICE)
+ * adds adaptive quizzes; Build Knowledge (LEARN) adds the full coach with
+ * the audio explainer, voice input and the agent (AI-driven) mode; Pay as
+ * you grow (PAYG) has access to everything. The matrix in {@see FEATURES}
+ * is the table "Funktionen je Paket" of the Tarsus partner agreement
+ * (tarsus.ai/impressum/partnervereinbarung, 12 November 2026); the partner
+ * has to enforce the booked package in the integration, so everything the
+ * plugin offers goes through {@see allows()}.
+ *
+ * The subscription packages include a monthly amount of AI interactions
+ * (100,000 by default) that does not carry over; interactions beyond it
+ * are charged per interaction (0.32 EUR flat for partners). Pay as you
+ * grow includes nothing: every interaction is charged. Custom agreements
+ * change the figures, so the partner sets them in the plugin configuration.
+ * A customer with a Tarsus license key is billed by Tarsus directly.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -25,14 +33,51 @@ final class Plan
     public const PRACTICE = 'practice';
     /** Ask Question subscription: Ask only, trainer-driven only. */
     public const ASK = 'ask';
-    /** Pay as you grow: every feature, every request charged. */
+    /** Pay as you grow: every feature, every interaction charged. */
     public const PAYG = 'payg';
 
     public const ALL = [self::LEARN, self::PRACTICE, self::ASK, self::PAYG];
 
-    /** AI credits a subscription includes per month unless agreed otherwise. */
+    /** Ask a question: the AI answers from the documents. */
+    public const FEATURE_ASK = 'ask';
+    /** Test knowledge: the AI creates and marks quizzes. */
+    public const FEATURE_TEST = 'test';
+    /** Build knowledge: the coach explains step by step. */
+    public const FEATURE_BUILD = 'build';
+    /** The audio explainer of the coach (Generate Stack Audio Explainer). */
+    public const FEATURE_AUDIO_EXPLAINER = 'audio_explainer';
+    /** Questions or answers spoken into the coach (audio_content). */
+    public const FEATURE_VOICE_INPUT = 'voice_input';
+    /** Agent mode: the AI-driven interaction type. */
+    public const FEATURE_AI_DRIVEN = 'ai_driven';
+
+    /** Every feature a package can include, in the agreement's order. */
+    public const ALL_FEATURES = [
+        self::FEATURE_ASK,
+        self::FEATURE_TEST,
+        self::FEATURE_BUILD,
+        self::FEATURE_AUDIO_EXPLAINER,
+        self::FEATURE_VOICE_INPUT,
+        self::FEATURE_AI_DRIVEN,
+    ];
+
+    /**
+     * "Funktionen je Paket": what each package includes. Standard narration
+     * of text (Audio Generation) is not part of the table and stays
+     * available everywhere; the plugin does not use it.
+     *
+     * @var array<string, string[]>
+     */
+    public const FEATURES = [
+        self::ASK => [self::FEATURE_ASK],
+        self::PRACTICE => [self::FEATURE_ASK, self::FEATURE_TEST],
+        self::LEARN => self::ALL_FEATURES,
+        self::PAYG => self::ALL_FEATURES,
+    ];
+
+    /** AI interactions a subscription includes per month unless agreed otherwise. */
     public const DEFAULT_CREDITS = 100000;
-    /** Price of one request beyond the included credits unless agreed otherwise. */
+    /** Price of one interaction beyond the included amount unless agreed otherwise. */
     public const DEFAULT_PRICE = 0.32;
     public const DEFAULT_CURRENCY = 'EUR';
 
@@ -43,7 +88,7 @@ final class Plan
     public const INTERACTIONS = [self::INTERACTION_TRAINER, self::INTERACTION_AI];
 
     /**
-     * The configured plan; Build Knowledge until lern.link sets another.
+     * The configured package; Build Knowledge until the partner sets another.
      */
     public static function current(): string
     {
@@ -56,40 +101,73 @@ final class Plan
         return in_array((string) Config::get('plan', ''), self::ALL, true);
     }
 
+    /**
+     * Whether the package still has to be set although a live connection
+     * exists: the agreement asks the partner to enforce the booked
+     * package, and until it is set every feature is reachable.
+     */
+    public static function needsConfiguration(): bool
+    {
+        return !self::isConfigured() && !Config::mockMode() && Config::apiKey() !== '';
+    }
+
     public static function label(?string $plan = null): string
     {
         return Ilias::txt('plan_' . ($plan ?? self::current()));
     }
 
     /**
-     * The modes a plan includes, in switcher order.
+     * The features a package includes.
+     *
+     * @return string[]
+     */
+    public static function features(?string $plan = null): array
+    {
+        return self::FEATURES[$plan ?? self::current()] ?? self::FEATURES[self::LEARN];
+    }
+
+    /**
+     * Whether a package includes a feature. Unknown features are never
+     * included: a typo cannot open a door.
+     */
+    public static function allows(string $feature, ?string $plan = null): bool
+    {
+        return in_array($feature, self::features($plan), true);
+    }
+
+    /**
+     * The modes a package includes, in switcher order.
      *
      * @return string[]
      */
     public static function modes(?string $plan = null): array
     {
-        switch ($plan ?? self::current()) {
-            case self::ASK:
-                return ['ask'];
-            case self::PRACTICE:
-                return ['ask', 'test'];
-            default:
-                return ['ask', 'test', 'build'];
-        }
+        return array_values(array_filter(
+            ['ask', 'test', 'build'],
+            static fn(string $mode): bool => self::allows($mode, $plan)
+        ));
     }
 
     public static function allowsMode(string $mode, ?string $plan = null): bool
     {
-        return in_array($mode, self::modes($plan), true);
+        return in_array($mode, ['ask', 'test', 'build'], true) && self::allows($mode, $plan);
     }
 
     /**
-     * Narration of learning units: Build Knowledge and Pay as you grow.
+     * The audio explainer of learning units: Build Knowledge and Pay as
+     * you grow.
      */
     public static function allowsAudio(?string $plan = null): bool
     {
-        $plan = $plan ?? self::current();
-        return $plan === self::LEARN || $plan === self::PAYG;
+        return self::allows(self::FEATURE_AUDIO_EXPLAINER, $plan);
+    }
+
+    /**
+     * Spoken questions and answers: Build Knowledge and Pay as you grow.
+     */
+    public static function allowsVoiceInput(?string $plan = null): bool
+    {
+        return self::allows(self::FEATURE_VOICE_INPUT, $plan);
     }
 
     /**
@@ -98,13 +176,12 @@ final class Plan
      */
     public static function allowsAiDriven(?string $plan = null): bool
     {
-        $plan = $plan ?? self::current();
-        return $plan === self::LEARN || $plan === self::PAYG;
+        return self::allows(self::FEATURE_AI_DRIVEN, $plan);
     }
 
     /**
      * The interaction type that may actually be sent for a wanted one: the
-     * plan decides, not the object's setting.
+     * package decides, not the object's setting.
      */
     public static function interactionType(string $wanted): string
     {
@@ -117,7 +194,18 @@ final class Plan
     }
 
     /**
-     * AI credits the plan includes per calendar month; none for Pay as you grow.
+     * Whether Tarsus bills this customer directly: an existing Tarsus
+     * customer carries a license key, and the partner's prices and cost
+     * estimates do not apply.
+     */
+    public static function billedByTarsus(): bool
+    {
+        return Config::licenseKey() !== '';
+    }
+
+    /**
+     * AI interactions the package includes per calendar month; none for
+     * Pay as you grow.
      */
     public static function includedCredits(): int
     {
@@ -129,8 +217,8 @@ final class Plan
     }
 
     /**
-     * Price of one request beyond the included credits (or of every
-     * request on Pay as you grow).
+     * Price of one interaction beyond the included amount (or of every
+     * interaction on Pay as you grow).
      */
     public static function pricePerRequest(): float
     {

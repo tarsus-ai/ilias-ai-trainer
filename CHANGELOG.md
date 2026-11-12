@@ -3,10 +3,26 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
-## [Unreleased]
+## [1.2.0] – 2026-11-12
 
+### Added
+
+- **Partner agreement** (tarsus.ai/impressum/partnervereinbarung, 12 November 2026) implemented:
+  - *Packages:* the feature matrix "Funktionen je Paket" is the single source for what a package allows – Ask Question, Knowledge Test, Build Knowledge (with audio explainer, voice input and agent mode) and Pay as you grow; the *Plan & credits* tab shows the matrix with the current package marked, and every configuration page says so while no package is set on a live connection.
+  - *License key:* existing Tarsus customers enter their license key next to the API key (*Settings*); every call then sends the API key and the license key instead of the brain ID, and the status pages show that Tarsus bills them directly – no partner price is applied to their usage.
+  - *AI interactions:* the ledger counts calls the way the agreement does – one per answer, learning step, quiz question or audio explainer, none for single-choice and true/false corrections, one per index request (media: one per started two hours) – instead of the earlier estimate of six credits per call; single-choice and true/false corrections pass even when the monthly limit is reached; the month's cost is interactions beyond the included amount times the price; the counting rules are listed on the *Plan & credits* tab.
+  - *Testing:* the connection settings and the *Brains* tab explain that there are no private test brains – the shared sandbox brain is billed like production, mock mode is the free way to try the plugin.
 - New question type **Accounting exercise** (German: *Buchhaltung*) in the Test knowledge settings. It requests `accountingWidget`; the brain answers with spreadsheet-type tasks, so display and evaluation are unchanged.
+- PHPUnit tests of the agreement's rules (`tests/`, not in the release zip).
+
+### Changed
+
 - Mock mode: the sample brain names no longer contain id-like segments.
+- The *Status* tab shows the customer type (partner customer or Tarsus license key) and the booked package; *Connection configured* accepts a license key in place of a brain ID.
+
+### Database
+
+- Step 9: ledger rows recorded with the earlier six-credit estimate are recalibrated to one interaction each.
 
 ## [1.1.0] – 2026-11-06
 
@@ -75,5 +91,6 @@ First release for ILIAS 9, 10 and 11.
 - Default permissions seeded on first activation for course and group roles.
 - English and German.
 
+[1.2.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.0
 [1.1.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.1.0
 [1.0.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.0.0

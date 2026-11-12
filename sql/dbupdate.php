@@ -139,3 +139,15 @@ if ($ilDB->tableExists('rep_robj_xtar_data') && !$ilDB->tableColumnExists('rep_r
     ]);
 }
 ?>
+<#9>
+<?php
+// The ledger now counts AI interactions as the Tarsus partner agreement
+// does (one per answering, creating, marking or voicing call) instead of
+// the earlier estimate of six credits per call. Rows recorded with that
+// estimate are recalibrated so that this month's figures stay comparable
+// with the included amount; the brain's own figure is fetched separately
+// and wins when it is higher.
+if ($ilDB->tableExists('rep_robj_xtar_use')) {
+    $ilDB->manipulate('UPDATE rep_robj_xtar_use SET credits = 1 WHERE credits = 6');
+}
+?>

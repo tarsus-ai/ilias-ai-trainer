@@ -5,6 +5,7 @@ namespace TarsusIlias\Client;
 use TarsusIlias\Index\Status;
 use TarsusIlias\Material\BitType;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Interactions;
 
 /**
  * Real Tarsus brain HTTP client.
@@ -13,9 +14,14 @@ use TarsusIlias\Support\Ilias;
  * audio,video}-bits, untrack/multiple-resources, untrack/multiple-assets,
  * check/tracked-resources, awareness/list/*) and the /api/t0/activity/*
  * surface (generate, evaluate, retrieve, reset, audio). Every call is
- * form-data with api_key + brain_id; the brain ingests asynchronously, so
- * track only ever confirms receipt and the batch check drives the state
- * machine afterwards.
+ * form-data with api_key + brain_id, or - for an existing Tarsus customer -
+ * api_key + license_key with no brain_id; the brain ingests
+ * asynchronously, so track only ever confirms receipt and the batch check
+ * drives the state machine afterwards.
+ *
+ * The 'credits' figure of every result is the number of AI interactions
+ * the call counts for under the partner agreement ({@see Interactions});
+ * the API itself returns no cost per call.
  *
  * All transport and protocol failures surface as TransportException so the
  * guardrails pipeline and the retry budget stay in control.
@@ -37,15 +43,25 @@ class HttpClient implements ClientInterface
     /** Seconds allowed to establish the connection. */
     private const CONNECT_TIMEOUT = 10;
 
+    /**
+     * The form field that carries the license key of an existing Tarsus
+     * customer. It travels with every call next to api_key and in place of
+     * brain_id, so that Tarsus recognises the customer and bills them
+     * directly.
+     */
+    public const LICENSE_FIELD = 'license_key';
+
     protected string $baseurl;
     protected string $apikey;
     protected string $brainid;
+    protected string $licensekey;
 
-    public function __construct(string $baseurl, string $apikey, string $brainid)
+    public function __construct(string $baseurl, string $apikey, string $brainid, string $licensekey = '')
     {
         $this->baseurl = $baseurl;
         $this->apikey = $apikey;
         $this->brainid = $brainid;
+        $this->licensekey = $licensekey;
     }
 
     public function trackResource(array $resource): array
@@ -66,11 +82,13 @@ class HttpClient implements ClientInterface
             throw new TransportException(0, 'brain did not acknowledge receipt of the resource');
         }
 
-        // Ingestion is asynchronous: receipt is not indexation.
+        // Ingestion is asynchronous: receipt is not indexation. Indexing
+        // counts one interaction per request, media one per started two
+        // hours.
         return [
             'status' => Status::PENDING_CONFIRMATION,
             'bitref' => '',
-            'credits' => 0,
+            'credits' => Interactions::forIndexing((string) ($resource['type'] ?? BitType::TEXT), (int) ($resource['duration'] ?? 0)),
         ];
     }
 
@@ -193,7 +211,7 @@ class HttpClient implements ClientInterface
             'audio' => preg_match('~^[A-Za-z0-9+/=\s]+$~', $bytes) ? $bytes : '',
             'mimetype' => $mimetype,
             'voice' => self::str($data['assistant']['alias'] ?? ($params['voice'] ?? '')),
-            'credits' => 6,
+            'credits' => Interactions::forAudioExplainer(),
         ];
     }
 
@@ -501,9 +519,9 @@ class HttpClient implements ClientInterface
             'answer' => $answer,
             'html' => $html,
             'messages' => $messages,
-            // The response carries no cost figure; a grounded answer is
-            // priced at about 6 credits.
-            'credits' => 6,
+            // The response carries no cost figure; the agreement counts one
+            // interaction per answered question (input is always text here).
+            'credits' => Interactions::forGenerate(),
         ];
     }
 
@@ -574,7 +592,7 @@ class HttpClient implements ClientInterface
         return [
             'widgets' => $widgets,
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), $widgetdata),
-            'credits' => 6,
+            'credits' => Interactions::forGenerate(),
         ];
     }
 
@@ -628,7 +646,7 @@ class HttpClient implements ClientInterface
         return [
             'items' => $items,
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), []),
-            'credits' => 6,
+            'credits' => Interactions::forGenerate(),
         ];
     }
 
@@ -954,7 +972,8 @@ class HttpClient implements ClientInterface
             'usertable' => self::tableRows($evaluation['userTable'] ?? []),
             'answertable' => self::tableVerdicts($data),
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), $data),
-            'credits' => 6,
+            // Single choice and true/false are corrected without the AI.
+            'credits' => Interactions::forEvaluation($type),
         ];
     }
 
@@ -1372,14 +1391,16 @@ class HttpClient implements ClientInterface
     }
 
     /**
-     * The configured brain id, or fail loudly. Listing brains deliberately
-     * does not go through here: an admin must be able to discover the
-     * available brains before one has been chosen.
+     * The configured brain id, or fail loudly. A license-key customer has
+     * none: Tarsus resolves it from the license key, and
+     * {@see requestFields()} leaves the field out. Listing brains
+     * deliberately does not go through here: an admin must be able to
+     * discover the available brains before one has been chosen.
      */
     private function brain(): string
     {
         $brainid = trim($this->brainid);
-        if ($brainid === '') {
+        if ($brainid === '' && trim($this->licensekey) === '') {
             throw new ConfigurationException('err_nobrainselected');
         }
         return $brainid;
@@ -1415,7 +1436,7 @@ class HttpClient implements ClientInterface
             throw new ConfigurationException('err_notconfigured');
         }
 
-        $params['api_key'] = $this->apikey;
+        $params = $this->requestFields($params);
 
         $url = (strncmp($path, '/', 1) === 0)
             ? $baseurl . $path
@@ -1464,6 +1485,27 @@ class HttpClient implements ClientInterface
         }
 
         return $decoded;
+    }
+
+    /**
+     * The form fields every call carries: the caller's fields plus the
+     * credentials. Two forms exist and never mix: a partner customer sends
+     * api_key and brain_id; an existing Tarsus customer sends api_key and
+     * license_key, and no brain_id - the license key stands for the brain.
+     *
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>
+     */
+    protected function requestFields(array $params): array
+    {
+        $params['api_key'] = $this->apikey;
+        if (trim($this->licensekey) !== '') {
+            $params[self::LICENSE_FIELD] = trim($this->licensekey);
+            unset($params['brain_id']);
+        } elseif (isset($params['brain_id']) && (string) $params['brain_id'] === '') {
+            unset($params['brain_id']);
+        }
+        return $params;
     }
 
     /**

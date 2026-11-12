@@ -22,12 +22,15 @@ use TarsusIlias\Guardrail\Pipeline;
 use TarsusIlias\Index\Reconciler;
 use TarsusIlias\Index\Repository;
 use TarsusIlias\Index\Status;
+use TarsusIlias\Activity\Didactics;
+use TarsusIlias\Material\BitType;
 use TarsusIlias\Output\Html;
 use TarsusIlias\Output\Views;
 use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
 use TarsusIlias\Support\Help;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Interactions;
 use TarsusIlias\Support\Plan;
 use TarsusIlias\Support\UsageMeter;
 use TarsusIlias\Support\Voices;
@@ -110,7 +113,21 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $form = $this->initSettingsForm();
             $this->fillSettingsForm($form);
         }
+        $this->planHint();
         $this->tpl->setContent($form->getHTML());
+    }
+
+    /**
+     * The partner agreement asks the partner to enforce the booked package
+     * in the plugin. While none is set on a live connection, every feature
+     * is reachable - say so on every configuration page.
+     */
+    private function planHint(): void
+    {
+        if (Plan::needsConfiguration()) {
+            $this->tpl->setOnScreenMessage('info', $this->txt('plan_not_set_hint', ['plan' => Plan::label()])
+                . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showPlan')) . '">' . $this->txt('cfg_tab_plan') . '</a>');
+        }
     }
 
     private function initSettingsForm(): ilPropertyFormGUI
@@ -140,8 +157,22 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         $brain = new ilTextInputGUI($this->txt('brainid'), 'brain_id');
         $brain->setMaxLength(255);
         $brain->setInfo($this->txt('brainid_desc') . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showBrains')) . '">'
-            . $this->txt('cfg_tab_brains') . '</a>');
+            . $this->txt('cfg_tab_brains') . '</a> ' . $this->txt('brainid_sandbox'));
         $form->addItem($brain);
+
+        // Existing Tarsus customers: a license key in place of a brain ID,
+        // billed by Tarsus.
+        $license = new ilPasswordInputGUI($this->txt('licensekey'), 'license_key');
+        $license->setRetype(false);
+        $license->setSkipSyntaxCheck(true);
+        $license->setMaxLength(255);
+        $license->setInfo($this->txt('licensekey_desc') . ' ' . $this->txt(Config::licenseKey() !== '' ? 'licensekey_keep' : 'licensekey_none'));
+        $form->addItem($license);
+        if (Config::licenseKey() !== '') {
+            $clear = new ilCheckboxInputGUI($this->txt('licensekey_clear'), 'license_key_clear');
+            $clear->setInfo($this->txt('licensekey_clear_desc'));
+            $form->addItem($clear);
+        }
 
         // Assistant.
         $section = new ilFormSectionHeaderGUI();
@@ -250,6 +281,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             'base_url' => Config::baseUrl(),
             'api_key' => '',
             'brain_id' => Config::brainId(),
+            'license_key' => '',
             'robot_name' => (string) Config::get('robot_name', Config::DEFAULT_ROBOT_NAME),
             'robot_id' => (string) Config::get('robot_id', ''),
             'robot_description' => (string) Config::get('robot_description', ''),
@@ -291,6 +323,14 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             Config::set('api_key', $apikey);
         }
         Config::set('brain_id', trim((string) $form->getInput('brain_id')));
+        if ($form->getItemByPostVar('license_key_clear') !== null && $form->getInput('license_key_clear')) {
+            Config::set('license_key', '');
+        } else {
+            $licensekey = trim((string) $form->getInput('license_key'));
+            if ($licensekey !== '') {
+                Config::set('license_key', $licensekey);
+            }
+        }
         Config::set('robot_name', Config::bmp(trim((string) $form->getInput('robot_name'))));
         Config::set('robot_id', Config::bmp(trim((string) $form->getInput('robot_id'))));
         Config::set('robot_description', Config::bmp(trim((string) $form->getInput('robot_description'))));
@@ -383,6 +423,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
     private function showPlan(?ilPropertyFormGUI $form = null): void
     {
         $this->tabs->activateSubTab('cfg_plan');
+        $this->planHint();
         if ($form === null) {
             $form = $this->initPlanForm();
             $form->setValuesByArray([
@@ -394,7 +435,65 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
                 'notify_emails' => (string) Config::get('notify_emails', ''),
             ]);
         }
-        $this->tpl->setContent('<div class="tarsus-app">' . $this->usagePanel() . '</div>' . $form->getHTML());
+        $this->tpl->setContent('<div class="tarsus-app">' . $this->usagePanel() . $this->featurePanel() . $this->countingPanel() . '</div>' . $form->getHTML());
+    }
+
+    /**
+     * "Funktionen je Paket": which features each package includes, the
+     * current one marked. The table of the partner agreement, so that the
+     * administrator sees what the plugin will and will not offer.
+     */
+    private function featurePanel(): string
+    {
+        $current = Plan::current();
+        $html = '<details class="tarsus-details tarsus-details--plan"><summary>' . $this->txt('plan_features_title') . '</summary>'
+            . '<p class="tarsus-muted">' . $this->txt('plan_features_desc') . '</p>'
+            . '<div class="tarsus-table-wrap"><table class="tarsus-table tarsus-table--features"><thead><tr><th>' . $this->txt('plan_feature') . '</th>';
+        foreach ([Plan::ASK, Plan::PRACTICE, Plan::LEARN, Plan::PAYG] as $plan) {
+            $html .= '<th class="tarsus-center' . ($plan === $current ? ' tarsus-th--current' : '') . '">' . $this->txt('plan_' . $plan . '_short')
+                . ($plan === $current ? '<br><span class="tarsus-badge tarsus-badge--info">' . $this->txt('plan_current') . '</span>' : '') . '</th>';
+        }
+        $html .= '</tr></thead><tbody>';
+        foreach (Plan::ALL_FEATURES as $feature) {
+            $html .= '<tr><td>' . $this->txt('plan_feature_' . $feature) . '</td>';
+            foreach ([Plan::ASK, Plan::PRACTICE, Plan::LEARN, Plan::PAYG] as $plan) {
+                $yes = Plan::allows($feature, $plan);
+                $html .= '<td class="tarsus-center' . ($plan === $current ? ' tarsus-td--current' : '') . '">'
+                    . '<span class="tarsus-badge tarsus-badge--' . ($yes ? 'success' : 'muted') . '">' . $this->lng->txt($yes ? 'yes' : 'no') . '</span></td>';
+            }
+            $html .= '</tr>';
+        }
+        $html .= '</tbody></table></div><p class="tarsus-muted">' . $this->txt('plan_features_note') . '</p></details>';
+        return $html;
+    }
+
+    /**
+     * How AI interactions are counted - the agreement's rules, which the
+     * ledger applies to every call this installation makes.
+     */
+    private function countingPanel(): string
+    {
+        $rows = [
+            ['counting_answer', Interactions::forGenerate()],
+            ['counting_step', Interactions::forGenerate()],
+            ['counting_agent', Interactions::forGenerate()],
+            ['counting_audio_explainer', Interactions::forAudioExplainer()],
+            ['counting_voice', Interactions::forGenerate(true)],
+            ['counting_eval_open', Interactions::forEvaluation(Didactics::TYPE_OPEN)],
+            ['counting_eval_choice', Interactions::forEvaluation(Didactics::TYPE_SINGLECHOICE)],
+            ['counting_index', Interactions::forIndexing(BitType::DOCUMENT)],
+            ['counting_index_media', Interactions::forIndexing(BitType::MEDIA)],
+            ['counting_management', Interactions::forManagement()],
+        ];
+        $html = '<details class="tarsus-details tarsus-details--plan"><summary>' . $this->txt('counting_title') . '</summary>'
+            . '<p class="tarsus-muted">' . $this->txt('counting_desc') . '</p>'
+            . '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr><th>' . $this->txt('counting_what') . '</th><th class="tarsus-num">'
+            . $this->txt('counting_count') . '</th></tr></thead><tbody>';
+        foreach ($rows as [$key, $count]) {
+            $html .= '<tr><td>' . $this->txt($key) . '</td><td class="tarsus-num">' . $count . '</td></tr>';
+        }
+        $html .= '</tbody></table></div><p class="tarsus-muted">' . $this->txt('counting_note') . '</p></details>';
+        return $html;
     }
 
     private function initPlanForm(): ilPropertyFormGUI
@@ -594,10 +693,14 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         $remote = Budget::remote();
         $overage = Budget::overage();
         $local = Budget::localCredits();
+        $tarsusbilled = Plan::billedByTarsus();
         $rows = [
+            [$this->txt('plan_billing'), $tarsusbilled ? $this->txt('plan_billing_tarsus') : $this->txt('plan_billing_partner')],
             [$this->txt('plan_included'), Plan::isPayAsYouGrow()
-                ? $this->txt('plan_payg_note', ['price' => Html::e(Plan::money(Plan::pricePerRequest()))])
-                : $this->txt('plan_included_value', ['credits' => number_format(Plan::includedCredits()), 'price' => Html::e(Plan::money(Plan::pricePerRequest()))])],
+                ? ($tarsusbilled ? $this->txt('plan_payg_note_tarsus') : $this->txt('plan_payg_note', ['price' => Html::e(Plan::money(Plan::pricePerRequest()))]))
+                : ($tarsusbilled
+                    ? $this->txt('plan_included_value_tarsus', ['credits' => number_format(Plan::includedCredits())])
+                    : $this->txt('plan_included_value', ['credits' => number_format(Plan::includedCredits()), 'price' => Html::e(Plan::money(Plan::pricePerRequest()))]))],
             [$this->txt('usage_local'), $this->txt('usage_local_value', ['credits' => number_format($local), 'requests' => number_format(Budget::localRequests())])],
             [$this->txt('usage_remote'), $remote === null
                 ? $this->txt('usage_remote_none')
@@ -606,7 +709,9 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
                 ? $this->txt('monthly_limit_value', ['limit' => number_format(Budget::limit()), 'remaining' => number_format(Budget::remaining())])
                 : $this->txt('no_limit')],
             [$this->txt('usage_charged'), $overage['charged'] > 0
-                ? $this->txt('usage_charged_value', ['requests' => number_format($overage['charged']), 'cost' => Html::e(Plan::money($overage['cost']))])
+                ? ($tarsusbilled
+                    ? $this->txt('usage_charged_value_tarsus', ['requests' => number_format($overage['charged'])])
+                    : $this->txt('usage_charged_value', ['requests' => number_format($overage['charged']), 'cost' => Html::e(Plan::money($overage['cost']))]))
                 : $this->txt('usage_charged_none')],
             [$this->txt('usage_reset'), Html::e(Views::date(Budget::nextMonthStart()))],
         ];
@@ -628,6 +733,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
     {
         $this->tabs->activateSubTab('cfg_brains');
         $current = Config::brainId();
+        $this->planHint();
 
         try {
             $brains = ClientFactory::getClient()->listBrains();
@@ -654,7 +760,9 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $this->tpl->setOnScreenMessage('failure', $this->txt('brain_missing', ['brain' => Html::e($current)]));
         }
 
-        $html = '<div class="tarsus-app"><div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr>'
+        $html = '<div class="tarsus-app">'
+            . '<p class="tarsus-muted tarsus-sandbox-note">' . $this->txt('brain_sandbox_note') . '</p>'
+            . '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr>'
             . '<th>' . $this->txt('brain_col_id') . '</th>'
             . '<th>' . $this->txt('brain_col_status') . '</th>'
             . '<th>' . $this->txt('brain_col_language') . '</th>'
@@ -773,13 +881,16 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
     private function showStatus(): void
     {
         $this->tabs->activateSubTab('cfg_status');
+        $this->planHint();
         $snapshot = (new Pipeline())->snapshot();
         $breaker = $snapshot['breaker'];
         $bucket = $snapshot['bucket'];
 
         $rows = [
             [$this->txt('mockmode'), Config::mockMode() ? $this->lng->txt('yes') : $this->lng->txt('no')],
-            [$this->txt('status_configured'), (Config::baseUrl() !== '' && Config::apiKey() !== '' && Config::brainId() !== '') ? $this->lng->txt('yes') : $this->lng->txt('no')],
+            [$this->txt('status_configured'), Config::isConnected() ? $this->lng->txt('yes') : $this->lng->txt('no')],
+            [$this->txt('status_customer'), Config::licenseKey() !== '' ? $this->txt('status_customer_tarsus') : $this->txt('status_customer_partner')],
+            [$this->txt('status_plan'), Plan::label() . (Plan::isConfigured() ? '' : ' (' . $this->txt('plan_default_note') . ')')],
             [$this->txt('killswitch'), Config::killswitch() ? $this->lng->txt('yes') : $this->lng->txt('no')],
             [$this->txt('status_breaker'), ($breaker->state === 'open' ? $this->txt('status_breaker_open', ['since' => Views::date((int) $breaker->opensince)]) : $this->txt('status_breaker_closed'))
                 . ' (' . $this->txt('status_failures', ['count' => (int) $breaker->failurecount]) . ')'],
