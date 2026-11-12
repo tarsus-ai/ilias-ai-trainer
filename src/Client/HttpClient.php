@@ -4,7 +4,9 @@ namespace TarsusIlias\Client;
 
 use TarsusIlias\Index\Status;
 use TarsusIlias\Material\BitType;
+use TarsusIlias\Material\MediaDuration;
 use TarsusIlias\Support\Ilias;
+use TarsusIlias\Support\Interactions;
 
 /**
  * Real Tarsus brain HTTP client.
@@ -13,9 +15,14 @@ use TarsusIlias\Support\Ilias;
  * audio,video}-bits, untrack/multiple-resources, untrack/multiple-assets,
  * check/tracked-resources, awareness/list/*) and the /api/t0/activity/*
  * surface (generate, evaluate, retrieve, reset, audio). Every call is
- * form-data with api_key + brain_id; the brain ingests asynchronously, so
- * track only ever confirms receipt and the batch check drives the state
- * machine afterwards.
+ * form-data with api_key and the customer's credential - brain_id, or the
+ * License-Key of an existing Tarsus customer in its place; the brain
+ * ingests asynchronously, so track only ever confirms receipt and the
+ * batch check drives the state machine afterwards.
+ *
+ * Every result reports as 'credits' the AI interactions the call consumed,
+ * counted from the requests that were actually sent by the rules of the
+ * partner agreement (Interactions): the API returns no cost figure.
  *
  * All transport and protocol failures surface as TransportException so the
  * guardrails pipeline and the retry budget stay in control.
@@ -39,21 +46,29 @@ class HttpClient implements ClientInterface
 
     protected string $baseurl;
     protected string $apikey;
-    protected string $brainid;
+    protected Credential $credential;
 
-    public function __construct(string $baseurl, string $apikey, string $brainid)
+    /** AI interactions of the requests sent since the current call began. */
+    private int $interactions = 0;
+
+    /**
+     * @param string|Credential $credential The brain ID, or how the customer
+     *                                      is identified (brain ID or License-Key).
+     */
+    public function __construct(string $baseurl, string $apikey, $credential)
     {
         $this->baseurl = $baseurl;
         $this->apikey = $apikey;
-        $this->brainid = $brainid;
+        $this->credential = $credential instanceof Credential ? $credential : Credential::brain((string) $credential);
     }
 
     public function trackResource(array $resource): array
     {
-        [$path, $params, $tempfile] = $this->buildTrackRequest($resource);
+        $this->begin();
+        [$path, $params, $tempfile, $hints] = $this->buildTrackRequest($resource);
 
         try {
-            $body = $this->send('POST', $path, $params, $tempfile !== null);
+            $body = $this->send('POST', $path, $params, $tempfile !== null, null, $hints);
         } finally {
             if ($tempfile !== null && file_exists($tempfile)) {
                 @unlink($tempfile);
@@ -66,18 +81,20 @@ class HttpClient implements ClientInterface
             throw new TransportException(0, 'brain did not acknowledge receipt of the resource');
         }
 
-        // Ingestion is asynchronous: receipt is not indexation.
+        // Ingestion is asynchronous: receipt is not indexation. Indexing
+        // is an AI interaction per request - audio and video one per
+        // started two hours.
         return [
             'status' => Status::PENDING_CONFIRMATION,
             'bitref' => '',
-            'credits' => 0,
+            'credits' => $this->counted(),
         ];
     }
 
     public function retrieveFeed(array $params): array
     {
-        $body = $this->send('POST', '/api/t0/activity/retrieve/next/widgets', [
-            'brain_id' => $this->brain(),
+        $this->begin();
+        $body = $this->send('POST', '/api/t0/activity/retrieve/next/widgets', $this->customer() + [
             'context_id' => (string) ($params['contextid'] ?? ''),
             'context_type' => 'tarsus_activity',
             'user_id' => (string) ($params['userid'] ?? ''),
@@ -159,14 +176,15 @@ class HttpClient implements ClientInterface
             'items' => $items,
             'rawcount' => $rawcount,
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), []),
-            'credits' => 0,
+            // Reading the history back is not an AI interaction.
+            'credits' => $this->counted(),
         ];
     }
 
     public function generateStackAudio(array $params): array
     {
-        $body = $this->send('POST', '/api/t0/activity/generate/audio/explainer/stack', [
-            'brain_id' => $this->brain(),
+        $this->begin();
+        $body = $this->send('POST', '/api/t0/activity/generate/audio/explainer/stack', $this->customer() + [
             'context_id' => (string) ($params['contextid'] ?? ''),
             'context_type' => 'tarsus_activity',
             'context_name' => (string) ($params['contextname'] ?? ''),
@@ -193,14 +211,15 @@ class HttpClient implements ClientInterface
             'audio' => preg_match('~^[A-Za-z0-9+/=\s]+$~', $bytes) ? $bytes : '',
             'mimetype' => $mimetype,
             'voice' => self::str($data['assistant']['alias'] ?? ($params['voice'] ?? '')),
-            'credits' => 6,
+            // The audio explainer counts as one AI interaction.
+            'credits' => $this->counted(),
         ];
     }
 
     public function resetConversation(string $contextid, string $userid): void
     {
-        $this->send('DELETE', '/api/t0/activity/reset/user/widgets', [
-            'brain_id' => $this->brain(),
+        $this->begin();
+        $this->send('DELETE', '/api/t0/activity/reset/user/widgets', $this->customer() + [
             'context_id' => $contextid,
             'context_type' => 'tarsus_activity',
             'user_id' => $userid,
@@ -209,11 +228,11 @@ class HttpClient implements ClientInterface
 
     public function untrackResource(array $resourceids): array
     {
+        $this->begin();
         $result = [];
 
         foreach ($this->chunk($resourceids) as $chunk) {
-            $body = $this->send('DELETE', 'access/untrack/multiple-resources', [
-                'brain_id' => $this->brain(),
+            $body = $this->send('DELETE', 'access/untrack/multiple-resources', $this->customer() + [
                 'resource_ids' => json_encode(array_values($chunk)),
             ]);
 
@@ -230,11 +249,11 @@ class HttpClient implements ClientInterface
 
     public function untrackAssets(array $assetids): array
     {
+        $this->begin();
         $result = [];
 
         foreach ($this->chunk($assetids) as $chunk) {
-            $body = $this->send('DELETE', 'access/untrack/multiple-assets', [
-                'brain_id' => $this->brain(),
+            $body = $this->send('DELETE', 'access/untrack/multiple-assets', $this->customer() + [
                 'asset_ids' => json_encode(array_values($chunk)),
             ]);
 
@@ -260,11 +279,11 @@ class HttpClient implements ClientInterface
 
     public function checkTrackedResources(array $resourceids): array
     {
+        $this->begin();
         $result = [];
 
         foreach ($this->chunk($resourceids) as $chunk) {
-            $body = $this->send('GET', 'access/check/tracked-resources', [
-                'brain_id' => $this->brain(),
+            $body = $this->send('GET', 'access/check/tracked-resources', $this->customer() + [
                 'resource_ids' => json_encode(array_values($chunk)),
             ]);
 
@@ -285,6 +304,7 @@ class HttpClient implements ClientInterface
 
     public function listBrains(): array
     {
+        $this->begin();
         $body = $this->send('GET', 'awareness/list/memories', []);
 
         $brains = [];
@@ -306,8 +326,8 @@ class HttpClient implements ClientInterface
 
     public function getUsage(int $start, int $end): array
     {
-        $body = $this->send('GET', 'awareness/get/usage', [
-            'brain_id' => $this->brain(),
+        $this->begin();
+        $body = $this->send('GET', 'awareness/get/usage', $this->customer() + [
             'start_timestamp' => (string) max(0, $start),
             'end_timestamp' => (string) max($start, $end),
         ]);
@@ -328,12 +348,13 @@ class HttpClient implements ClientInterface
             ];
         }
 
-        return ['total' => $total, 'items' => $items, 'credits' => 0];
+        return ['total' => $total, 'items' => $items, 'credits' => $this->counted()];
     }
 
     public function listVoices(): array
     {
-        $body = $this->send('GET', 'awareness/list/clone-voices', ['brain_id' => $this->brain()]);
+        $this->begin();
+        $body = $this->send('GET', 'awareness/list/clone-voices', $this->customer());
 
         $voices = [];
         foreach ((array) ($body['assistance']['voices'] ?? []) as $entry) {
@@ -362,8 +383,7 @@ class HttpClient implements ClientInterface
         // always text. full_brain_access must be an explicit 'false': that
         // is what makes resource_ids the retrieval boundary; 'true' searches
         // the whole shared brain regardless of scope.
-        return [
-            'brain_id' => $this->brain(),
+        return $this->customer() + [
             'context_id' => (string) ($params['contextid'] ?? ''),
             'context_type' => 'tarsus_activity',
             'context_name' => (string) ($params['contextname'] ?? ''),
@@ -446,6 +466,7 @@ class HttpClient implements ClientInterface
 
     public function generateWidgets(array $params): array
     {
+        $this->begin();
         $fields = $this->generationFields($params, 'ask') + [
             'query' => (string) ($params['query'] ?? ''),
         ];
@@ -501,9 +522,9 @@ class HttpClient implements ClientInterface
             'answer' => $answer,
             'html' => $html,
             'messages' => $messages,
-            // The response carries no cost figure; a grounded answer is
-            // priced at about 6 credits.
-            'credits' => 6,
+            // The response carries no cost figure: an answered question
+            // is one AI interaction, in agent mode (ai-driven) too.
+            'credits' => $this->counted(),
         ];
     }
 
@@ -513,6 +534,7 @@ class HttpClient implements ClientInterface
         // generate the next question instead of answering one. The query is
         // required by the endpoint and stays empty here; question_types
         // must carry all three grades with at least one type each.
+        $this->begin();
         $fields = $this->generationFields($params, 'practice') + [
             'taxonomy_levels' => json_encode(array_values($params['taxonomylevels'] ?? [])),
             'question_types' => self::encodeQuestionTypes((array) ($params['questiontypes'] ?? [])),
@@ -574,7 +596,9 @@ class HttpClient implements ClientInterface
         return [
             'widgets' => $widgets,
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), $widgetdata),
-            'credits' => 6,
+            // One AI interaction per request, however many questions it
+            // brought.
+            'credits' => $this->counted(),
         ];
     }
 
@@ -584,6 +608,7 @@ class HttpClient implements ClientInterface
         // sends the learning objectives, then one micro-learning stack per
         // call. learning_method picks the didactic concept, gif allows
         // animated illustrations.
+        $this->begin();
         $fields = $this->generationFields($params, 'learn') + [
             'learning_method' => (string) ($params['learningmethod'] ?? 'micro-learning'),
             'gif' => !empty($params['gif']) ? 'true' : 'false',
@@ -628,7 +653,7 @@ class HttpClient implements ClientInterface
         return [
             'items' => $items,
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), []),
-            'credits' => 6,
+            'credits' => $this->counted(),
         ];
     }
 
@@ -845,13 +870,8 @@ class HttpClient implements ClientInterface
 
     public function evaluatePracticeAnswer(array $params): array
     {
-        $paths = [
-            'singleChoiceQuestionWidget' => '/api/t0/activity/evaluate/single-choice-question/widget',
-            'trueFalseQuestionWidget' => '/api/t0/activity/evaluate/true-false-question/widget',
-            'openQuestionWidget' => '/api/t0/activity/evaluate/open-question/widget',
-            'crossMultiplicationQuestionWidget' => '/api/t0/activity/evaluate/cross-multiplication-question/widget',
-            'tradeCostingQuestionWidget' => '/api/t0/activity/evaluate/trade-costing-question/widget',
-        ];
+        $this->begin();
+        $paths = Interactions::EVALUATE;
         $type = (string) ($params['widgettype'] ?? '');
         if (!isset($paths[$type])) {
             throw new \InvalidArgumentException('Unsupported practice widget type: ' . $type);
@@ -859,8 +879,7 @@ class HttpClient implements ClientInterface
 
         // The endpoints take slightly different subsets; the superset is
         // sent to all of them.
-        $fields = [
-            'brain_id' => $this->brain(),
+        $fields = $this->customer() + [
             'context_id' => (string) ($params['contextid'] ?? ''),
             'context_type' => 'tarsus_activity',
             'context_name' => (string) ($params['contextname'] ?? ''),
@@ -954,7 +973,9 @@ class HttpClient implements ClientInterface
             'usertable' => self::tableRows($evaluation['userTable'] ?? []),
             'answertable' => self::tableVerdicts($data),
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), $data),
-            'credits' => 6,
+            // Correcting a single-choice or true/false answer is free; an
+            // evaluation with feedback is one AI interaction.
+            'credits' => $this->counted(),
         ];
     }
 
@@ -1269,21 +1290,20 @@ class HttpClient implements ClientInterface
      * Pick the endpoint and form fields for one material payload.
      *
      * @param array<string, mixed> $resource
-     * @return array{0: string, 1: array<string, mixed>, 2: ?string} Path, form fields, temp file to clean up.
+     * @return array{0: string, 1: array<string, mixed>, 2: ?string, 3: array<string, mixed>} Path, form fields, temp file to clean up, counting hints.
      */
     private function buildTrackRequest(array $resource): array
     {
         $title = (string) ($resource['title'] ?? '');
         $type = (string) ($resource['type'] ?? BitType::TEXT);
 
-        $common = [
-            'brain_id' => $this->brain(),
+        $common = $this->customer() + [
             'resource_id' => (string) ($resource['resource_id'] ?? ''),
             'asset_id' => (string) ($resource['context_id'] ?? ''),
         ];
 
         if ($type === BitType::URL) {
-            return ['access/track/url-bits', $common + ['url' => (string) ($resource['url'] ?? '')], null];
+            return ['access/track/url-bits', $common + ['url' => (string) ($resource['url'] ?? '')], null, []];
         }
 
         if ($type === BitType::DOCUMENT || $type === BitType::MEDIA) {
@@ -1294,6 +1314,7 @@ class HttpClient implements ClientInterface
             'access/track/text-bits',
             $common + ['text' => (string) ($resource['text'] ?? ''), 'title' => $title],
             null,
+            [],
         ];
     }
 
@@ -1303,7 +1324,7 @@ class HttpClient implements ClientInterface
      *
      * @param array<string, mixed> $resource
      * @param array<string, mixed> $common
-     * @return array{0: string, 1: array<string, mixed>, 2: string}
+     * @return array{0: string, 1: array<string, mixed>, 2: string, 3: array<string, mixed>}
      */
     private function buildFileTrackRequest(array $resource, array $common, string $title, string $type): array
     {
@@ -1317,7 +1338,7 @@ class HttpClient implements ClientInterface
         $curlfile = new \CURLFile($temppath, $mimetype !== '' ? $mimetype : 'application/octet-stream', $filename);
 
         if ($type === BitType::DOCUMENT) {
-            return ['access/track/document-bits', $common + ['document' => $curlfile], $temppath];
+            return ['access/track/document-bits', $common + ['document' => $curlfile], $temppath, []];
         }
 
         $isaudio = strncmp($mimetype, 'audio/', 6) === 0;
@@ -1326,6 +1347,9 @@ class HttpClient implements ClientInterface
             $isaudio ? 'access/track/audio-bits' : 'access/track/video-bits',
             $common + ['title' => $title, ($isaudio ? 'audio_content' : 'video_content') => $curlfile],
             $temppath,
+            // Audio and video count one AI interaction per started two
+            // hours: the length of the recording decides.
+            ['duration' => MediaDuration::seconds($temppath)],
         ];
     }
 
@@ -1372,17 +1396,33 @@ class HttpClient implements ClientInterface
     }
 
     /**
-     * The configured brain id, or fail loudly. Listing brains deliberately
-     * does not go through here: an admin must be able to discover the
-     * available brains before one has been chosen.
+     * The form field that identifies the customer - brain_id, or the
+     * License-Key in its place - or fail loudly when it is missing. Listing
+     * brains deliberately does not go through here: an admin must be able
+     * to discover the available brains before one has been chosen.
+     *
+     * @return array<string, string>
+     * @throws ConfigurationException
      */
-    private function brain(): string
+    private function customer(): array
     {
-        $brainid = trim($this->brainid);
-        if ($brainid === '') {
-            throw new ConfigurationException('err_nobrainselected');
-        }
-        return $brainid;
+        return $this->credential->fields();
+    }
+
+    /**
+     * Start counting the AI interactions of a call afresh.
+     */
+    private function begin(): void
+    {
+        $this->interactions = 0;
+    }
+
+    /**
+     * The AI interactions of the requests sent since begin().
+     */
+    private function counted(): int
+    {
+        return $this->interactions;
     }
 
     /**
@@ -1404,10 +1444,14 @@ class HttpClient implements ClientInterface
      * is set via CURLOPT_CUSTOMREQUEST while the fields travel in the body,
      * exactly as "curl --request GET --form" does.
      *
+     * A request the brain answered adds its AI interactions to the count
+     * of the running call; a failed one adds nothing.
+     *
      * @param array<string, mixed> $params
+     * @param array<string, mixed> $hints What the count needs beyond the form fields (the duration of a recording).
      * @return array<string, mixed>
      */
-    private function send(string $method, string $path, array $params, bool $uploading = false, ?int $timeout = null): array
+    private function send(string $method, string $path, array $params, bool $uploading = false, ?int $timeout = null, array $hints = []): array
     {
         $baseurl = rtrim(trim($this->baseurl), '/');
 
@@ -1462,6 +1506,8 @@ class HttpClient implements ClientInterface
         if (!is_array($decoded)) {
             throw new TransportException(0, 'malformed JSON response from ' . $path);
         }
+
+        $this->interactions += Interactions::forRequest($path, $params, $hints);
 
         return $decoded;
     }

@@ -9,6 +9,14 @@ namespace TarsusIlias\Client;
  * a concrete client. A deterministic mock backs it in mock mode; the HTTP
  * client speaks to the live brain.
  *
+ * Where a result carries 'credits', it is the number of AI interactions
+ * the call consumed, counted by the rules of the partner agreement
+ * (Support\Interactions): 1 for a request in which the AI answers,
+ * creates, evaluates, narrates or indexes; 0 for retrieving, listing,
+ * checking, deleting and for the automatic correction of single-choice
+ * and true/false answers; one per started two hours when audio or video
+ * is indexed.
+ *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
  */
@@ -30,7 +38,7 @@ interface ClientInterface
      * Track (index) a resource into the brain.
      *
      * @param array<string, mixed> $resource Resource payload (type, resource_id, context_id, title, text|url|file).
-     * @return array<string, mixed> Result with at least 'status' and optional 'bitref'.
+     * @return array<string, mixed> Result with at least 'status', optional 'bitref' and the 'credits' of the upload.
      */
     public function trackResource(array $resource): array;
 

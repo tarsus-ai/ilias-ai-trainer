@@ -7,6 +7,67 @@ All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 
 - Mock mode: the sample brain names no longer contain id-like segments.
 
+### Added
+
+- **AI interactions counted the way Tarsus counts them.** The ledger, the
+  monthly limit, its warnings, the cost estimate and the analytics work on AI
+  interactions by the counting rules Tarsus agrees with its partners (public
+  overview: [tarsus.ai/ki-interaktionen](https://tarsus.ai/ki-interaktionen))
+  instead of an estimate of six AI credits per request:
+  - one per request in which the AI answers, creates, evaluates, narrates or
+    indexes: a question, the next quiz questions, the next learning step (agent
+    mode included), the audio explainer, the evaluation of a free answer or a
+    calculation;
+  - none for the automatic correction of single-choice and true/false answers,
+    for reading the history, for checking, withdrawing and deleting material and
+    for querying the usage;
+  - one per upload when material is indexed – audio and video one per started
+    two hours, read from the file (getID3, with built-in readers for WAV and the
+    MPEG-4 family);
+  - voice input (2) and `think_longer` (doubles any request) are part of the
+    rules, although the plugin sends neither yet.
+
+  The count is derived from the request that actually goes over the wire:
+  `Support\Interactions` lists all 79 requests of the API documentation with
+  their rule, the HTTP client counts what it sends and the mock client reports
+  the same figures.
+- **License-Key** for existing Tarsus customers (*Settings › Tarsus connection ›
+  Customer*): the key is sent together with the API key in place of the brain
+  ID, in a configurable form field (`license_key` by default). Such customers are
+  billed by Tarsus directly, so the cost estimate names no partner price for
+  them. A missing key is an error; the plugin never falls back to the brain ID.
+  **The Tarsus API does not accept the key yet – leave the setting on
+  *brain ID* until Tarsus confirms it.**
+- **Packages as Tarsus offers them**: "Ask questions", "Test knowledge", "Build
+  knowledge" and Pay-As-You-Grow, with the functions of each in one table
+  (`Plan::FEATURES`: the three modes, audio explainer, voice input, agent mode).
+  A request for a function outside the booked package is refused with its own
+  message, and the usage panel says so while no package has been set.
+- Uploads are held by the monthly limit like every other counted request. The
+  limit is asked before the previous version is withdrawn, so a refused re-index
+  – by a teacher or by the cron job – leaves the brain as it was.
+- The usage panel (*Package & AI interactions*, *Status*) shows who is billed –
+  the partner, or Tarsus for a License-Key customer – and how AI interactions
+  are counted.
+- A test suite that needs no ILIAS (`php tests/run.php`) and a workflow that
+  runs it on every push and pull request.
+
+### Changed
+
+- "AI credits" are called "AI interactions" throughout, in English and German;
+  the tab *Plan & credits* is now *Package & AI interactions*.
+- The cost estimate charges the AI interactions beyond the included ones. It
+  used to count requests against credits.
+- The automatic correction of single-choice and true/false answers stays
+  possible when the monthly limit is reached: it costs nothing.
+
+### Database
+
+- Step 9: ledger rows written by versions up to 1.1.0 are converted to AI
+  interactions (every charged request and every upload becomes one) and the
+  month's warnings start afresh. ILIAS runs the step when the plugin is
+  updated, so the release that carries it needs a new version in `plugin.php`.
+
 ## [1.1.0] – 2026-11-06
 
 ### Added

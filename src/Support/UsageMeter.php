@@ -3,9 +3,15 @@
 namespace TarsusIlias\Support;
 
 /**
- * Local usage ledger: credits and operations per container, object and
- * user. The shared brain's usage cannot be broken down by course, so this
- * ledger provides the attribution.
+ * Local usage ledger: operations and their AI interactions per container,
+ * object and user. The shared brain's usage cannot be broken down by
+ * course, so this ledger provides the attribution.
+ *
+ * The 'credits' column holds AI interactions as the partner agreement
+ * counts them (Interactions): 0 for a call that is free, such as the
+ * automatic correction of a single-choice answer, 1 for an ordinary
+ * request, more for a long recording being indexed. AI credits and AI
+ * interactions are two names for the same unit.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -14,6 +20,9 @@ final class UsageMeter
 {
     public const TABLE = 'rep_robj_xtar_use';
 
+    /**
+     * @param int $credits The AI interactions the operation counted.
+     */
     public function record(int $containerref, int $objid, int $userid, string $operation, int $credits = 0): void
     {
         $db = Ilias::db();
@@ -23,7 +32,7 @@ final class UsageMeter
             'obj_id' => ['integer', $objid],
             'usr_id' => ['integer', $userid],
             'op_name' => ['text', substr($operation, 0, 50)],
-            'credits' => ['integer', $credits],
+            'credits' => ['integer', max(0, $credits)],
             'created' => ['integer', time()],
         ]);
         if ($credits > 0) {
@@ -34,8 +43,8 @@ final class UsageMeter
     }
 
     /**
-     * Requests and credits per day since a point in time, oldest first,
-     * keyed by Y-m-d (days without usage are absent).
+     * Counted requests and their AI interactions per day since a point in
+     * time, oldest first, keyed by Y-m-d (days without usage are absent).
      *
      * @return array<string, array{calls: int, credits: int}>
      */
@@ -60,7 +69,7 @@ final class UsageMeter
     }
 
     /**
-     * Distinct users with charged calls since a point in time.
+     * Distinct users with counted requests since a point in time.
      */
     public function activeUsers(int $since, ?int $objid = null): int
     {
@@ -75,7 +84,8 @@ final class UsageMeter
     }
 
     /**
-     * Requests and credits per user since a point in time, busiest first.
+     * Counted requests and their AI interactions per user since a point in
+     * time, busiest first.
      *
      * @return array<int, array{usrid: int, calls: int, credits: int, last: int}>
      */
@@ -96,7 +106,8 @@ final class UsageMeter
     }
 
     /**
-     * Credits and calls per operation since a point in time.
+     * Calls (free ones included) and AI interactions per operation since a
+     * point in time.
      *
      * @return array<string, array{calls: int, credits: int}>
      */

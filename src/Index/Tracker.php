@@ -9,6 +9,7 @@ use TarsusIlias\Guardrail\BlockedException;
 use TarsusIlias\Guardrail\Pipeline;
 use TarsusIlias\Material\Resolver;
 use TarsusIlias\Material\ResourceId;
+use TarsusIlias\Support\Interactions;
 use TarsusIlias\Support\UsageMeter;
 
 /**
@@ -18,6 +19,11 @@ use TarsusIlias\Support\UsageMeter;
  * machine. Failures are not absorbed: a guardrail block or transport error
  * propagates to the caller, which decides how to present it and how to
  * revert the row (Indexer::executeNow()).
+ *
+ * Indexing is an AI interaction per upload - audio and video one per
+ * started two hours - so uploads are metered and held by the monthly
+ * limit like any other charged call. Withdrawing, checking and deleting
+ * cost nothing.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -80,8 +86,13 @@ class Tracker
         }
         $payload = $this->resolver->payload($material);
         $hash = $material->contentHash();
+        // What the upload will count at least; a long recording counts more
+        // and the client reports the real figure.
+        $cost = Interactions::forTracking((string) ($payload['type'] ?? ''), (string) ($payload['mimetype'] ?? ''));
 
-        $this->pipeline->execute(fn() => $this->client->untrackResource([$row->resourceid]));
+        // The monthly limit is asked before the old version is withdrawn:
+        // an upload it refuses must leave what the brain holds untouched.
+        $this->pipeline->execute(fn() => $this->client->untrackResource([$row->resourceid]), $cost);
 
         // The brain now holds nothing under this id. Record that before the
         // upload: should it fail, the row must not keep claiming the
@@ -90,9 +101,9 @@ class Tracker
             $this->repo->setStatus($row->resourceid, Status::PENDING);
         }
 
-        $result = $this->pipeline->execute(fn() => $this->client->trackResource($payload));
+        $result = $this->pipeline->execute(fn() => $this->client->trackResource($payload), $cost);
 
-        $this->usage->record($row->containerref, 0, 0, 'track', (int) ($result['credits'] ?? 0));
+        $this->usage->record($row->containerref, 0, 0, 'track', (int) ($result['credits'] ?? $cost));
 
         $bitref = (string) ($result['bitref'] ?? '');
         if (($result['status'] ?? '') === Status::INDEXED) {

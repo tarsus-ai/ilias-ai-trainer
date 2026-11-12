@@ -124,7 +124,7 @@ testenabled_help#:#Wenn ausgeschaltet, wird der Übungsmodus in diesem Objekt f�
 buildenabled#:#Wissen aufbauen aktivieren
 buildenabled_help#:#Wenn ausgeschaltet, wird der Modus Wissen aufbauen in diesem Objekt für Lernende ausgeblendet.
 gifenabled#:#GIFs zulassen
-gifenabled_help#:#Wenn aktiviert, dürfen die Lernkarten GIF-Animationen enthalten. GIFs können mehr AI Credits verbrauchen.
+gifenabled_help#:#Wenn aktiviert, dürfen die Lernkarten GIF-Animationen enthalten.
 learningmethod#:#Didaktisches Konzept
 learningmethod_help#:#Das didaktische Konzept des Modus Wissen aufbauen. Microlearning vermittelt Wissen in kurzen, zielgerichteten Einheiten, die sich leicht in den Alltag integrieren lassen und unmittelbar anwendbar sind.
 learningmethod_microlearning#:#Microlearning
@@ -221,11 +221,12 @@ resetchat_done#:#Chat, Übungsverlauf und Erfahrungspunkte wurden gelöscht.
 resetchat_failed#:#Deine Unterhaltung konnte gerade nicht gelöscht werden. Bitte versuche es später erneut.
 guardrail_blocked_killswitch#:#Schnittstellenaufrufe sind derzeit von der Administration deaktiviert.
 guardrail_blocked_breaker#:#Das Tarsus-System antwortet langsam und ruht kurzzeitig. Bitte versuche es in wenigen Minuten noch einmal.
-guardrail_blocked_budget#:#Die monatlichen AI Credits dieser Installation sind aufgebraucht. Die Administration kann das Limit erhöhen; sonst geht es im nächsten Monat weiter.
+guardrail_blocked_budget#:#Die monatlichen KI-Interaktionen dieser Installation sind aufgebraucht. Die Administration kann das Limit erhöhen; andernfalls beginnt es im nächsten Monat neu.
 guardrail_blocked_ratelimit#:#Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.
 transport_error#:#Das Brain konnte nicht erreicht werden. Bitte versuche es gleich noch einmal.
-err_notconfigured#:#Tarsus ist nicht konfiguriert: Die Administration muss in der Plugin-Konfiguration Basis-URL, API-Schlüssel und Brain-ID hinterlegen oder den Mock-Modus aktivieren.
+err_notconfigured#:#Tarsus ist nicht konfiguriert: Die Administration muss in der Plugin-Konfiguration Basis-URL, API-Schlüssel und Brain-ID (oder den License-Key des Kunden) hinterlegen oder den Mock-Modus aktivieren.
 err_nobrainselected#:#Es ist kein Tarsus-Brain ausgewählt. Die Administration muss in der Plugin-Konfiguration eines auswählen.
+err_nolicensekey#:#Es ist kein License-Key hinterlegt. Die Administration muss in der Plugin-Konfiguration den License-Key des Kunden eintragen oder den Kunden wieder über die Brain-ID erkennen lassen.
 // Verarbeitungsschritte
 proc_ask_classify#:#Ihre Frage wird nach Thema und Absicht eingeordnet
 proc_ask_search#:#Semantische Suche im indexierten Kurswissen
@@ -274,13 +275,28 @@ cfg_tab_brains#:#Brains
 cfg_tab_deletions#:#Löschungen
 cfg_tab_status#:#Status
 settings_connection#:#Tarsus-Verbindung
-settings_connection_desc#:#Diese Installation mit Tarsus verbinden. Ein Brain pro Installation.
+settings_connection_desc#:#Diese Installation mit Tarsus verbinden: der API-Schlüssel des Partners und das, woran Tarsus den Kunden erkennt – eine Brain-ID oder der License-Key eines Tarsus-Bestandskunden. Ein Brain pro Installation.
 apikey#:#API-Schlüssel
 apikey_desc#:#Der Tarsus-API-Schlüssel. Wird in der Datenbank gespeichert und nie an den Browser gesendet.
 apikey_keep#:#Ein Schlüssel ist hinterlegt; lassen Sie das Feld leer, um ihn zu behalten.
 apikey_none#:#Es ist noch kein Schlüssel hinterlegt.
 brainid#:#Brain-ID
 brainid_desc#:#Das einzige von dieser Installation genutzte Tarsus-Brain. Wählen Sie eines der Brains, die der API-Schlüssel erreicht:
+credential#:#Kunde
+credential_desc#:#Woran Tarsus erkennt, wessen Nutzung das ist. Davon hängt ab, wer die Rechnung erhält.
+credential_brain#:#Kunde des Partners (Brain-ID)
+credential_brain_desc#:#Anfragen tragen den API-Schlüssel und die Brain-ID. Die Nutzung wird über den Partner abgerechnet.
+credential_license#:#Tarsus-Bestandskunde (License-Key)
+credential_license_desc#:#Anfragen tragen den API-Schlüssel und anstelle einer Brain-ID den License-Key des Kunden. Diesen Kunden rechnet Tarsus direkt ab. Erst einschalten, wenn Tarsus bestätigt hat, dass die API den License-Key annimmt.
+licensekey#:#License-Key
+licensekey_desc#:#Der Lizenzschlüssel (License-Key), den Tarsus dem Kunden ausgestellt hat. Wird in der Datenbank gespeichert und nie an den Browser gesendet.
+licensekey_keep#:#Ein License-Key ist hinterlegt; lassen Sie das Feld leer, um ihn zu behalten.
+licensekey_none#:#Es ist noch kein License-Key hinterlegt.
+licensefield#:#Anfragefeld des License-Keys
+licensefield_desc#:#Name des Formularfelds, in dem der License-Key gesendet wird (Standard: {default}). Nur ändern, wenn Tarsus ein anderes Feld nennt.
+error_licensefield#:#„{field}“ ist nicht verwendbar: Der Name muss mit einem Buchstaben beginnen, darf nur Buchstaben, Ziffern und Unterstriche enthalten und darf kein Feld sein, das das Plugin bereits sendet.
+error_licensekey_required#:#Bitte den License-Key des Kunden eintragen oder den Kunden über die Brain-ID erkennen lassen.
+brains_license_note#:#Diese Installation erkennt den Kunden über seinen License-Key: Das Brain ergibt sich aus dem License-Key, hier muss keines gewählt werden.
 baseurl#:#Basis-URL
 baseurl_desc#:#Die Basis-URL der Tarsus-API. Nur den Host eintragen, z. B. https://api.example.org, ohne den Pfad /api/v1/...
 error_baseurl#:#Geben Sie eine URL ein, die mit http:// oder https:// beginnt.
@@ -307,7 +323,7 @@ voice_label#:#{alias} ({language}, {gender})
 voice_female#:#weiblich
 voice_male#:#männlich
 settings_guardrails#:#Schutzmechanismen
-settings_guardrails_desc#:#Begrenzen Verfügbarkeit und Credit-Verbrauch. Sie schützen den Endpunkt und das Budget.
+settings_guardrails_desc#:#Begrenzen Verfügbarkeit und den Verbrauch von KI-Interaktionen. Sie schützen den Endpunkt und das Budget.
 mockmode#:#Mock-Modus (Demo)
 mockmode_desc#:#Wenn aktiviert, wird der gesamte Tarsus-Verkehr von einem deterministischen eingebauten Beispiel bedient: keine Live-API-Aufrufe. Bis zum Abschalten aktiv.
 killswitch#:#Not-Aus
@@ -339,6 +355,9 @@ deletions_retry#:#Jetzt erneut versuchen
 deletions_retried#:#{count} Löschung(en) abgeschlossen.
 container_gone#:#(gelöscht, Ref {ref})
 status_configured#:#Verbindung konfiguriert
+status_credential#:#Kunde erkannt über
+status_credential_brain#:#Brain-ID
+status_credential_license#:#License-Key (gesendet als {field})
 status_breaker#:#Schutzschalter
 status_breaker_open#:#Offen seit {since}
 status_breaker_closed#:#Geschlossen
@@ -355,78 +374,85 @@ status_usage#:#Nutzung der letzten 24 Stunden
 status_usage_none#:#Es wurden keine Aufrufe aufgezeichnet.
 status_operation#:#Operation
 status_calls#:#Aufrufe
-status_credits#:#Credits
-// Plan und Credits
-cfg_tab_plan#:#Plan & Credits
-plan_section#:#Abonnement
-plan_section_desc#:#Die Vereinbarung des Kunden mit Tarsus und lern.link. lern.link trägt diese Werte ein; sie bestimmen, welche Funktionen die Objekte anbieten und wie die Nutzung abgerechnet wird.
-plan#:#Plan
-plan_learn#:#Build Knowledge (LEARN)
-plan_learn_desc#:#Alle Funktionen: Frage stellen, Wissen testen, Wissen aufbauen mit Vorlesefunktion, KI-gesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
-plan_practice#:#Knowledge Test (PRACTICE)
-plan_practice_desc#:#Frage stellen und Wissen testen. Kein Wissen aufbauen, keine Vorlesefunktion, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
-plan_ask#:#Ask Question (ASK)
-plan_ask_desc#:#Nur Frage stellen, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
-plan_payg#:#Pay as you grow
-plan_payg_desc#:#Alle Funktionen, kein Kontingent: jede Anfrage wird zum vereinbarten Preis berechnet.
-plan_credits#:#Enthaltene AI Credits pro Monat
-plan_credits_desc#:#Die Credits, die das Abonnement pro Kalendermonat enthält (Standard {default}). Nicht genutzte Credits verfallen. Bei Pay as you grow ohne Bedeutung.
-plan_price#:#Preis pro zusätzlicher Anfrage
-plan_price_desc#:#Kosten einer Anfrage über das Kontingent hinaus (Standard {default}). Bei Pay as you grow der Preis jeder Anfrage.
+status_credits#:#KI-Interaktionen
+// Paket und KI-Interaktionen
+cfg_tab_plan#:#Paket & KI-Interaktionen
+plan_section#:#Paket
+plan_section_desc#:#Das Paket, das der Kunde bei Tarsus oder beim Partner gebucht hat. Der Partner trägt es hier genau so ein, wie es verkauft wurde, und setzt es damit technisch durch: Objekte bieten nur die Funktionen des gebuchten Pakets an, alles andere lehnt der Server ab.
+plan#:#Paket
+plan_learn#:#Paket „Wissen aufbauen“ (LEARN)
+plan_learn_desc#:#Alle Funktionen: Fragen stellen, Wissen testen und Wissen aufbauen, mit Audio-Erklärer, Spracheingabe und Agent-Modus (KI-gesteuerte Interaktion). Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
+plan_practice#:#Paket „Wissen testen“ (PRACTICE)
+plan_practice_desc#:#Fragen stellen und Wissen testen. Kein Wissen aufbauen, kein Audio-Erklärer, keine Spracheingabe, kein Agent-Modus. Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
+plan_ask#:#Paket „Fragen stellen“ (ASK)
+plan_ask_desc#:#Nur Fragen stellen. Kein Wissen testen, kein Wissen aufbauen, kein Audio-Erklärer, keine Spracheingabe, kein Agent-Modus. Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
+plan_payg#:#Pay-As-You-Grow
+plan_payg_desc#:#Alle Funktionen, kein Kontingent: Jede KI-Interaktion wird zum vereinbarten Preis berechnet.
+plan_credits#:#Enthaltene KI-Interaktionen pro Monat
+plan_credits_desc#:#Die KI-Interaktionen, die das Paket pro Kalendermonat enthält (Standard {default}). Nicht genutzte verfallen. Bei Pay-As-You-Grow ohne Bedeutung.
+plan_price#:#Preis je zusätzlicher KI-Interaktion
+plan_price_desc#:#Kosten einer KI-Interaktion über das Kontingent hinaus (Standard {default}). Bei Pay-As-You-Grow der Preis jeder KI-Interaktion.
 plan_currency#:#Währung
-plan_current#:#Aktueller Plan
-plan_default_note#:#noch nicht konfiguriert, Build Knowledge angenommen
+plan_current#:#Gebuchtes Paket
+plan_default_note#:#noch nicht eingetragen, „Wissen aufbauen“ angenommen
+plan_unset_warning#:#Es ist noch kein Paket eingetragen: Bis dahin bieten die Objekte alle Funktionen an („Wissen aufbauen“). Bitte das gebuchte Paket im Reiter „{tab}“ eintragen, damit der Kunde nur erreicht, was er bezahlt hat.
 plan_included#:#Enthalten
-plan_included_value#:#{credits} AI Credits pro Monat, danach {price} pro Anfrage
-plan_payg_note#:#Kein Kontingent: jede Anfrage kostet {price}
-plan_mode_unavailable#:#Im aktuellen Plan ({plan}) nicht enthalten.
-plan_interaction_unavailable#:#Verfügbar mit Build Knowledge und Pay as you grow (aktueller Plan: {plan}).
-plan_feature_unavailable#:#Diese Funktion ist im aktuellen Plan nicht enthalten.
-no_modes_plan_notice#:#Keiner der Modi dieses Objekts ist im aktuellen Plan enthalten. Bitte wende dich an die Administration.
+plan_included_value#:#{credits} KI-Interaktionen pro Monat, danach {price} je Interaktion
+plan_payg_note#:#Kein Kontingent: Jede KI-Interaktion kostet {price}
+plan_mode_unavailable#:#Im gebuchten Paket ({plan}) nicht enthalten.
+plan_interaction_unavailable#:#Verfügbar mit „Wissen aufbauen“ und Pay-As-You-Grow (gebuchtes Paket: {plan}).
+plan_feature_unavailable#:#Diese Funktion ist im gebuchten Paket nicht enthalten.
+no_modes_plan_notice#:#Keiner der Modi dieses Objekts ist im gebuchten Paket enthalten. Bitte wende dich an die Administration.
 limit_section#:#Monatliches Limit
-limit_section_desc#:#Die maximalen AI Credits, die diese Installation pro Kalendermonat ausgeben darf. Ist es erreicht, werden Anfragen abgelehnt; Lehrende und Administration werden bei 50, 75, 90 und 100 Prozent gewarnt. Eine Erhöhung gilt sofort, eine Verringerung wird vorher bestätigt.
-monthly_limit#:#Monatliches Credit-Limit
-monthly_limit_desc#:#In AI Credits pro Kalendermonat; 0 bedeutet kein Limit. In diesem Monat bisher verbraucht: {used}. Der Plan enthält {included}; der Monat beginnt am {reset} neu.
-monthly_limit_elsewhere#:#Derzeit {limit} AI Credits pro Monat. Limit und Plan werden im Reiter gepflegt:
-monthly_limit_value#:#{limit} Credits pro Monat, {remaining} verbleibend
+limit_section_desc#:#Die maximalen KI-Interaktionen, die diese Installation pro Kalendermonat verbrauchen darf. Ist das Limit erreicht, werden gezählte Anfragen abgelehnt; Lehrende und Administration werden bei 50, 75, 90 und 100 Prozent gewarnt. Eine Erhöhung gilt sofort, eine Verringerung wird vorher bestätigt.
+monthly_limit#:#Monatliches Limit an KI-Interaktionen
+monthly_limit_desc#:#In KI-Interaktionen pro Kalendermonat; 0 bedeutet kein Limit. In diesem Monat bisher verbraucht: {used}. Das Paket enthält {included}; der Monat beginnt am {reset} neu.
+monthly_limit_elsewhere#:#Derzeit {limit} KI-Interaktionen pro Monat. Limit und Paket werden im Reiter gepflegt:
+monthly_limit_value#:#{limit} KI-Interaktionen pro Monat, {remaining} verbleibend
 no_limit#:#kein Limit
 notify_emails#:#Empfänger der Warnungen
 notify_emails_desc#:#E-Mail-Adressen (eine pro Zeile oder durch Kommas getrennt), die bei {thresholds} des Limits eine Mail erhalten. Leer lassen, um die Administrationsadresse der Installation zu benachrichtigen ({admin}).
 error_email#:#„{email}“ ist keine gültige E-Mail-Adresse.
-limit_reduce_confirm#:#Du senkst das monatliche Limit von {old} auf {new} AI Credits. In diesem Monat sind bereits {used} Credits verbraucht; sobald das neue Limit erreicht ist, werden KI-Anfragen bis zum nächsten Monat oder bis zu einer Erhöhung abgelehnt. Fortfahren?
+limit_reduce_confirm#:#Du senkst das monatliche Limit von {old} auf {new} KI-Interaktionen. In diesem Monat sind bereits {used} verbraucht; sobald das neue Limit erreicht ist, werden KI-Anfragen bis zum nächsten Monat oder bis zu einer Erhöhung abgelehnt. Fortfahren?
 usage_local#:#Von dieser Installation gezählt
-usage_local_value#:#{credits} AI Credits in {requests} Anfragen in diesem Monat
-usage_remote#:#Vom Brain berechnet
+usage_local_value#:#{credits} KI-Interaktionen in {requests} gezählten Anfragen in diesem Monat
+usage_remote#:#Vom Brain gemeldet
 usage_remote_none#:#noch nicht abgerufen (der Cron-Job ruft den Wert alle 15 Minuten ab)
-usage_remote_value#:#{credits} AI Credits in diesem Monat (Stand {fetched}); umfasst alles, was dieses Brain nutzt
+usage_remote_value#:#{credits} KI-Interaktionen in diesem Monat (Stand {fetched}); umfasst alles, was dieses Brain nutzt
 usage_charged#:#Über das Kontingent hinaus
-usage_charged_value#:#{requests} Anfragen, etwa {cost}
+usage_charged_value#:#{interactions} KI-Interaktionen, etwa {cost}
 usage_charged_none#:#in diesem Monat bisher nichts
+usage_charged_tarsus#:#{interactions} KI-Interaktionen – Tarsus rechnet sie nach dem Vertrag des Kunden ab
+usage_billing#:#Abrechnung
+usage_billing_partner#:#Über den Partner (der Kunde wird über die Brain-ID erkannt).
+usage_billing_tarsus#:#Direkt durch Tarsus (der Kunde wird über seinen License-Key erkannt).
+usage_rules#:#Zählweise
+usage_rules_value#:#Eine KI-Interaktion je Anfrage, bei der die KI etwas beantwortet, erstellt, bewertet, vertont oder indexiert. Kostenlos: die automatische Korrektur von Single-Choice- und Wahr/Falsch-Antworten, das Abrufen des Verlaufs, das Prüfen und Zurückziehen von Material. Audio und Video zählen beim Indexieren einmal je angefangene 2 Stunden.
 usage_reset#:#Nächster Neubeginn
 usage_refresh#:#Nutzung vom Brain abrufen
-usage_refreshed#:#Das Brain meldet {credits} AI Credits für diesen Monat.
+usage_refreshed#:#Das Brain meldet {credits} KI-Interaktionen für diesen Monat.
 usage_refresh_failed#:#Die Nutzung konnte nicht vom Brain abgerufen werden.
 usage_breakdown#:#Aufschlüsselung nach Dienst (Angaben des Brains)
 usage_service#:#Dienst
 usage_name#:#Vorgang
-usage_bar_label#:#{used} von {limit} AI Credits in diesem Monat verbraucht ({percent} %)
-usage_bar_nolimit#:#{used} AI Credits in diesem Monat verbraucht (kein Limit)
+usage_bar_label#:#{used} von {limit} KI-Interaktionen in diesem Monat verbraucht ({percent} %)
+usage_bar_nolimit#:#{used} KI-Interaktionen in diesem Monat verbraucht (kein Limit)
 status_guardrails#:#Schutzmechanismen
-budget_banner_warning#:#{percent} % der AI Credits dieses Monats sind verbraucht ({used} von {limit}). Der Monat beginnt am {reset} neu; die Administration kann das Limit unter Plugins > Tarsus > Plan & Credits erhöhen.
-budget_banner_exhausted#:#Die AI Credits dieses Monats sind aufgebraucht ({used} von {limit}). KI-Anfragen werden bis zum {reset} abgelehnt, sofern die Administration das Limit nicht unter Plugins > Tarsus > Plan & Credits erhöht.
+budget_banner_warning#:#{percent} % der KI-Interaktionen dieses Monats sind verbraucht ({used} von {limit}). Der Monat beginnt am {reset} neu; die Administration kann das Limit unter Plugins > Tarsus > Paket & KI-Interaktionen erhöhen.
+budget_banner_exhausted#:#Die KI-Interaktionen dieses Monats sind aufgebraucht ({used} von {limit}). KI-Anfragen werden bis zum {reset} abgelehnt, sofern die Administration das Limit nicht unter Plugins > Tarsus > Paket & KI-Interaktionen erhöht.
 budget_exhausted_learner#:#Das monatliche KI-Budget dieser Installation ist aufgebraucht. Der Lernbegleiter antwortet im nächsten Monat wieder – oder früher, sobald die Administration das Limit erhöht.
-budget_mail_subject#:#[{site}] Tarsus: {percent} % der monatlichen AI Credits verbraucht
-budget_mail_subject_exhausted#:#[{site}] Tarsus: die monatlichen AI Credits sind aufgebraucht
-budget_mail_body#:#{percent} % des monatlichen AI-Credit-Limits von {site} sind verbraucht: {used} von {limit} Credits. Der Monat beginnt am {reset} neu. Das Limit lässt sich unter Administration > ILIAS erweitern > Plugins > Tarsus > Konfigurieren > Plan & Credits erhöhen.
-budget_mail_body_exhausted#:#Das monatliche AI-Credit-Limit von {site} ist aufgebraucht: {used} von {limit} Credits. KI-Anfragen werden bis zum {reset} abgelehnt. Das Limit lässt sich unter Administration > ILIAS erweitern > Plugins > Tarsus > Konfigurieren > Plan & Credits erhöhen.
+budget_mail_subject#:#[{site}] Tarsus: {percent} % der monatlichen KI-Interaktionen verbraucht
+budget_mail_subject_exhausted#:#[{site}] Tarsus: die monatlichen KI-Interaktionen sind aufgebraucht
+budget_mail_body#:#{percent} % des monatlichen Limits an KI-Interaktionen von {site} sind verbraucht: {used} von {limit}. Der Monat beginnt am {reset} neu. Das Limit lässt sich unter Administration > ILIAS erweitern > Plugins > Tarsus > Konfigurieren > Paket & KI-Interaktionen erhöhen.
+budget_mail_body_exhausted#:#Das monatliche Limit an KI-Interaktionen von {site} ist aufgebraucht: {used} von {limit}. KI-Anfragen werden bis zum {reset} abgelehnt. Das Limit lässt sich unter Administration > ILIAS erweitern > Plugins > Tarsus > Konfigurieren > Paket & KI-Interaktionen erhöhen.
 // Interaktion
 settings_interaction#:#Interaktion
 settings_interaction_desc#:#Wie der Lernbegleiter das Erzeugte darstellt.
 interactiontype#:#Interaktionstyp
 interaction_trainer#:#Trainergesteuert
 interaction_trainer_help#:#Text, Bilder und Fragen wie unten eingestellt.
-interaction_ai#:#KI-gesteuert
-interaction_ai_help#:#Das Brain darf beim Fragen und beim Wissensaufbau mit interaktiven Seiten antworten (Animationen, Simulationen, kleine Werkzeuge). Sie laufen in einer Sandbox und kosten mehr Credits.
+interaction_ai#:#KI-gesteuert (Agent-Modus)
+interaction_ai_help#:#Das Brain darf beim Fragen und beim Wissensaufbau mit interaktiven Seiten antworten (Animationen, Simulationen, kleine Werkzeuge). Sie laufen in einer Sandbox. Eine Anfrage zählt genau wie trainergesteuert als eine KI-Interaktion.
 frame_title#:#Interaktiver Inhalt
 frame_enlarge#:#Größer anzeigen
 // Hilfe
@@ -439,20 +465,20 @@ help_title#:#Hilfe & Videos
 // Analysen
 tab_analytics#:#Analysen
 analytics_requests_month#:#Anfragen in diesem Monat
-analytics_credits_month#:#AI Credits in diesem Monat
+analytics_credits_month#:#KI-Interaktionen in diesem Monat
 analytics_active_learners#:#aktive Lernende in diesem Monat
-analytics_share#:#der Credits dieser Installation in diesem Monat
-analytics_budget#:#Monatliche AI Credits dieser Installation
-analytics_budget_note#:#Alle Tarsus-Objekte dieser Installation teilen sich die monatlichen Credits. Der Monat beginnt am {reset} neu.
+analytics_share#:#der KI-Interaktionen dieser Installation in diesem Monat
+analytics_budget#:#Monatliche KI-Interaktionen dieser Installation
+analytics_budget_note#:#Alle Tarsus-Objekte dieser Installation teilen sich die monatlichen KI-Interaktionen. Der Monat beginnt am {reset} neu.
 analytics_chart_title#:#Anfragen pro Tag, letzte 30 Tage
 analytics_chart_label#:#Anfragen pro Tag in den letzten 30 Tagen
-analytics_tooltip#:#{calls} Anfragen, {credits} Credits
+analytics_tooltip#:#{calls} Anfragen, {credits} KI-Interaktionen
 analytics_by_mode#:#Nach Modus, letzte 30 Tage
 analytics_mode#:#Modus
 analytics_top_learners#:#Aktivste Lernende, letzte 30 Tage
 analytics_none#:#Noch keine Anfragen.
-analytics_note#:#Die Zahlen stammen aus dem eigenen Verbrauchsbuch dieser Installation mit den Kostenschätzungen des Brains; die Abrechnung des Brains kann geringfügig abweichen.
+analytics_note#:#Die Zahlen stammen aus dem eigenen Verbrauchsbuch dieser Installation, gezählt so, wie Tarsus KI-Interaktionen zählt (tarsus.ai/ki-interaktionen). Für die Rechnung ist maßgeblich, was Tarsus für das Brain meldet.
 col_lastactivity#:#Letzte Aktivität
-learners_readonly#:#Weder Wissen testen noch Wissen aufbauen ist hier aktiv (ausgeschaltet oder nicht im Plan enthalten), daher hat dieses Objekt weder Punktzahl noch Lernfortschritt: es ist eine reine Nachschlage-Aktivität.
+learners_readonly#:#Weder Wissen testen noch Wissen aufbauen ist hier aktiv (ausgeschaltet oder nicht im gebuchten Paket enthalten), daher hat dieses Objekt weder Punktzahl noch Lernfortschritt: es ist eine reine Nachschlage-Aktivität.
 col_participation#:#Teilnahme
 participated#:#Teilgenommen

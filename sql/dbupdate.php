@@ -139,3 +139,22 @@ if ($ilDB->tableExists('rep_robj_xtar_data') && !$ilDB->tableColumnExists('rep_r
     ]);
 }
 ?>
+<#9>
+<?php
+// The usage ledger counts AI interactions as the Tarsus partner agreement
+// defines them: one per counted request. Versions up to 1.1.0 wrote an
+// estimate of six AI credits per request and nothing for indexing, so
+// their rows are brought to the new unit: every charged request and every
+// upload becomes one AI interaction. Which of the old evaluations were
+// free single-choice or true/false corrections can no longer be told; they
+// stay at one. Rows written by the new counting are never touched: none of
+// them holds six for a request or zero for an upload. The month's warnings
+// start afresh on the corrected figures.
+if ($ilDB->tableExists('rep_robj_xtar_use')) {
+    $ilDB->manipulate("UPDATE rep_robj_xtar_use SET credits = 1 WHERE credits = 6 AND op_name <> 'track'");
+    $ilDB->manipulate("UPDATE rep_robj_xtar_use SET credits = 1 WHERE credits = 0 AND op_name = 'track'");
+}
+if ($ilDB->tableExists('rep_robj_xtar_cfg')) {
+    $ilDB->manipulate("DELETE FROM rep_robj_xtar_cfg WHERE cfg_key = 'usage_notified'");
+}
+?>

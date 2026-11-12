@@ -18,7 +18,7 @@ final class Sweep
 {
     public const JOB_ID = 'xtar_sync';
 
-    /** Changed bits one run re-sends at most. */
+    /** Changed bits one run re-sends at most; each upload is an AI interaction. */
     public const UPLOAD_BUDGET = 10;
 
     /**
@@ -40,7 +40,7 @@ final class Sweep
         $usage = Budget::refreshRemote(true);
         $acted = ($summary['withdrawn'] + $summary['uploaded'] + $summary['confirmed']) > 0;
         $message = sprintf(
-            '%d course(s) checked: %d withdrawn, %d changed, %d re-sent, %d confirmed, %d failed. Credits this month: %s%s.',
+            '%d course(s) checked: %d withdrawn, %d changed, %d re-sent, %d confirmed, %d failed. AI interactions this month: %s%s.',
             $summary['containers'],
             $summary['withdrawn'],
             $summary['changed'],

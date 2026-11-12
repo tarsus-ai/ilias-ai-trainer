@@ -3,6 +3,7 @@
 namespace TarsusIlias\Client;
 
 use TarsusIlias\Support\Config;
+use TarsusIlias\Support\Interactions;
 
 /**
  * Deterministic, stateful mock Tarsus client.
@@ -13,7 +14,9 @@ use TarsusIlias\Support\Config;
  * mock it remembers each learner's conversation per activity (in the
  * plugin's own settings table), so reloading the page reopens the history,
  * answers earn experience points, units add up to completion and the
- * learning progress moves, exactly as with the real brain.
+ * learning progress moves, exactly as with the real brain. Every result
+ * reports the AI interactions the real request would have counted, so the
+ * ledger, the monthly limit and the analytics behave as they do live.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -64,7 +67,7 @@ class MockClient implements ClientInterface
         return [
             'status' => $this->async ? 'pending-confirmation' : 'indexed',
             'bitref' => 'mock-bit-' . sha1($resourceid),
-            'credits' => 0,
+            'credits' => Interactions::forTracking((string) ($resource['type'] ?? 'text'), (string) ($resource['mimetype'] ?? '')),
         ];
     }
 
@@ -215,7 +218,7 @@ class MockClient implements ClientInterface
             'answer' => $html === '' ? $answer : '',
             'html' => $html,
             'messages' => $messages,
-            'credits' => 6,
+            'credits' => Interactions::count(Interactions::GENERATE),
         ];
     }
 
@@ -264,7 +267,7 @@ class MockClient implements ClientInterface
         return [
             'widgets' => $widgets,
             'progress' => self::progressOf($state),
-            'credits' => $widgets === [] ? 0 : 6,
+            'credits' => $widgets === [] ? 0 : Interactions::count(Interactions::GENERATE),
         ];
     }
 
@@ -318,7 +321,7 @@ class MockClient implements ClientInterface
         return [
             'items' => $items,
             'progress' => self::progressOf($state),
-            'credits' => 6,
+            'credits' => Interactions::count(Interactions::GENERATE),
         ];
     }
 
@@ -386,7 +389,7 @@ class MockClient implements ClientInterface
 
         $id = (string) ($params['widgetid'] ?? '');
         $question = $state['questions'][$id] ?? null;
-        if (!is_array($question)) {
+        if (!is_array($question) || !isset($question['type'])) {
             // Unknown (e.g. after a reset): judge against the generic answer.
             $question = ['type' => (string) ($params['widgettype'] ?? ''), 'correct' => 'Alpha', 'choices' => [],
                 'state' => (string) ($params['state'] ?? 'practice')];
@@ -520,7 +523,8 @@ class MockClient implements ClientInterface
         unset($item);
         $this->save($params, $state);
 
-        return $result + ['progress' => self::progressOf($state), 'credits' => 6];
+        // Single-choice and true/false answers are corrected for free.
+        return $result + ['progress' => self::progressOf($state), 'credits' => Interactions::forEvaluation($type)];
     }
 
     public function retrieveFeed(array $params): array
@@ -576,12 +580,15 @@ class MockClient implements ClientInterface
             'answerEvaluation' => ['Answer Evaluation', 'assets', 0],
             'bitsGeneration' => ['Nugget Generation', 'assets', 0],
             'audioGeneration' => ['Audio Generation', 'assets', 0],
+            'contentIndexing' => ['Content Indexing', 'index', 0],
         ];
         while ($row = $db->fetchAssoc($res)) {
             $op = (string) $row['op_name'];
             $credits = (int) $row['credits'];
             $key = 'questionGeneration';
-            if (strpos($op, 'ask') !== false) {
+            if ($op === 'track') {
+                $key = 'contentIndexing';
+            } elseif (strpos($op, 'ask') !== false) {
                 $key = 'answeredQuery';
             } elseif (strpos($op, 'eval') !== false || strpos($op, 'check') !== false) {
                 $key = 'answerEvaluation';
@@ -615,7 +622,7 @@ class MockClient implements ClientInterface
             'audio' => self::tone(),
             'mimetype' => 'audio/wav',
             'voice' => (string) ($params['voice'] ?? 'Daniel'),
-            'credits' => 6,
+            'credits' => Interactions::count(Interactions::AUDIO_EXPLAINER),
         ];
     }
 

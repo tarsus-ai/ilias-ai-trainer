@@ -25,7 +25,9 @@ final class ClientFactory
         if (Config::mockMode()) {
             return new MockClient();
         }
-        return new HttpClient(Config::baseUrl(), Config::apiKey(), Config::brainId());
+        // The customer's credential travels beside the API key: the brain
+        // ID, or the License-Key of an existing Tarsus customer.
+        return new HttpClient(Config::baseUrl(), Config::apiKey(), Credential::fromConfig());
     }
 
     /**

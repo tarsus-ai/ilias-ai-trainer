@@ -33,7 +33,7 @@ Tarsus is an AI learning coach for training providers, companies and universitie
 
 > This repository contains **no API keys and no brain IDs**. The plugin ships in mock mode; the credentials for a real brain are entered in ILIAS' plugin configuration and stay in the ILIAS database – the API key is never sent to a browser. See [Getting access](#getting-access).
 
-**Contents** · [What the coach does](#what-the-coach-does) · [Inside ILIAS](#inside-ilias) · [Watch](#watch) · [Getting access](#getting-access) · [Requirements](#requirements) · [Installation](#installation) · [Updating](#updating) · [Configuration](#configuration) · [Plans, credits and the monthly limit](#plans-credits-and-the-monthly-limit) · [Interaction types](#interaction-types) · [Score and progress](#score-and-progress) · [Data and privacy](#data-and-privacy) · [Development](#development) · [Acknowledgements](#acknowledgements) · [Licence](#licence)
+**Contents** · [What the coach does](#what-the-coach-does) · [Inside ILIAS](#inside-ilias) · [Watch](#watch) · [Getting access](#getting-access) · [Requirements](#requirements) · [Installation](#installation) · [Updating](#updating) · [Configuration](#configuration) · [Packages, AI interactions and the monthly limit](#packages-ai-interactions-and-the-monthly-limit) · [Interaction types](#interaction-types) · [Score and progress](#score-and-progress) · [Data and privacy](#data-and-privacy) · [Development](#development) · [Acknowledgements](#acknowledgements) · [Licence](#licence)
 
 ## What the coach does
 
@@ -90,16 +90,16 @@ The coach adapts to the **DQR level**, the **taxonomy stage** (Anderson & Krathw
 | Analytics | Settings |
 |:--:|:--:|
 | ![Analytics tab](docs/screenshots/24_analytics.png) | ![Settings](docs/screenshots/23_settings_interaction.png) |
-| Requests, AI credits and active learners this month, the last 30 days, the split by mode, the most active learners and the installation's monthly budget. | Modes, interaction type, didactic settings (conversation style, DQR level, target group, taxonomy levels, question types, operators, learning pace) and the completion threshold. Options outside the customer's plan are shown locked. |
+| Requests, AI interactions and active learners this month, the last 30 days, the split by mode, the most active learners and the installation's monthly budget. | Modes, interaction type, didactic settings (conversation style, DQR level, target group, taxonomy levels, question types, operators, learning pace) and the completion threshold. Options outside the customer's package are shown locked. |
 
 ### For administrators
 
-| Plan & credits | Status |
+| Package & AI interactions | Status |
 |:--:|:--:|
-| ![Plan and credits](docs/screenshots/20_admin_plan.png) | ![Status page](docs/screenshots/22_admin_status_usage.png) |
-| The customer's subscription, the included credits and price per additional request, the monthly credit limit and the recipients of the warnings. | Connection test, guardrail state, the month's usage counted locally and as charged by the brain, and the estimated cost beyond the included credits. |
+| ![Package and AI interactions](docs/screenshots/20_admin_plan.png) | ![Status page](docs/screenshots/22_admin_status_usage.png) |
+| The customer's package, the included AI interactions and the price of each further one, the monthly limit and the recipients of the warnings. | Connection test, guardrail state, the month's AI interactions counted locally and as reported by the brain, who bills them, and the estimated cost beyond the included ones. |
 
-- **Monthly credit limit** with banners at 50 %, 75 %, 90 % and 100 % and one e-mail per threshold and month. Raising the limit takes effect at once; lowering it asks for confirmation.
+- **Monthly limit of AI interactions** with banners at 50 %, 75 %, 90 % and 100 % and one e-mail per threshold and month. Raising the limit takes effect at once; lowering it asks for confirmation.
 - **Guardrails** on every outbound call: kill switch, circuit breaker, monthly limit and rate limit.
 - **Mock mode** answers with a built-in deterministic sample, so the screens can be tried out before an API key exists.
 
@@ -113,7 +113,7 @@ The coach adapts to the **DQR level**, the **taxonomy stage** (Anderson & Krathw
 | ![Narrated unit](docs/screenshots/07_build_audio.png) Learning unit with narration | ![Check question](docs/screenshots/08_build_question.png) Check question in a learning unit |
 | ![Interactive unit](docs/screenshots/27_build_interactive.png) Interactive learning unit | ![Enlarged page](docs/screenshots/28_enlarged.png) Interactive page enlarged |
 | ![Discharge curve](docs/screenshots/26_ask_interactive_curve.png) Interactive answer with a plot | ![Help panel](docs/screenshots/29_help_panel.png) Help panel with a support video |
-| ![Object settings](docs/screenshots/11_settings.png) Object settings | ![Locked by plan](docs/screenshots/32_settings_locked_by_plan.png) Options locked by the plan |
+| ![Object settings](docs/screenshots/11_settings.png) Object settings | ![Locked by package](docs/screenshots/32_settings_locked_by_plan.png) Options locked by the package |
 | ![Limit banner](docs/screenshots/30_limit_banner_teacher.png) Teacher banner when the limit is reached | ![Limit for learners](docs/screenshots/31_limit_learner.png) What learners see when the limit is reached |
 | ![Confirm lowering](docs/screenshots/21_admin_limit_confirm.png) Confirmation when lowering the limit | ![Plugin settings](docs/screenshots/13_admin_settings.png) Plugin settings (mock values) |
 | ![Brains](docs/screenshots/14_admin_brains.png) Brains reachable with the API key (mock values) | ![Status](docs/screenshots/15_admin_status.png) Status page |
@@ -152,12 +152,12 @@ The ideas behind the coach, explained in short articles with videos:
 
 ## Getting access
 
-The plugin needs a Tarsus brain: the API base URL, an **API key** and a **brain ID**. These are issued by Tarsus for your organisation – they are not in this repository and not in any release.
+The plugin needs a Tarsus brain: the API base URL, an **API key** and a **brain ID**. These are issued by Tarsus for your organisation – they are not in this repository and not in any release. Existing Tarsus customers are identified by a **License-Key** in place of the brain ID – see [License-Key](#license-key).
 
 - **Request access:** write to [info@tarsus.ai](mailto:info@tarsus.ai?subject=Tarsus%20for%20ILIAS) or [book an introductory call](https://outlook.office.com/book/Erstgespraech@tarsus.ai/). More about the product on [tarsus.ai](https://tarsus.ai).
 - **Try the coach first:** a free account on [zero.tarsus.ai](https://zero.tarsus.ai/) lets you upload your own documents and talk to the coach before anything is installed.
 - **On-premise:** Tarsus can also deploy the entire Tarsus stack on your own infrastructure if your organisation requires it. [Talk to us](mailto:info@tarsus.ai?subject=Tarsus%20on-premise).
-- **Plans:** Build Knowledge, Knowledge Test, Ask Question or Pay as you grow – see [Plans, credits and the monthly limit](#plans-credits-and-the-monthly-limit).
+- **Packages:** "Ask questions", "Test knowledge", "Build knowledge" or Pay-As-You-Grow – see [Packages, AI interactions and the monthly limit](#packages-ai-interactions-and-the-monthly-limit).
 
 Until a brain is configured the plugin runs in **mock mode** with simulated answers, so administrators and teachers can explore every screen.
 
@@ -213,29 +213,71 @@ Database updates run during the update; settings, material indexes and learner f
 
 | Tab | What it holds |
 |---|---|
-| **Settings** | Connection to the brain (base URL, API key, brain ID), mock mode, the coach's name and avatar, guardrails (kill switch, rate limit), and the help links shown behind the help button – one `Title \| URL` per line. |
-| **Plan & credits** | The customer's subscription, included credits and price, the monthly credit limit and the recipients of the warnings (see below). |
+| **Settings** | Connection to the brain (base URL, API key, and the customer's brain ID or License-Key), mock mode, the coach's name and avatar, guardrails (kill switch, rate limit), and the help links shown behind the help button – one `Title \| URL` per line. |
+| **Package & AI interactions** | The customer's package, the included AI interactions and their price, the monthly limit and the recipients of the warnings (see below). |
 | **Brains** | The brains the API key can reach; activate the one this installation should use. |
 | **Deletions** | Material withdrawals the brain has not confirmed yet. |
-| **Status** | Connection test, guardrail state, usage this month (local and as charged by the brain, with a refresh button) and the estimated cost beyond the included credits. |
+| **Status** | Connection test, guardrail state, the AI interactions of this month (counted locally and as reported by the brain, with a refresh button), who bills them and the estimated cost beyond the included ones. |
 
 A banner on these pages and in the teachers' views shows the state of the monthly budget once half of it is used; learners are told when it is exhausted.
 
-## Plans, credits and the monthly limit
+## Packages, AI interactions and the monthly limit
 
-The customer's Tarsus subscription is recorded on the *Plan & credits* tab. Plans, credits and prices are agreed with Tarsus (and lern.link as integration partner); the figures are editable for custom agreements.
+The package the customer booked is recorded on the *Package & AI interactions* tab, exactly as Tarsus offers it. Recording it is what enforces it: an object offers only the functions of the booked package, and the server refuses everything else. The figures are editable for custom agreements.
 
-| Plan | Modes | Narration | AI-driven interaction | Included credits |
-|---|---|:--:|:--:|---|
-| **Build Knowledge** (LEARN) | Ask, Test, Build | ✓ | ✓ | 100,000 / month |
-| **Knowledge Test** (PRACTICE) | Ask, Test | – | – | 100,000 / month |
-| **Ask Question** (ASK) | Ask | – | – | 100,000 / month |
-| **Pay as you grow** | Ask, Test, Build | ✓ | ✓ | none – every request is charged |
+### Functions per package
 
-- Included credits are per **calendar month** and do not carry over. Requests beyond them are charged per request (0.32 EUR unless agreed otherwise).
-- The plan is enforced everywhere: modes and options outside the plan are locked in the object settings, hidden from the learner's mode switch and refused by the server.
-- The **monthly credit limit** is the most AI credits the installation may spend per calendar month. It defaults to the included credits; `0` means no limit. Once it is reached, AI requests are refused with a clear message for learners and a banner for teachers and administrators. At 50 %, 75 %, 90 % and 100 % a banner appears and one e-mail per threshold and month goes to the configured recipients (or the installation's administrator address). Raising the limit takes effect at once; lowering it shows what has already been used and asks for confirmation.
-- **Usage** is counted locally with every request and fetched from the brain's usage endpoint by the cron job and on demand on the *Status* tab. The gate uses the larger of the two figures, so the brain's own number is authoritative when it is available and other systems using the same brain are accounted for.
+Each package contains the one before it; "Build knowledge" and Pay-As-You-Grow include every function.
+
+| Function | "Ask questions" (ASK) | "Test knowledge" (PRACTICE) | "Build knowledge" (LEARN) | Pay-As-You-Grow |
+|---|:--:|:--:|:--:|:--:|
+| Ask questions – the AI answers from the documents | ✓ | ✓ | ✓ | ✓ |
+| Test knowledge – the AI creates and evaluates quizzes | – | ✓ | ✓ | ✓ |
+| Build knowledge – the coach explains step by step | – | – | ✓ | ✓ |
+| Audio explainer (learning units read aloud) | – | – | ✓ | ✓ |
+| Voice input¹ | – | – | ✓ | ✓ |
+| Agent mode (the AI-driven interaction type) | – | – | ✓ | ✓ |
+| Included AI interactions per month | 100,000 | 100,000 | 100,000 | none – each one is charged |
+
+¹ The plugin does not offer voice input yet; the rule is in place for when it does.
+
+- Included AI interactions are per **calendar month** and do not carry over. Further ones are charged per AI interaction (0.32 EUR unless agreed otherwise).
+- The package is enforced everywhere: modes and options outside it are locked in the object settings, hidden from the learner's mode switch and refused by the server. The table lives in one place, `Plan::FEATURES`.
+- Until a package has been set, objects offer every function, and the usage panel says so.
+
+### What counts as an AI interaction
+
+The plugin counts the way Tarsus does ([tarsus.ai/ki-interaktionen](https://tarsus.ai/ki-interaktionen)): every request in which the AI answers, creates, evaluates, narrates or indexes something is one AI interaction.
+
+| What happens in ILIAS | API request | AI interactions |
+|---|---|:--:|
+| A learner asks a question (trainer-driven or agent mode) | Generate Next Widgets | 1 |
+| The next quiz questions are created | Generate Next Widgets | 1 per request |
+| The next learning step is created | Generate Next Widgets | 1 |
+| A learning unit is read aloud | Generate Stack Audio Explainer | 1 |
+| A free answer, a rule of three or a spreadsheet calculation is evaluated | Evaluate Open Question, Cross Multiplication or Trade Costing Question Widget | 1 |
+| A single-choice or true/false answer is corrected | Evaluate Single Choice or True False Question Widgets | 0 |
+| Text, a web link or a document is indexed – also when the cron job re-sends changed material | Track Text, Url or Document Bits | 1 per upload |
+| Audio or video is indexed | Track Audio or Video Bits | 1 per started two hours |
+| The history, the usage, brains and voices are read; material is checked, withdrawn or deleted; a conversation is reset | Retrieve …, Get Brain Usage, List …, Check …, Untrack …, Reset … | 0 |
+
+Two more rules are implemented for requests the plugin does not send yet: voice input counts 2 (the recording is transcribed, then answered), and `think_longer` doubles any request.
+
+`TarsusIlias\Support\Interactions` holds the rule for every request of the API documentation. The HTTP client derives the count from the request it actually sends; the mock client reports the same figures, so limits and analytics can be tried out in mock mode. The length of a recording is read from the file with getID3, which ILIAS ships (WAV and MPEG-4 files are also read without it); when it cannot be read, the upload counts once.
+
+### License-Key
+
+Tarsus recognises its existing customers by a **License-Key** instead of a brain ID. Under *Settings › Tarsus connection › Customer* choose *Existing Tarsus customer (License-Key)* and enter the key: every request then carries the API key and the License-Key, and no brain ID. Tarsus bills such customers directly – the usage panel says so and estimates no cost at the partner's price. The package and the monthly limit work as usual.
+
+- The form field the key is sent in is configurable (`license_key` unless Tarsus names another).
+- A missing key is an error. The plugin never falls back to the brain ID: that would bill the customer's usage to the wrong party.
+- License-Key support in the Tarsus API is being rolled out. Switch the setting on only once Tarsus has confirmed it for your API key; until then, stay on *brain ID*.
+
+### The monthly limit
+
+- The **monthly limit** is the most AI interactions the installation may use per calendar month. It defaults to the included amount; `0` means no limit. Once it is reached, counted requests – uploads included – are refused with a clear message for learners and a banner for teachers and administrators. What costs nothing stays possible: the history, the correction of single-choice and true/false answers, withdrawing material. At 50 %, 75 %, 90 % and 100 % a banner appears and one e-mail per threshold and month goes to the configured recipients (or the installation's administrator address). Raising the limit takes effect at once; lowering it shows what has already been used and asks for confirmation.
+- **Usage** is counted locally with every request and fetched from the brain's usage endpoint by the cron job and on demand on the *Status* tab. The limit uses the larger of the two figures, so other systems using the same brain are accounted for.
+- The limit is asked before an upload starts. A recording longer than two hours counts more than one AI interaction, so its upload can take the month slightly past the limit; the ledger always holds what was really counted.
 
 ## Interaction types
 
@@ -244,11 +286,11 @@ Each object has an interaction type, sent to the brain as `interaction_type` wit
 - **trainer-driven** – the coach answers with text, formulas, tables and the usual question widgets.
 - **ai-driven** – the coach may additionally answer with HTML pages: animations, simulations, small tools (a rotating cylinder whose volume follows the sliders, a speed-from-distance-and-time experiment, a capacitor discharge curve with a marker, …). Both chat answers and learning units may be pages.
 
-Pages are rendered in an `<iframe sandbox="allow-scripts allow-forms allow-pointer-lock">` with `srcdoc`, so they can run their scripts but cannot reach ILIAS, its cookies or the surrounding page. A small reporter inside the frame sizes it to its content; an *Enlarge* button opens the page in a dialog. AI-driven interaction is available on the Build Knowledge and Pay as you grow plans.
+Pages are rendered in an `<iframe sandbox="allow-scripts allow-forms allow-pointer-lock">` with `srcdoc`, so they can run their scripts but cannot reach ILIAS, its cookies or the surrounding page. A small reporter inside the frame sizes it to its content; an *Enlarge* button opens the page in a dialog. AI-driven interaction – *agent mode* – is part of the "Build knowledge" package and of Pay-As-You-Grow. A request counts as one AI interaction, exactly as it does trainer-driven.
 
 ## Score and progress
 
-Which figure counts as the score and which as the progress depends on the modes active in an object (a mode is active when it is enabled in the settings and allowed by the plan):
+Which figure counts as the score and which as the progress depends on the modes active in an object (a mode is active when it is enabled in the settings and included in the package):
 
 | Active modes | Score | Progress |
 |---|---|---|
@@ -257,12 +299,12 @@ Which figure counts as the score and which as the progress depends on the modes 
 | Test and Build knowledge | XP in percent | Learning units in percent |
 | Neither (Ask a question only) | – | – (read-only activity) |
 
-The *Learners* tab, the CSV export and ILIAS' learning progress all use these rules; a learner counts as completed once the progress reaches the object's completion threshold. Figures are recomputed when the plan changes.
+The *Learners* tab, the CSV export and ILIAS' learning progress all use these rules; a learner counts as completed once the progress reaches the object's completion threshold. Figures are recomputed when the package changes.
 
 ## Data and privacy
 
-- The plugin talks to the brain over HTTPS only; every call carries the installation's API key and brain ID and passes the guardrail pipeline (kill switch → circuit breaker, which opens after five consecutive failures for five minutes → monthly credit limit → rate limit). Transport and protocol failures are turned into a friendly message; nothing is retried blindly.
-- The plugin keeps its data in seven tables (`rep_robj_xtar_*`): plugin configuration (including the plan, the limit and the brain's usage figure), the settings of each object, the index map of the material sent to the brain, the inclusions per object, the latest figures per learner, a usage ledger (credits per operation, also behind the analytics) and the guardrail state. Uninstalling the plugin drops them.
+- The plugin talks to the brain over HTTPS only; every call carries the installation's API key and the customer's brain ID (or License-Key) and passes the guardrail pipeline (kill switch → circuit breaker, which opens after five consecutive failures for five minutes → monthly limit of AI interactions → rate limit). Transport and protocol failures are turned into a friendly message; nothing is retried blindly.
+- The plugin keeps its data in seven tables (`rep_robj_xtar_*`): plugin configuration (including the package, the limit and the brain's usage figure), the settings of each object, the index map of the material sent to the brain, the inclusions per object, the latest figures per learner, a usage ledger (AI interactions per operation, also behind the analytics) and the guardrail state. Uninstalling the plugin drops them.
 - Learners are sent to the brain under a **pseudonym** – an HMAC of the ILIAS user id with a secret generated at installation – together with their display name and interface language. The conversation itself lives in the brain. *Reset chat history* erases the learner's own conversation in the brain and the local figures.
 - Interactive pages from the brain run sandboxed (see above) and are never stored in ILIAS beyond the conversation history the brain returns.
 - The coach does not search the internet: it generates explanations and answers exclusively from the documents your organisation provides. Tarsus stores your content at Microsoft Azure in Germany, GDPR-compliant – and the entire stack can be deployed on-premise on request ([Getting access](#getting-access)).
@@ -280,15 +322,17 @@ src/                       namespace TarsusIlias
   Index/, Material/        material discovery and indexing state machine
   Output/                  views, shaper of brain responses, icons
   Service/                 learner API (AJAX endpoints)
-  Support/                 configuration, plan, budget, help links, ILIAS glue
+  Support/                 configuration, package, counting rules, budget, help links, ILIAS glue
 sql/dbupdate.php           database steps
 templates/                 CSS, JavaScript, images and the mock mode's demo pages
 lang/                      ilias_en.lang, ilias_de.lang
+tests/                     test suite and its fake ILIAS (not part of the release zip)
 docs/screenshots/          the ILIAS screenshots in this README
 ```
 
-- **Mock mode** (default after installation) makes the whole UI usable without a brain: the mock client answers deterministically, including the interactive demo pages, and records credits like the real one, so plans, limits and analytics can be exercised locally. All mock brain names start with `mock-`.
+- **Mock mode** (default after installation) makes the whole UI usable without a brain: the mock client answers deterministically, including the interactive demo pages, and counts AI interactions like the real one, so packages, limits and analytics can be exercised locally. All mock brain names start with `mock-`.
 - The plugin is tested end to end with Playwright against ILIAS 9, 10 and 11: clean install from the release zip, update in place, permissions, all three modes, learning progress, copy, configuration pages, plan gating, the monthly limit and the cron job.
+- **Tests:** `php tests/run.php` runs the suite in a few seconds – no ILIAS, no database server, no network (PHP with curl and pdo_sqlite is enough; `-v` lists every test, a word filters them). It covers the package table cell by cell, the counting rule of every API request, the wire format of both credentials against a local stand-in for the Tarsus API, the ledger, the monthly limit, the database steps and the configuration screen. See [tests/README.md](tests/README.md).
 - A version bump needs `composer du` before ILIAS offers **Update** in the plugin list.
 - **Releases** are published by the [Release workflow](.github/workflows/release.yml): bump `$version` in `plugin.php`, add the version's section to `CHANGELOG.md` and push to `main` – the workflow tags the commit, builds `Tarsus-ilias-plugin-<version>.zip` with `git archive` (repository-only files such as `docs/` are left out) and creates the GitHub release with the changelog section as notes.
 
@@ -298,7 +342,7 @@ Issues and pull requests are welcome.
 
 Our thanks go to **Fred Neumann**, **Martin Studer** and **Lars Egger** for all the years of support in the ILIAS world – this plugin stands on what they built and shared.
 
-[lern.link GmbH](https://lern.link/) is Tarsus' integration partner for Moodle and ILIAS: lern.link installs the plugin for customers and records their plan and credits.
+[lern.link GmbH](https://lern.link/) is Tarsus' integration partner for Moodle and ILIAS: lern.link installs the plugin for customers and records their package.
 
 ## Licence
 

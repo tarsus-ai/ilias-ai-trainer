@@ -2,12 +2,14 @@
 
 namespace TarsusIlias\Support;
 
+use TarsusIlias\Client\Credential;
+
 /**
  * Site-wide plugin settings, stored in the plugin's own key/value table.
  *
- * One place to connect ILIAS to Tarsus, to record the customer's plan and
- * to bound traffic and credit spend. Operational switches (kill switch,
- * mock mode, limits) are read
+ * One place to connect ILIAS to Tarsus, to record the customer's package
+ * and to bound traffic and the spend of AI interactions. Operational
+ * switches (kill switch, mock mode, limits) are read
  * fresh from the database on every call, bypassing the request cache, so
  * that flipping one mid-run - during a long cron run, say - takes effect
  * immediately.
@@ -115,6 +117,45 @@ final class Config
     public static function brainId(): string
     {
         return trim((string) self::get('brain_id', ''));
+    }
+
+    /**
+     * How the customer is identified beside the API key: by brain ID
+     * (Credential::BRAIN, the default) or by License-Key
+     * (Credential::LICENSE, existing Tarsus customers).
+     */
+    public static function credential(): string
+    {
+        return self::get('credential', '') === Credential::LICENSE ? Credential::LICENSE : Credential::BRAIN;
+    }
+
+    public static function usesLicenseKey(): bool
+    {
+        return self::credential() === Credential::LICENSE;
+    }
+
+    public static function licenseKey(): string
+    {
+        return trim((string) self::get('license_key', ''));
+    }
+
+    /**
+     * The form field the License-Key is sent in.
+     */
+    public static function licenseField(): string
+    {
+        $field = trim((string) self::get('license_field', ''));
+        return Credential::validField($field) ? $field : Credential::DEFAULT_LICENSE_FIELD;
+    }
+
+    /**
+     * Whether everything a live call needs is set: base URL, API key and
+     * the brain ID or License-Key.
+     */
+    public static function connectionReady(): bool
+    {
+        return self::baseUrl() !== '' && self::apiKey() !== ''
+            && (self::usesLicenseKey() ? self::licenseKey() : self::brainId()) !== '';
     }
 
     /**

@@ -9,12 +9,14 @@ use TarsusIlias\Support\Config;
 /**
  * Client-side guardrails for every outbound Tarsus call.
  *
- * Gate order: kill switch -> circuit breaker -> monthly credit limit ->
- * rate limit -> send. A success resets the failure counter; repeated
- * transport failures trip the breaker. The monthly limit only gates calls
- * that cost credits: reading the feed or the usage figures stays possible
- * when the month's credits are spent. The pipeline never sleeps: retries
- * are the caller's business.
+ * Gate order: kill switch -> circuit breaker -> monthly limit of AI
+ * interactions -> rate limit -> send. A success resets the failure
+ * counter; repeated transport failures trip the breaker. The monthly limit
+ * only gates calls that count AI interactions: reading the feed or the
+ * usage figures, withdrawing material and the automatic correction of a
+ * single-choice or true/false answer stay possible when the month's
+ * interactions are used up. The pipeline never sleeps: retries are the
+ * caller's business.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -39,6 +41,7 @@ class Pipeline
      *
      * @template T
      * @param callable(): T $call
+     * @param int $estimatedcredits The AI interactions the call is expected to count (0: free).
      * @return T
      * @throws BlockedException  When a gate refuses the call.
      * @throws TransportException When the call fails at the transport level.
@@ -89,7 +92,8 @@ class Pipeline
     }
 
     /**
-     * Refuse a charged call when it would cross the monthly credit limit.
+     * Refuse a counted call when it would cross the monthly limit of AI
+     * interactions.
      */
     private function guardBudget(int $estimatedcredits): void
     {

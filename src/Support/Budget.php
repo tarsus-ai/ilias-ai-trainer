@@ -6,21 +6,26 @@ use TarsusIlias\Client\ClientFactory;
 use TarsusIlias\Guardrail\Pipeline;
 
 /**
- * The monthly AI-credit budget: what the brain charged this calendar
+ * The monthly budget of AI interactions: what was used this calendar
  * month, the limit the customer set, and the warnings on the way there.
  *
- * Two figures describe the month. The local ledger counts every request
- * this installation made, with the client's cost estimates, and is
- * available at once. The brain's own usage endpoint reports what was
- * really charged - for the whole brain, so it also covers other systems
- * using it - and is fetched by the cron job and on the status pages. The
- * gate uses the larger of the two, so a limit holds even when only one
- * side knows about some spending.
+ * Two figures describe the month. The local ledger counts the AI
+ * interactions of every request this installation made, by the rules of
+ * the partner agreement (Interactions), and is available at once. The
+ * brain's own usage endpoint reports what Tarsus counted - for the whole
+ * brain, so it also covers other systems using it - and is fetched by the
+ * cron job and on the status pages. The gate uses the larger of the two,
+ * so a limit holds even when only one side knows about some usage.
  *
- * The limit is in AI credits per calendar month (the unit the brain
- * bills); 0 means no limit. Crossing 50, 75, 90 and 100 percent of it
- * raises a banner for teachers and administrators and sends one mail per
- * threshold and month.
+ * The limit is in AI interactions per calendar month (the unit Tarsus
+ * bills; the brain reports it as AI credits); 0 means no limit. Crossing
+ * 50, 75, 90 and 100 percent of it raises a banner for teachers and
+ * administrators and sends one mail per threshold and month.
+ *
+ * Usage is billed through the partner - unless the customer is
+ * identified by a License-Key: such customers are billed by Tarsus
+ * directly, and the cost estimate says so instead of naming the
+ * partner's price.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -83,9 +88,9 @@ final class Budget
     // ------------------------------------------------------------------
 
     /**
-     * The customer's monthly limit in AI credits; 0 means no limit. Until
-     * one is set, the plan's included credits (or the default amount on
-     * Pay as you grow) bound the spending.
+     * The customer's monthly limit in AI interactions; 0 means no limit.
+     * Until one is set, the package's included interactions (or the
+     * default amount on Pay-As-You-Grow) bound the usage.
      */
     public static function limit(): int
     {
@@ -103,7 +108,7 @@ final class Budget
     }
 
     /**
-     * Credits this installation recorded this month.
+     * AI interactions this installation recorded this month.
      */
     public static function localCredits(): int
     {
@@ -118,7 +123,7 @@ final class Budget
     }
 
     /**
-     * Requests (charged calls) this installation made this month.
+     * Requests that counted at least one AI interaction this month.
      */
     public static function localRequests(): int
     {
@@ -155,7 +160,7 @@ final class Budget
     }
 
     /**
-     * Ask the brain what it charged this month and remember the answer.
+     * Ask the brain what it counted this month and remember the answer.
      * Failures keep the previous figure; nothing is thrown.
      *
      * @return array{credits: int, fetched: int, items: array}|null The current figure.
@@ -199,7 +204,8 @@ final class Budget
     }
 
     /**
-     * Credits used this month: the larger of the local and the brain's figure.
+     * AI interactions used this month: the larger of the local and the
+     * brain's figure.
      */
     public static function used(): int
     {
@@ -227,7 +233,7 @@ final class Budget
     }
 
     /**
-     * Whether a call costing $estimated credits would cross the limit.
+     * Whether a call counting $estimated AI interactions would cross the limit.
      */
     public static function wouldExceed(int $estimated): bool
     {
@@ -263,37 +269,30 @@ final class Budget
     // ------------------------------------------------------------------
 
     /**
-     * Requests this month beyond the plan's included credits, and what
-     * they cost at the agreed price. On Pay as you grow every request
-     * counts. The pass walks the ledger in order, so the first request
-     * that crosses the included amount is the first one charged.
+     * AI interactions this month beyond the ones the package includes, and
+     * what they cost at the agreed price per interaction. On
+     * Pay-As-You-Grow every interaction is charged. The figure is the one
+     * the limit works on, so usage only the brain knows about is included.
      *
-     * @return array{requests: int, cost: float, included: int, charged: int}
+     * A License-Key customer is billed by Tarsus under the customer's own
+     * contract: the interactions beyond the package are still reported,
+     * but no cost at the partner's price ('cost' is 0.0).
+     *
+     * @return array{requests: int, interactions: int, included: int, charged: int, cost: float, billedby: string}
      */
     public static function overage(): array
     {
         $included = Plan::includedCredits();
-        $db = Ilias::db();
-        $res = $db->queryF(
-            'SELECT credits FROM ' . UsageMeter::TABLE . ' WHERE created >= %s AND credits > 0 ORDER BY created, id',
-            ['integer'],
-            [self::monthStart()]
-        );
-        $requests = 0;
-        $charged = 0;
-        $running = 0;
-        while ($row = $db->fetchAssoc($res)) {
-            $requests++;
-            $running += (int) $row['credits'];
-            if ($included <= 0 || $running > $included) {
-                $charged++;
-            }
-        }
+        $used = self::used();
+        $charged = $included <= 0 ? $used : max(0, $used - $included);
+        $billedby = Plan::billedBy();
         return [
-            'requests' => $requests,
-            'charged' => $charged,
+            'requests' => self::localRequests(),
+            'interactions' => $used,
             'included' => $included,
-            'cost' => round($charged * Plan::pricePerRequest(), 2),
+            'charged' => $charged,
+            'cost' => $billedby === Plan::BILLED_BY_PARTNER ? round($charged * Plan::pricePerRequest(), 2) : 0.0,
+            'billedby' => $billedby,
         ];
     }
 

@@ -428,9 +428,11 @@ final class Views
     }
 
     /**
-     * The administrator's plan and usage panel on the status page.
+     * The administrator's package and usage panel on the status page.
      *
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data plan, used, limit, level, rows
+     *        ([label, HTML value] pairs), items (the brain's breakdown) and
+     *        optionally notes (plain texts shown above the rows).
      */
     public static function planUsage(array $data): string
     {
@@ -438,10 +440,15 @@ final class Views
         foreach ($data['rows'] as [$label, $value]) {
             $rows .= '<tr><th scope="row" style="width:30%">' . $label . '</th><td>' . $value . '</td></tr>';
         }
+        $notes = '';
+        foreach ((array) ($data['notes'] ?? []) as $note) {
+            $notes .= '<div class="tarsus-readonly-note" role="note">' . Html::e((string) $note) . '</div>';
+        }
         $html = '<div class="tarsus-panel tarsus-panel--plan">'
             . '<div class="tarsus-plan-head"><div><div class="tarsus-eyebrow">' . self::t('plan_current') . '</div>'
             . '<div class="tarsus-headline">' . Html::e($data['plan']) . '</div></div>'
             . '<div class="tarsus-plan-head__usage">' . self::usageBar((int) $data['used'], (int) $data['limit'], (string) $data['level']) . '</div></div>'
+            . $notes
             . '<div class="tarsus-table-wrap"><table class="tarsus-table"><tbody>' . $rows . '</tbody></table></div>';
         if ($data['items'] !== []) {
             $html .= '<details class="tarsus-details"><summary>' . self::t('usage_breakdown') . '</summary>'

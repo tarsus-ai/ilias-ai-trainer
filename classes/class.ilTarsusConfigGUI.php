@@ -2,9 +2,10 @@
 
 /**
  * Plugin configuration (Administration > Extending ILIAS > Plugins > Tarsus
- * > Configure): the connection to the Tarsus brain, the assistant's
- * identity, the guardrails, the brain picker, outstanding deletions and
- * the live status.
+ * > Configure): the connection to the Tarsus brain - API key plus the
+ * customer's brain ID or License-Key -, the assistant's identity, the
+ * guardrails, the booked package with its AI interactions, the brain
+ * picker, outstanding deletions and the live status.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -16,6 +17,7 @@ require_once __DIR__ . '/../src/autoload.php';
 
 use TarsusIlias\Client\ClientFactory;
 use TarsusIlias\Client\ConfigurationException;
+use TarsusIlias\Client\Credential;
 use TarsusIlias\Client\TransportException;
 use TarsusIlias\Guardrail\BlockedException;
 use TarsusIlias\Guardrail\Pipeline;
@@ -137,11 +139,32 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         $key->setInfo($this->txt('apikey_desc') . ' ' . $this->txt(Config::apiKey() !== '' ? 'apikey_keep' : 'apikey_none'));
         $form->addItem($key);
 
+        // Who the customer is - and with it, who is billed: a customer of
+        // the partner has a brain ID, an existing Tarsus customer a
+        // License-Key that is sent in its place.
+        $credential = new ilRadioGroupInputGUI($this->txt('credential'), 'credential');
+        $credential->setInfo($this->txt('credential_desc'));
+        $credential->addOption(new ilRadioOption($this->txt('credential_brain'), Credential::BRAIN, $this->txt('credential_brain_desc')));
+        $credential->addOption(new ilRadioOption($this->txt('credential_license'), Credential::LICENSE, $this->txt('credential_license_desc')));
+        $form->addItem($credential);
+
         $brain = new ilTextInputGUI($this->txt('brainid'), 'brain_id');
         $brain->setMaxLength(255);
         $brain->setInfo($this->txt('brainid_desc') . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showBrains')) . '">'
             . $this->txt('cfg_tab_brains') . '</a>');
         $form->addItem($brain);
+
+        $license = new ilPasswordInputGUI($this->txt('licensekey'), 'license_key');
+        $license->setRetype(false);
+        $license->setSkipSyntaxCheck(true);
+        $license->setMaxLength(255);
+        $license->setInfo($this->txt('licensekey_desc') . ' ' . $this->txt(Config::licenseKey() !== '' ? 'licensekey_keep' : 'licensekey_none'));
+        $form->addItem($license);
+
+        $field = new ilTextInputGUI($this->txt('licensefield'), 'license_field');
+        $field->setMaxLength(64);
+        $field->setInfo($this->txt('licensefield_desc', ['default' => Credential::DEFAULT_LICENSE_FIELD]));
+        $form->addItem($field);
 
         // Assistant.
         $section = new ilFormSectionHeaderGUI();
@@ -249,7 +272,10 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         $form->setValuesByArray([
             'base_url' => Config::baseUrl(),
             'api_key' => '',
+            'credential' => Config::credential(),
             'brain_id' => Config::brainId(),
+            'license_key' => '',
+            'license_field' => Config::licenseField(),
             'robot_name' => (string) Config::get('robot_name', Config::DEFAULT_ROBOT_NAME),
             'robot_id' => (string) Config::get('robot_id', ''),
             'robot_description' => (string) Config::get('robot_description', ''),
@@ -268,22 +294,54 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         }
     }
 
+    /**
+     * Show the settings form again with what was posted - except the API
+     * key and the License-Key: a secret is never written back into a page.
+     */
+    private function redisplaySettings(ilPropertyFormGUI $form): void
+    {
+        $form->setValuesByPost();
+        foreach (['api_key', 'license_key'] as $secret) {
+            $form->getItemByPostVar($secret)->setValue('');
+        }
+        $this->configure($form);
+    }
+
     private function saveSettings(): void
     {
         $form = $this->initSettingsForm();
         if (!$form->checkInput()) {
-            $form->setValuesByPost();
-            $this->configure($form);
+            $this->redisplaySettings($form);
             return;
         }
 
         $url = rtrim(trim((string) $form->getInput('base_url')), '/');
         if ($url !== '' && !preg_match('~^https?://[^\s/]+~i', $url)) {
             $form->getItemByPostVar('base_url')->setAlert($this->txt('error_baseurl'));
-            $form->setValuesByPost();
-            $this->configure($form);
+            $this->redisplaySettings($form);
             return;
         }
+
+        // The customer's credential. A License-Key customer is billed by
+        // Tarsus, so the mode is only accepted with a key to send and a
+        // field to send it in; nothing is stored when either is unusable.
+        $credential = (string) $form->getInput('credential') === Credential::LICENSE ? Credential::LICENSE : Credential::BRAIN;
+        $licensekey = trim((string) $form->getInput('license_key'));
+        $licensefield = trim((string) $form->getInput('license_field'));
+        if ($licensefield === '') {
+            $licensefield = Credential::DEFAULT_LICENSE_FIELD;
+        }
+        if (!Credential::validField($licensefield)) {
+            $form->getItemByPostVar('license_field')->setAlert($this->txt('error_licensefield', ['field' => Html::e($licensefield)]));
+            $this->redisplaySettings($form);
+            return;
+        }
+        if ($credential === Credential::LICENSE && $licensekey === '' && Config::licenseKey() === '') {
+            $form->getItemByPostVar('license_key')->setAlert($this->txt('error_licensekey_required'));
+            $this->redisplaySettings($form);
+            return;
+        }
+
         Config::set('base_url', $url);
 
         $apikey = trim((string) $form->getInput('api_key'));
@@ -291,6 +349,11 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             Config::set('api_key', $apikey);
         }
         Config::set('brain_id', trim((string) $form->getInput('brain_id')));
+        if ($licensekey !== '') {
+            Config::set('license_key', $licensekey);
+        }
+        Config::set('license_field', $licensefield);
+        Config::set('credential', $credential);
         Config::set('robot_name', Config::bmp(trim((string) $form->getInput('robot_name'))));
         Config::set('robot_id', Config::bmp(trim((string) $form->getInput('robot_id'))));
         Config::set('robot_description', Config::bmp(trim((string) $form->getInput('robot_description'))));
@@ -587,17 +650,29 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
     }
 
     /**
-     * The plan, this month's usage and the cost estimate.
+     * The booked package, this month's AI interactions, who is billed for
+     * them and the cost estimate.
      */
     private function usagePanel(): string
     {
         $remote = Budget::remote();
         $overage = Budget::overage();
         $local = Budget::localCredits();
+        $bytarsus = $overage['billedby'] === Plan::BILLED_BY_TARSUS;
+        if ($overage['charged'] <= 0) {
+            $charged = $this->txt('usage_charged_none');
+        } elseif ($bytarsus) {
+            // A License-Key customer is billed by Tarsus under the
+            // customer's own contract: no cost at the partner's price.
+            $charged = $this->txt('usage_charged_tarsus', ['interactions' => number_format($overage['charged'])]);
+        } else {
+            $charged = $this->txt('usage_charged_value', ['interactions' => number_format($overage['charged']), 'cost' => Html::e(Plan::money($overage['cost']))]);
+        }
         $rows = [
             [$this->txt('plan_included'), Plan::isPayAsYouGrow()
                 ? $this->txt('plan_payg_note', ['price' => Html::e(Plan::money(Plan::pricePerRequest()))])
                 : $this->txt('plan_included_value', ['credits' => number_format(Plan::includedCredits()), 'price' => Html::e(Plan::money(Plan::pricePerRequest()))])],
+            [$this->txt('usage_billing'), $this->txt($bytarsus ? 'usage_billing_tarsus' : 'usage_billing_partner')],
             [$this->txt('usage_local'), $this->txt('usage_local_value', ['credits' => number_format($local), 'requests' => number_format(Budget::localRequests())])],
             [$this->txt('usage_remote'), $remote === null
                 ? $this->txt('usage_remote_none')
@@ -605,17 +680,23 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             [$this->txt('monthly_limit'), Budget::hasLimit()
                 ? $this->txt('monthly_limit_value', ['limit' => number_format(Budget::limit()), 'remaining' => number_format(Budget::remaining())])
                 : $this->txt('no_limit')],
-            [$this->txt('usage_charged'), $overage['charged'] > 0
-                ? $this->txt('usage_charged_value', ['requests' => number_format($overage['charged']), 'cost' => Html::e(Plan::money($overage['cost']))])
-                : $this->txt('usage_charged_none')],
+            [$this->txt('usage_charged'), $charged],
             [$this->txt('usage_reset'), Html::e(Views::date(Budget::nextMonthStart()))],
+            [$this->txt('usage_rules'), $this->txt('usage_rules_value')
+                . ' <a href="https://tarsus.ai/ki-interaktionen" target="_blank" rel="noopener noreferrer">tarsus.ai/ki-interaktionen</a>'],
         ];
+        $notes = [];
+        if (!Plan::isConfigured()) {
+            // Nothing booked is on record yet: say that everything is open.
+            $notes[] = $this->txt('plan_unset_warning', ['tab' => $this->txt('cfg_tab_plan')]);
+        }
         return Views::planUsage([
             'plan' => Plan::label() . (Plan::isConfigured() ? '' : ' (' . $this->txt('plan_default_note') . ')'),
             'used' => Budget::used(),
             'limit' => Budget::limit(),
             'level' => Budget::level(),
             'rows' => $rows,
+            'notes' => $notes,
             'items' => $remote === null ? [] : $remote['items'],
         ]);
     }
@@ -628,6 +709,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
     {
         $this->tabs->activateSubTab('cfg_brains');
         $current = Config::brainId();
+        $license = Config::usesLicenseKey();
 
         try {
             $brains = ClientFactory::getClient()->listBrains();
@@ -648,7 +730,10 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         }
 
         $ids = array_column($brains, 'brainid');
-        if ($current === '') {
+        if ($license) {
+            // The customer's brain follows from the License-Key.
+            $this->tpl->setOnScreenMessage('info', $this->txt('brains_license_note'));
+        } elseif ($current === '') {
             $this->tpl->setOnScreenMessage('info', $this->txt('brain_none_selected'));
         } elseif (!in_array($current, $ids, true)) {
             $this->tpl->setOnScreenMessage('failure', $this->txt('brain_missing', ['brain' => Html::e($current)]));
@@ -779,7 +864,10 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
 
         $rows = [
             [$this->txt('mockmode'), Config::mockMode() ? $this->lng->txt('yes') : $this->lng->txt('no')],
-            [$this->txt('status_configured'), (Config::baseUrl() !== '' && Config::apiKey() !== '' && Config::brainId() !== '') ? $this->lng->txt('yes') : $this->lng->txt('no')],
+            [$this->txt('status_configured'), Config::connectionReady() ? $this->lng->txt('yes') : $this->lng->txt('no')],
+            [$this->txt('status_credential'), Config::usesLicenseKey()
+                ? $this->txt('status_credential_license', ['field' => Config::licenseField()])
+                : $this->txt('status_credential_brain')],
             [$this->txt('killswitch'), Config::killswitch() ? $this->lng->txt('yes') : $this->lng->txt('no')],
             [$this->txt('status_breaker'), ($breaker->state === 'open' ? $this->txt('status_breaker_open', ['since' => Views::date((int) $breaker->opensince)]) : $this->txt('status_breaker_closed'))
                 . ' (' . $this->txt('status_failures', ['count' => (int) $breaker->failurecount]) . ')'],

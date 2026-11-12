@@ -124,7 +124,7 @@ testenabled_help#:#When switched off, the practice mode is hidden from learners 
 buildenabled#:#Enable Build knowledge
 buildenabled_help#:#When switched off, the Build knowledge mode is hidden from learners in this object.
 gifenabled#:#Add GIFs
-gifenabled_help#:#When enabled, the learning cards may include GIF animations. GIFs can use more AI credits.
+gifenabled_help#:#When enabled, the learning cards may include GIF animations.
 learningmethod#:#Didactic concept
 learningmethod_help#:#The didactic concept the Build knowledge mode follows. Micro-learning teaches in short, focused units that are easy to fit into everyday work and immediately applicable.
 learningmethod_microlearning#:#Microlearning
@@ -221,11 +221,12 @@ resetchat_done#:#Your chat, practice history and experience points have been era
 resetchat_failed#:#Your conversation could not be erased right now. Please try again later.
 guardrail_blocked_killswitch#:#API calls are disabled by the administrators at the moment.
 guardrail_blocked_breaker#:#The Tarsus system is responding slowly and is temporarily resting. Please try again in a few minutes.
-guardrail_blocked_budget#:#The monthly AI credits of this installation are used up. The administrator can raise the limit; otherwise it starts afresh next month.
+guardrail_blocked_budget#:#The monthly AI interactions of this installation are used up. The administrator can raise the limit; otherwise it starts afresh next month.
 guardrail_blocked_ratelimit#:#Too many requests. Please wait a few seconds and try again.
 transport_error#:#Could not contact the brain. Please try again in a moment.
-err_notconfigured#:#Tarsus is not configured: an administrator has to set the base URL, API key and brain ID in the plugin configuration, or enable mock mode.
+err_notconfigured#:#Tarsus is not configured: an administrator has to set the base URL, the API key and the brain ID (or the customer's License-Key) in the plugin configuration, or enable mock mode.
 err_nobrainselected#:#No Tarsus brain is selected. An administrator has to pick one in the plugin configuration.
+err_nolicensekey#:#No License-Key is stored. An administrator has to enter the customer's License-Key in the plugin configuration, or identify the customer by brain ID again.
 // Processing steps
 proc_ask_classify#:#Your question is sorted by topic and intent
 proc_ask_search#:#Semantic search through the indexed course knowledge
@@ -274,13 +275,28 @@ cfg_tab_brains#:#Brains
 cfg_tab_deletions#:#Deletions
 cfg_tab_status#:#Status
 settings_connection#:#Tarsus connection
-settings_connection_desc#:#Connect this installation to Tarsus. One brain per installation.
+settings_connection_desc#:#Connect this installation to Tarsus: the partner's API key and what identifies the customer – a brain ID, or the License-Key of an existing Tarsus customer. One brain per installation.
 apikey#:#API key
 apikey_desc#:#The Tarsus API key. Stored in the database and never sent to the browser.
 apikey_keep#:#A key is stored; leave the field empty to keep it.
 apikey_none#:#No key is stored yet.
 brainid#:#Brain ID
 brainid_desc#:#The single Tarsus brain used by this installation. Pick one of the brains the API key can reach:
+credential#:#Customer
+credential_desc#:#How Tarsus recognises whose usage this is. It decides who receives the invoice.
+credential_brain#:#Customer of the partner (brain ID)
+credential_brain_desc#:#Requests carry the API key and the brain ID. The usage is billed through the partner.
+credential_license#:#Existing Tarsus customer (License-Key)
+credential_license_desc#:#Requests carry the API key and, in place of a brain ID, the customer's License-Key. Tarsus bills this customer directly. Switch this on only once Tarsus has confirmed that the API accepts the License-Key.
+licensekey#:#License-Key
+licensekey_desc#:#The License-Key Tarsus issued to the customer. Stored in the database and never sent to the browser.
+licensekey_keep#:#A License-Key is stored; leave the field empty to keep it.
+licensekey_none#:#No License-Key is stored yet.
+licensefield#:#Request field of the License-Key
+licensefield_desc#:#The name of the form field the License-Key is sent in (default: {default}). Change it only if Tarsus names another field.
+error_licensefield#:#"{field}" cannot be used: the name has to start with a letter, may contain letters, digits and underscores only, and must not be a field the plugin already sends.
+error_licensekey_required#:#Enter the customer's License-Key, or identify the customer by brain ID.
+brains_license_note#:#This installation identifies the customer by License-Key: the brain follows from the License-Key, so none has to be chosen here.
 baseurl#:#Base URL
 baseurl_desc#:#The Tarsus API base URL. Enter only the host, e.g. https://api.example.org, without the /api/v1/... path.
 error_baseurl#:#Enter a URL starting with http:// or https://.
@@ -307,7 +323,7 @@ voice_label#:#{alias} ({language}, {gender})
 voice_female#:#female
 voice_male#:#male
 settings_guardrails#:#Guardrails
-settings_guardrails_desc#:#Bound availability and credit spend. These protect the endpoint and the budget.
+settings_guardrails_desc#:#Bound availability and the use of AI interactions. These protect the endpoint and the budget.
 mockmode#:#Mock mode (demo)
 mockmode_desc#:#When enabled, all Tarsus traffic is served by a deterministic built-in sample: no live API calls. On until switched off.
 killswitch#:#Kill switch
@@ -339,6 +355,9 @@ deletions_retry#:#Retry now
 deletions_retried#:#{count} deletion(s) completed.
 container_gone#:#(deleted, ref {ref})
 status_configured#:#Connection configured
+status_credential#:#Customer identified by
+status_credential_brain#:#Brain ID
+status_credential_license#:#License-Key (sent as {field})
 status_breaker#:#Circuit breaker
 status_breaker_open#:#Open since {since}
 status_breaker_closed#:#Closed
@@ -355,78 +374,85 @@ status_usage#:#Usage in the last 24 hours
 status_usage_none#:#No calls were recorded.
 status_operation#:#Operation
 status_calls#:#Calls
-status_credits#:#Credits
-// Plan and credits
-cfg_tab_plan#:#Plan & credits
-plan_section#:#Subscription
-plan_section_desc#:#The customer's agreement with Tarsus and lern.link. lern.link sets these figures; they decide which features the objects offer and how usage is priced.
-plan#:#Plan
-plan_learn#:#Build Knowledge (LEARN)
-plan_learn_desc#:#Every feature: Ask a question, Test knowledge, Build knowledge with narration, AI-driven interaction. Includes a monthly amount of AI credits; further requests are charged per request.
-plan_practice#:#Knowledge Test (PRACTICE)
-plan_practice_desc#:#Ask a question and Test knowledge. No Build knowledge, no narration, trainer-driven interaction only. Includes a monthly amount of AI credits; further requests are charged per request.
-plan_ask#:#Ask Question (ASK)
-plan_ask_desc#:#Ask a question only, trainer-driven interaction only. Includes a monthly amount of AI credits; further requests are charged per request.
-plan_payg#:#Pay as you grow
-plan_payg_desc#:#Every feature, no included credits: each request is charged at the agreed price.
-plan_credits#:#Included AI credits per month
-plan_credits_desc#:#The credits the subscription includes per calendar month (default {default}). Unused credits do not carry over. Not used on Pay as you grow.
-plan_price#:#Price per additional request
-plan_price_desc#:#What one request beyond the included credits costs (default {default}). On Pay as you grow, the price of every request.
+status_credits#:#AI interactions
+// Package and AI interactions
+cfg_tab_plan#:#Package & AI interactions
+plan_section#:#Package
+plan_section_desc#:#The package the customer booked with Tarsus or with the partner. The partner enters it here exactly as it was sold and thereby enforces it: objects offer only the functions of the booked package, and the server refuses everything else.
+plan#:#Package
+plan_learn#:#Package "Build knowledge" (LEARN)
+plan_learn_desc#:#Every function: Ask questions, Test knowledge and Build knowledge, with the audio explainer, voice input and agent mode (AI-driven interaction). Includes a monthly amount of AI interactions; further ones are charged per interaction.
+plan_practice#:#Package "Test knowledge" (PRACTICE)
+plan_practice_desc#:#Ask questions and Test knowledge. No Build knowledge, no audio explainer, no voice input, no agent mode. Includes a monthly amount of AI interactions; further ones are charged per interaction.
+plan_ask#:#Package "Ask questions" (ASK)
+plan_ask_desc#:#Ask questions only. No Test knowledge, no Build knowledge, no audio explainer, no voice input, no agent mode. Includes a monthly amount of AI interactions; further ones are charged per interaction.
+plan_payg#:#Pay-As-You-Grow
+plan_payg_desc#:#Every function, no included AI interactions: each one is charged at the agreed price.
+plan_credits#:#Included AI interactions per month
+plan_credits_desc#:#The AI interactions the package includes per calendar month (default {default}). Unused ones do not carry over. Not used on Pay-As-You-Grow.
+plan_price#:#Price per additional AI interaction
+plan_price_desc#:#What one AI interaction beyond the included ones costs (default {default}). On Pay-As-You-Grow, the price of every AI interaction.
 plan_currency#:#Currency
-plan_current#:#Current plan
-plan_default_note#:#not yet configured, Build Knowledge assumed
+plan_current#:#Booked package
+plan_default_note#:#not set yet, "Build knowledge" assumed
+plan_unset_warning#:#No package is set yet: until one is, the objects offer every function ("Build knowledge"). Enter the booked package on the tab "{tab}", so that the customer only reaches what was paid for.
 plan_included#:#Included
-plan_included_value#:#{credits} AI credits per month, then {price} per request
-plan_payg_note#:#No included credits: every request costs {price}
-plan_mode_unavailable#:#Not included in the current plan ({plan}).
-plan_interaction_unavailable#:#Available with Build Knowledge and Pay as you grow (current plan: {plan}).
-plan_feature_unavailable#:#This feature is not part of the current plan.
-no_modes_plan_notice#:#None of this object's modes is included in the current plan. Please contact your administrator.
+plan_included_value#:#{credits} AI interactions per month, then {price} each
+plan_payg_note#:#No included AI interactions: each one costs {price}
+plan_mode_unavailable#:#Not included in the booked package ({plan}).
+plan_interaction_unavailable#:#Available with "Build knowledge" and Pay-As-You-Grow (booked package: {plan}).
+plan_feature_unavailable#:#This function is not part of the booked package.
+no_modes_plan_notice#:#None of this object's modes is included in the booked package. Please contact your administrator.
 limit_section#:#Monthly limit
-limit_section_desc#:#The most AI credits this installation may spend per calendar month. Requests are refused once it is reached, and teachers and administrators are warned at 50, 75, 90 and 100 percent. Raising the limit takes effect at once; lowering it asks for confirmation.
-monthly_limit#:#Monthly credit limit
-monthly_limit_desc#:#In AI credits per calendar month; 0 means no limit. Used so far this month: {used}. The plan includes {included}; the month resets on {reset}.
-monthly_limit_elsewhere#:#Currently {limit} AI credits per month. The limit and the plan are set on the tab
-monthly_limit_value#:#{limit} credits per month, {remaining} remaining
+limit_section_desc#:#The most AI interactions this installation may use per calendar month. Counted requests are refused once it is reached, and teachers and administrators are warned at 50, 75, 90 and 100 percent. Raising the limit takes effect at once; lowering it asks for confirmation.
+monthly_limit#:#Monthly limit of AI interactions
+monthly_limit_desc#:#In AI interactions per calendar month; 0 means no limit. Used so far this month: {used}. The package includes {included}; the month resets on {reset}.
+monthly_limit_elsewhere#:#Currently {limit} AI interactions per month. The limit and the package are set on the tab
+monthly_limit_value#:#{limit} AI interactions per month, {remaining} remaining
 no_limit#:#no limit
 notify_emails#:#Warning recipients
 notify_emails_desc#:#E-mail addresses (one per line or separated by commas) that receive a mail when {thresholds} of the limit are reached. Leave empty to notify the installation's administrator address ({admin}).
 error_email#:#"{email}" is not a valid e-mail address.
-limit_reduce_confirm#:#You are lowering the monthly limit from {old} to {new} AI credits. {used} credits are already used this month; once the new limit is reached, AI requests are refused until next month or until the limit is raised again. Continue?
+limit_reduce_confirm#:#You are lowering the monthly limit from {old} to {new} AI interactions. {used} are already used this month; once the new limit is reached, AI requests are refused until next month or until the limit is raised again. Continue?
 usage_local#:#Counted by this installation
-usage_local_value#:#{credits} AI credits in {requests} requests this month
-usage_remote#:#Charged by the brain
+usage_local_value#:#{credits} AI interactions in {requests} counted requests this month
+usage_remote#:#Reported by the brain
 usage_remote_none#:#not fetched yet (the cron job fetches it every 15 minutes)
-usage_remote_value#:#{credits} AI credits this month (as of {fetched}); covers everything using this brain
-usage_charged#:#Beyond the included credits
-usage_charged_value#:#{requests} requests, about {cost}
+usage_remote_value#:#{credits} AI interactions this month (as of {fetched}); covers everything using this brain
+usage_charged#:#Beyond the included AI interactions
+usage_charged_value#:#{interactions} AI interactions, about {cost}
 usage_charged_none#:#nothing so far this month
+usage_charged_tarsus#:#{interactions} AI interactions – billed by Tarsus under the customer's own contract
+usage_billing#:#Billing
+usage_billing_partner#:#Through the partner (the customer is identified by brain ID).
+usage_billing_tarsus#:#By Tarsus directly (the customer is identified by License-Key).
+usage_rules#:#How it is counted
+usage_rules_value#:#One AI interaction per request in which the AI answers, creates, evaluates, narrates or indexes something. Free: the automatic correction of single-choice and true/false answers, reading the history, checking and withdrawing material. Indexing audio or video counts once per started two hours.
 usage_reset#:#Next reset
 usage_refresh#:#Refresh usage from the brain
-usage_refreshed#:#The brain reports {credits} AI credits for this month.
+usage_refreshed#:#The brain reports {credits} AI interactions for this month.
 usage_refresh_failed#:#The usage could not be fetched from the brain.
 usage_breakdown#:#Breakdown by service (brain figures)
 usage_service#:#Service
 usage_name#:#Operation
-usage_bar_label#:#{used} of {limit} AI credits used this month ({percent} %)
-usage_bar_nolimit#:#{used} AI credits used this month (no limit)
+usage_bar_label#:#{used} of {limit} AI interactions used this month ({percent} %)
+usage_bar_nolimit#:#{used} AI interactions used this month (no limit)
 status_guardrails#:#Guardrails
-budget_banner_warning#:#{percent} % of this month's AI credits are used ({used} of {limit}). The month resets on {reset}; an administrator can raise the limit under Plugins > Tarsus > Plan & credits.
-budget_banner_exhausted#:#This month's AI credits are used up ({used} of {limit}). AI requests are refused until {reset} unless an administrator raises the limit under Plugins > Tarsus > Plan & credits.
+budget_banner_warning#:#{percent} % of this month's AI interactions are used ({used} of {limit}). The month resets on {reset}; an administrator can raise the limit under Plugins > Tarsus > Package & AI interactions.
+budget_banner_exhausted#:#This month's AI interactions are used up ({used} of {limit}). AI requests are refused until {reset} unless an administrator raises the limit under Plugins > Tarsus > Package & AI interactions.
 budget_exhausted_learner#:#The monthly AI budget of this installation is used up. The learning companion will answer again next month, or sooner once an administrator raises the limit.
-budget_mail_subject#:#[{site}] Tarsus: {percent} % of the monthly AI credits used
-budget_mail_subject_exhausted#:#[{site}] Tarsus: the monthly AI credits are used up
-budget_mail_body#:#{percent} % of the monthly AI credit limit of {site} is used: {used} of {limit} credits. The month resets on {reset}. To raise the limit, open Administration > Extending ILIAS > Plugins > Tarsus > Configure > Plan & credits.
-budget_mail_body_exhausted#:#The monthly AI credit limit of {site} is used up: {used} of {limit} credits. AI requests are refused until {reset}. To raise the limit, open Administration > Extending ILIAS > Plugins > Tarsus > Configure > Plan & credits.
+budget_mail_subject#:#[{site}] Tarsus: {percent} % of the monthly AI interactions used
+budget_mail_subject_exhausted#:#[{site}] Tarsus: the monthly AI interactions are used up
+budget_mail_body#:#{percent} % of the monthly limit of AI interactions of {site} is used: {used} of {limit}. The month resets on {reset}. To raise the limit, open Administration > Extending ILIAS > Plugins > Tarsus > Configure > Package & AI interactions.
+budget_mail_body_exhausted#:#The monthly limit of AI interactions of {site} is used up: {used} of {limit}. AI requests are refused until {reset}. To raise the limit, open Administration > Extending ILIAS > Plugins > Tarsus > Configure > Package & AI interactions.
 // Interaction
 settings_interaction#:#Interaction
 settings_interaction_desc#:#How the learning companion presents what it generates.
 interactiontype#:#Interaction type
 interaction_trainer#:#Trainer-driven
 interaction_trainer_help#:#Text, pictures and questions as configured below.
-interaction_ai#:#AI-driven
-interaction_ai_help#:#The brain may answer with interactive pages (animations, simulations, small tools) when asked a question and in Build knowledge. They run in a sandbox and cost more credits.
+interaction_ai#:#AI-driven (agent mode)
+interaction_ai_help#:#The brain may answer with interactive pages (animations, simulations, small tools) when asked a question and in Build knowledge. They run in a sandbox. A request counts as one AI interaction, exactly as it does trainer-driven.
 frame_title#:#Interactive content
 frame_enlarge#:#Show larger
 // Help
@@ -439,20 +465,20 @@ help_title#:#Help & videos
 // Analytics
 tab_analytics#:#Analytics
 analytics_requests_month#:#requests this month
-analytics_credits_month#:#AI credits this month
+analytics_credits_month#:#AI interactions this month
 analytics_active_learners#:#active learners this month
-analytics_share#:#of this installation's credits this month
-analytics_budget#:#Monthly AI credits of this installation
-analytics_budget_note#:#All Tarsus objects of this installation share the monthly credits. The month resets on {reset}.
+analytics_share#:#of this installation's AI interactions this month
+analytics_budget#:#Monthly AI interactions of this installation
+analytics_budget_note#:#All Tarsus objects of this installation share the monthly AI interactions. The month resets on {reset}.
 analytics_chart_title#:#Requests per day, last 30 days
 analytics_chart_label#:#Requests per day over the last 30 days
-analytics_tooltip#:#{calls} requests, {credits} credits
+analytics_tooltip#:#{calls} requests, {credits} AI interactions
 analytics_by_mode#:#By mode, last 30 days
 analytics_mode#:#Mode
 analytics_top_learners#:#Most active learners, last 30 days
 analytics_none#:#No requests yet.
-analytics_note#:#Figures come from this installation's own ledger with the brain's cost estimates; the brain's invoice may differ slightly.
+analytics_note#:#Figures come from this installation's own ledger, counted the way Tarsus counts AI interactions (tarsus.ai/ki-interaktionen). For the invoice, what Tarsus reports for the brain is decisive.
 col_lastactivity#:#Last activity
-learners_readonly#:#Neither Test knowledge nor Build knowledge is active here (switched off, or not included in the plan), so this object has no score and no learning progress: it is a read-only activity.
+learners_readonly#:#Neither Test knowledge nor Build knowledge is active here (switched off, or not included in the booked package), so this object has no score and no learning progress: it is a read-only activity.
 col_participation#:#Participation
 participated#:#Took part
