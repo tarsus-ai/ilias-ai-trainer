@@ -25,7 +25,7 @@ final class ClientFactory
         if (Config::mockMode()) {
             return new MockClient();
         }
-        return new HttpClient(Config::baseUrl(), Config::apiKey(), Config::brainId());
+        return new HttpClient(Config::baseUrl(), Config::apiKey(), Config::brainId(), Config::licenseKey());
     }
 
     /**

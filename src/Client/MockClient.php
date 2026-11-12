@@ -4,6 +4,7 @@ namespace TarsusIlias\Client;
 
 use TarsusIlias\Activity\Didactics;
 use TarsusIlias\Support\Config;
+use TarsusIlias\Support\Interactions;
 
 /**
  * Deterministic, stateful mock Tarsus client.
@@ -65,7 +66,7 @@ class MockClient implements ClientInterface
         return [
             'status' => $this->async ? 'pending-confirmation' : 'indexed',
             'bitref' => 'mock-bit-' . sha1($resourceid),
-            'credits' => 0,
+            'credits' => Interactions::forIndexing((string) ($resource['type'] ?? 'text'), (int) ($resource['duration'] ?? 0)),
         ];
     }
 
@@ -216,7 +217,7 @@ class MockClient implements ClientInterface
             'answer' => $html === '' ? $answer : '',
             'html' => $html,
             'messages' => $messages,
-            'credits' => 6,
+            'credits' => Interactions::forGenerate(),
         ];
     }
 
@@ -269,7 +270,7 @@ class MockClient implements ClientInterface
         return [
             'widgets' => $widgets,
             'progress' => self::progressOf($state),
-            'credits' => $widgets === [] ? 0 : 6,
+            'credits' => $widgets === [] ? 0 : Interactions::forGenerate(),
         ];
     }
 
@@ -323,7 +324,7 @@ class MockClient implements ClientInterface
         return [
             'items' => $items,
             'progress' => self::progressOf($state),
-            'credits' => 6,
+            'credits' => Interactions::forGenerate(),
         ];
     }
 
@@ -391,9 +392,10 @@ class MockClient implements ClientInterface
 
         $id = (string) ($params['widgetid'] ?? '');
         $question = $state['questions'][$id] ?? null;
-        if (!is_array($question)) {
-            // Unknown (e.g. after a reset): judge against the generic answer.
-            $question = ['type' => (string) ($params['widgettype'] ?? ''), 'correct' => 'Alpha', 'choices' => [],
+        if (!is_array($question) || !isset($question['type'])) {
+            // Unknown (e.g. after a reset, or answered before as unknown):
+            // judge against the generic answer.
+            $question = (array) $question + ['type' => (string) ($params['widgettype'] ?? ''), 'correct' => 'Alpha', 'choices' => [],
                 'state' => (string) ($params['state'] ?? 'practice')];
         }
         $type = (string) $question['type'];
@@ -525,7 +527,7 @@ class MockClient implements ClientInterface
         unset($item);
         $this->save($params, $state);
 
-        return $result + ['progress' => self::progressOf($state), 'credits' => 6];
+        return $result + ['progress' => self::progressOf($state), 'credits' => Interactions::forEvaluation($type)];
     }
 
     public function retrieveFeed(array $params): array
@@ -620,7 +622,7 @@ class MockClient implements ClientInterface
             'audio' => self::tone(),
             'mimetype' => 'audio/wav',
             'voice' => (string) ($params['voice'] ?? 'Daniel'),
-            'credits' => 6,
+            'credits' => Interactions::forAudioExplainer(),
         ];
     }
 

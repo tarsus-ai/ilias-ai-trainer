@@ -9,18 +9,21 @@ use TarsusIlias\Guardrail\Pipeline;
  * The monthly AI-credit budget: what the brain charged this calendar
  * month, the limit the customer set, and the warnings on the way there.
  *
+ * One AI credit is one AI interaction as the partner agreement counts
+ * them ({@see Interactions}): the unit the packages include and the price
+ * applies to.
+ *
  * Two figures describe the month. The local ledger counts every request
- * this installation made, with the client's cost estimates, and is
+ * this installation made, with the agreement's figure per call, and is
  * available at once. The brain's own usage endpoint reports what was
  * really charged - for the whole brain, so it also covers other systems
  * using it - and is fetched by the cron job and on the status pages. The
  * gate uses the larger of the two, so a limit holds even when only one
  * side knows about some spending.
  *
- * The limit is in AI credits per calendar month (the unit the brain
- * bills); 0 means no limit. Crossing 50, 75, 90 and 100 percent of it
- * raises a banner for teachers and administrators and sends one mail per
- * threshold and month.
+ * The limit is in AI credits per calendar month; 0 means no limit.
+ * Crossing 50, 75, 90 and 100 percent of it raises a banner for teachers
+ * and administrators and sends one mail per threshold and month.
  *
  * @author  lern.link GmbH
  * @license GPL-3.0-or-later
@@ -263,37 +266,33 @@ final class Budget
     // ------------------------------------------------------------------
 
     /**
-     * Requests this month beyond the plan's included credits, and what
-     * they cost at the agreed price. On Pay as you grow every request
-     * counts. The pass walks the ledger in order, so the first request
-     * that crosses the included amount is the first one charged.
+     * AI interactions this month beyond the package's included amount,
+     * and what they cost at the agreed price per interaction. On Pay as
+     * you grow every interaction counts. A customer with a license key is
+     * billed by Tarsus, so no partner price applies and the cost is 0.
      *
-     * @return array{requests: int, cost: float, included: int, charged: int}
+     * @return array{requests: int, used: int, cost: float, included: int, charged: int}
      */
     public static function overage(): array
     {
-        $included = Plan::includedCredits();
-        $db = Ilias::db();
-        $res = $db->queryF(
-            'SELECT credits FROM ' . UsageMeter::TABLE . ' WHERE created >= %s AND credits > 0 ORDER BY created, id',
-            ['integer'],
-            [self::monthStart()]
-        );
-        $requests = 0;
-        $charged = 0;
-        $running = 0;
-        while ($row = $db->fetchAssoc($res)) {
-            $requests++;
-            $running += (int) $row['credits'];
-            if ($included <= 0 || $running > $included) {
-                $charged++;
-            }
-        }
+        return self::overageOf(self::localCredits(), self::localRequests(), Plan::includedCredits(), Plan::pricePerRequest(), Plan::billedByTarsus());
+    }
+
+    /**
+     * The arithmetic of {@see overage()}: interactions beyond the included
+     * amount, priced per interaction.
+     *
+     * @return array{requests: int, used: int, cost: float, included: int, charged: int}
+     */
+    public static function overageOf(int $used, int $requests, int $included, float $price, bool $billedbytarsus = false): array
+    {
+        $charged = max(0, $used - max(0, $included));
         return [
             'requests' => $requests,
+            'used' => $used,
             'charged' => $charged,
-            'included' => $included,
-            'cost' => round($charged * Plan::pricePerRequest(), 2),
+            'included' => max(0, $included),
+            'cost' => $billedbytarsus ? 0.0 : round($charged * $price, 2),
         ];
     }
 

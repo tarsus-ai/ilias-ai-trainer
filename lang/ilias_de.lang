@@ -225,8 +225,8 @@ guardrail_blocked_breaker#:#Das Tarsus-System antwortet langsam und ruht kurzzei
 guardrail_blocked_budget#:#Die monatlichen AI Credits dieser Installation sind aufgebraucht. Die Administration kann das Limit erhöhen; sonst geht es im nächsten Monat weiter.
 guardrail_blocked_ratelimit#:#Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.
 transport_error#:#Das Brain konnte nicht erreicht werden. Bitte versuche es gleich noch einmal.
-err_notconfigured#:#Tarsus ist nicht konfiguriert: Die Administration muss in der Plugin-Konfiguration Basis-URL, API-Schlüssel und Brain-ID hinterlegen oder den Mock-Modus aktivieren.
-err_nobrainselected#:#Es ist kein Tarsus-Brain ausgewählt. Die Administration muss in der Plugin-Konfiguration eines auswählen.
+err_notconfigured#:#Tarsus ist nicht konfiguriert: Die Administration muss in der Plugin-Konfiguration Basis-URL, API-Schlüssel und eine Brain-ID oder einen License-Key hinterlegen oder den Mock-Modus aktivieren.
+err_nobrainselected#:#Es ist kein Tarsus-Brain ausgewählt. Die Administration muss in der Plugin-Konfiguration eines auswählen (oder den License-Key des Kunden eintragen).
 // Verarbeitungsschritte
 proc_ask_classify#:#Ihre Frage wird nach Thema und Absicht eingeordnet
 proc_ask_search#:#Semantische Suche im indexierten Kurswissen
@@ -275,13 +275,21 @@ cfg_tab_brains#:#Brains
 cfg_tab_deletions#:#Löschungen
 cfg_tab_status#:#Status
 settings_connection#:#Tarsus-Verbindung
-settings_connection_desc#:#Diese Installation mit Tarsus verbinden. Ein Brain pro Installation.
+settings_connection_desc#:#Diese Installation mit Tarsus verbinden. Ein Brain pro Installation. Brain-IDs und API-Schlüssel schaltet Tarsus manuell frei. Eigene Test-Brains gibt es nicht: Zum Testen stellt Tarsus ein Sandbox-Brain bereit, das alle Partner gemeinsam nutzen, und jeder Request darauf wird berechnet wie bei allen anderen Kunden – kostenfrei ausprobieren lässt sich nur der Mock-Modus des Plugins (unten).
 apikey#:#API-Schlüssel
 apikey_desc#:#Der Tarsus-API-Schlüssel. Wird in der Datenbank gespeichert und nie an den Browser gesendet.
 apikey_keep#:#Ein Schlüssel ist hinterlegt; lassen Sie das Feld leer, um ihn zu behalten.
 apikey_none#:#Es ist noch kein Schlüssel hinterlegt.
 brainid#:#Brain-ID
-brainid_desc#:#Das einzige von dieser Installation genutzte Tarsus-Brain. Wählen Sie eines der Brains, die der API-Schlüssel erreicht:
+brainid_desc#:#Das einzige von dieser Installation genutzte Tarsus-Brain (Partnerkunden). Wird nicht gesendet, solange ein License-Key gespeichert ist. Wählen Sie eines der Brains, die der API-Schlüssel erreicht:
+brainid_sandbox#:#Zum Testen das Sandbox-Brain verwenden, das Tarsus allen Partnern bereitstellt – auch dessen Requests werden berechnet.
+brain_sandbox_note#:#Brains schaltet Tarsus manuell frei. Eigene Test-Brains gibt es nicht: Zum Testen das Sandbox-Brain verwenden, das Tarsus allen Partnern bereitstellt – jeder Request darauf wird berechnet wie bei allen anderen Kunden. Kostenfrei ausprobieren lässt sich nur der Mock-Modus des Plugins (Einstellungen).
+licensekey#:#License-Key
+licensekey_desc#:#Nur für Bestandskunden von Tarsus: Sie haben zusätzlich zum API-Schlüssel einen License-Key statt einer Brain-ID. Solange einer gespeichert ist, sendet jeder Aufruf API-Schlüssel und License-Key – und keine Brain-ID –, und Tarsus, nicht der Partner, rechnet die Nutzung ab. Wird in der Datenbank gespeichert und nie an den Browser gesendet.
+licensekey_keep#:#Ein License-Key ist gespeichert; Feld leer lassen, um ihn zu behalten.
+licensekey_none#:#Kein License-Key gespeichert (Partnerkunde).
+licensekey_clear#:#License-Key entfernen
+licensekey_clear_desc#:#Der Kunde wird wieder Partnerkunde: Abrechnung über den Partner, die Aufrufe tragen die Brain-ID.
 baseurl#:#Basis-URL
 baseurl_desc#:#Die Basis-URL der Tarsus-API. Nur den Host eintragen, z. B. https://api.example.org, ohne den Pfad /api/v1/...
 error_baseurl#:#Geben Sie eine URL ein, die mit http:// oder https:// beginnt.
@@ -340,6 +348,10 @@ deletions_retry#:#Jetzt erneut versuchen
 deletions_retried#:#{count} Löschung(en) abgeschlossen.
 container_gone#:#(gelöscht, Ref {ref})
 status_configured#:#Verbindung konfiguriert
+status_customer#:#Kunde
+status_customer_partner#:#Partnerkunde (Abrechnung über den Partner)
+status_customer_tarsus#:#Bestandskunde von Tarsus mit License-Key (Abrechnung durch Tarsus)
+status_plan#:#Gebuchtes Paket
 status_breaker#:#Schutzschalter
 status_breaker_open#:#Offen seit {since}
 status_breaker_closed#:#Geschlossen
@@ -360,26 +372,61 @@ status_credits#:#Credits
 // Plan und Credits
 cfg_tab_plan#:#Plan & Credits
 plan_section#:#Abonnement
-plan_section_desc#:#Die Vereinbarung des Kunden mit Tarsus und lern.link. lern.link trägt diese Werte ein; sie bestimmen, welche Funktionen die Objekte anbieten und wie die Nutzung abgerechnet wird.
+plan_section_desc#:#Das vom Kunden gebuchte Paket, wie in der Tarsus-Partnervereinbarung. Der Partner trägt es ein; es bestimmt, welche Funktionen die Objekte anbieten – ein Kunde erreicht nur, was er gebucht hat – und wie die Nutzung berechnet wird. Jedes Paket enthält die Stufe davor.
 plan#:#Plan
 plan_learn#:#Build Knowledge (LEARN)
-plan_learn_desc#:#Alle Funktionen: Frage stellen, Wissen testen, Wissen aufbauen mit Vorlesefunktion, KI-gesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
+plan_learn_desc#:#Der volle KI-Lerncoach: Frage stellen, Wissen testen, Wissen aufbauen mit Audio-Erklärer, Spracheingabe und Agent-Modus (KI-gesteuerter Interaktionstyp). Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
 plan_practice#:#Knowledge Test (PRACTICE)
-plan_practice_desc#:#Frage stellen und Wissen testen. Kein Wissen aufbauen, keine Vorlesefunktion, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
+plan_practice_desc#:#Frage stellen und Wissen testen (adaptive Quizze). Kein Wissen aufbauen, kein Audio-Erklärer, keine Spracheingabe, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
 plan_ask#:#Ask Question (ASK)
-plan_ask_desc#:#Nur Frage stellen, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an AI Credits; weitere Anfragen werden pro Anfrage berechnet.
+plan_ask_desc#:#Nur Frage stellen: Die KI beantwortet Fragen auf Basis der Dokumente. Nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
 plan_payg#:#Pay as you grow
-plan_payg_desc#:#Alle Funktionen, kein Kontingent: jede Anfrage wird zum vereinbarten Preis berechnet.
-plan_credits#:#Enthaltene AI Credits pro Monat
-plan_credits_desc#:#Die Credits, die das Abonnement pro Kalendermonat enthält (Standard {default}). Nicht genutzte Credits verfallen. Bei Pay as you grow ohne Bedeutung.
-plan_price#:#Preis pro zusätzlicher Anfrage
-plan_price_desc#:#Kosten einer Anfrage über das Kontingent hinaus (Standard {default}). Bei Pay as you grow der Preis jeder Anfrage.
+plan_payg_desc#:#Zugriff auf alles, kein Kontingent: Jede KI-Interaktion wird zum vereinbarten Preis berechnet.
+plan_credits#:#Enthaltene KI-Interaktionen pro Monat
+plan_credits_desc#:#Die KI-Interaktionen (KI-Credits), die das Paket pro Kalendermonat enthält (Standard {default}). Nicht genutzte Interaktionen verfallen. Bei Pay as you grow ohne Bedeutung.
+plan_price#:#Preis je zusätzlicher KI-Interaktion
+plan_price_desc#:#Kosten einer KI-Interaktion über das Kontingent hinaus (Standard {default}, der pauschale Partnerpreis). Bei Pay as you grow der Preis jeder Interaktion. Gilt nicht für Kunden mit Tarsus-License-Key – die rechnet Tarsus direkt ab.
 plan_currency#:#Währung
 plan_current#:#Aktueller Plan
 plan_default_note#:#noch nicht konfiguriert, Build Knowledge angenommen
+plan_not_set_hint#:#Das gebuchte Paket ist noch nicht eingetragen, daher sind alle Funktionen erreichbar ({plan} angenommen). Die Partnervereinbarung verlangt, das gebuchte Paket hier durchzusetzen:
+plan_billing#:#Abrechnung
+plan_billing_partner#:#Über den Partner, zu den oben genannten Preisen (Partnerkunde)
+plan_billing_tarsus#:#Direkt durch Tarsus – der Kunde hat einen Tarsus-License-Key; die Preise des Partners gelten nicht
+plan_included_value_tarsus#:#{credits} KI-Interaktionen pro Monat; was darüber hinausgeht, rechnet Tarsus ab
+plan_payg_note_tarsus#:#Kein Kontingent: Tarsus rechnet jede KI-Interaktion ab
+plan_features_title#:#Funktionen je Paket (Partnervereinbarung)
+plan_features_desc#:#Was jedes Paket enthält. Ein Kunde erreicht nur, was gebucht ist; den Rest sperrt das Plugin in den Objekteinstellungen, im Moduswechsel der Lernenden und in den serverseitigen Prüfungen.
+plan_feature#:#Funktion
+plan_ask_short#:#Fragen stellen
+plan_practice_short#:#Wissen testen
+plan_learn_short#:#Wissen aufbauen
+plan_payg_short#:#Pay as you grow
+plan_feature_ask#:#Fragen stellen: Die KI beantwortet Fragen auf Basis der Dokumente
+plan_feature_test#:#Wissen testen: Die KI erstellt und bewertet Quizze
+plan_feature_build#:#Wissen aufbauen: Der KI-Lerncoach erklärt Schritt für Schritt
+plan_feature_audio_explainer#:#Audio-Erklärer im KI-Lerncoach
+plan_feature_voice_input#:#Spracheingabe im KI-Lerncoach
+plan_feature_ai_driven#:#Agent-Modus (KI-gesteuerter Interaktionstyp)
+plan_features_note#:#Audio-Erklärer, Spracheingabe und Agent-Modus gehören zum KI-Lerncoach Tarsus Zero. Die Standard-Vertonung (Audio Generation) ist davon nicht betroffen.
+counting_title#:#So werden KI-Interaktionen gezählt
+counting_desc#:#Jede Anfrage, bei der die KI etwas beantwortet, erstellt, bewertet, vertont oder indexiert, ist eine KI-Interaktion. Audio plus ein weiterer KI-Schritt zählt doppelt; „Länger nachdenken“ verdoppelt jede Anfrage. Diese Installation zählt so jeden eigenen Aufruf; was das Brain tatsächlich berechnet hat, wird separat abgerufen und gilt, wenn es höher ist.
+counting_what#:#Was die KI tut
+counting_count#:#KI-Interaktionen
+counting_answer#:#Frage beantworten (Fragen stellen)
+counting_step#:#Nächsten Lernschritt erstellen: Erklärung, Folie oder Quizfrage
+counting_agent#:#Agent-Modus: Die KI steuert den Lernablauf (je Anfrage)
+counting_audio_explainer#:#Audio-Erklärer einer Lerneinheit
+counting_voice#:#Frage oder Antwort per Sprache (Audiodatei)
+counting_eval_open#:#Offene Frage, Dreisatz oder Tabellenkalkulation bewerten, mit Feedback
+counting_eval_choice#:#Single-Choice- oder Wahr/Falsch-Antwort korrigieren
+counting_index#:#Text, Tabelle, Frage, URL, Dokument oder Bild indexieren (je Anfrage)
+counting_index_media#:#Audio oder Video indexieren (je angefangene 2 Stunden)
+counting_management#:#API-Key und Brains verwalten, Nutzung abfragen, Inhalte abrufen, auflisten, prüfen, freigeben, bearbeiten oder löschen
+counting_note#:#Die öffentliche Übersicht ohne Preise steht unter tarsus.ai/ki-interaktionen.
 plan_included#:#Enthalten
-plan_included_value#:#{credits} AI Credits pro Monat, danach {price} pro Anfrage
-plan_payg_note#:#Kein Kontingent: jede Anfrage kostet {price}
+plan_included_value#:#{credits} KI-Interaktionen pro Monat, danach {price} je Interaktion
+plan_payg_note#:#Kein Kontingent: Jede KI-Interaktion kostet {price}
 plan_mode_unavailable#:#Im aktuellen Plan ({plan}) nicht enthalten.
 plan_interaction_unavailable#:#Verfügbar mit Build Knowledge und Pay as you grow (aktueller Plan: {plan}).
 plan_feature_unavailable#:#Diese Funktion ist im aktuellen Plan nicht enthalten.
@@ -396,12 +443,13 @@ notify_emails_desc#:#E-Mail-Adressen (eine pro Zeile oder durch Kommas getrennt)
 error_email#:#„{email}“ ist keine gültige E-Mail-Adresse.
 limit_reduce_confirm#:#Du senkst das monatliche Limit von {old} auf {new} AI Credits. In diesem Monat sind bereits {used} Credits verbraucht; sobald das neue Limit erreicht ist, werden KI-Anfragen bis zum nächsten Monat oder bis zu einer Erhöhung abgelehnt. Fortfahren?
 usage_local#:#Von dieser Installation gezählt
-usage_local_value#:#{credits} AI Credits in {requests} Anfragen in diesem Monat
+usage_local_value#:#{credits} KI-Interaktionen in {requests} Anfragen in diesem Monat
 usage_remote#:#Vom Brain berechnet
 usage_remote_none#:#noch nicht abgerufen (der Cron-Job ruft den Wert alle 15 Minuten ab)
 usage_remote_value#:#{credits} AI Credits in diesem Monat (Stand {fetched}); umfasst alles, was dieses Brain nutzt
 usage_charged#:#Über das Kontingent hinaus
-usage_charged_value#:#{requests} Anfragen, etwa {cost}
+usage_charged_value#:#{requests} KI-Interaktionen, etwa {cost}
+usage_charged_value_tarsus#:#{requests} KI-Interaktionen, abgerechnet durch Tarsus
 usage_charged_none#:#in diesem Monat bisher nichts
 usage_reset#:#Nächster Neubeginn
 usage_refresh#:#Nutzung vom Brain abrufen

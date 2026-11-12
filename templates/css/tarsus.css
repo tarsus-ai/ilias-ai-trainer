@@ -2035,6 +2035,28 @@
     margin: 0.5rem 0;
 }
 
+/* The package matrix and the counting rules on the plan page. */
+.tarsus-details--plan {
+    margin: 0.75rem 0;
+}
+
+.tarsus-details--plan > p {
+    margin: 0.25rem 0 0.75rem;
+}
+
+.tarsus-table--features th.tarsus-th--current,
+.tarsus-table--features td.tarsus-td--current {
+    background: var(--tz-accent-soft, rgba(0, 119, 190, 0.08));
+}
+
+.tarsus-table--features th .tarsus-badge {
+    margin-top: 0.25rem;
+}
+
+.tarsus-sandbox-note {
+    margin: 0 0 0.75rem;
+}
+
 @media (max-width: 600px) {
     .tarsus-lightbox__page {
         width: 100vw;
