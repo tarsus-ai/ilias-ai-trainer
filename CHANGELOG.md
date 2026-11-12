@@ -58,6 +58,9 @@ All notable changes to the Tarsus plugin for ILIAS. The plugin follows
   the tab *Plan & credits* is now *Package & AI interactions*.
 - The cost estimate charges the AI interactions beyond the included ones. It
   used to count requests against credits.
+- A monthly limit set under 1.1.0 keeps its number but is now measured in AI
+  interactions. Where the old estimate counted six per request, the same limit
+  lasts about six times as many requests – check it after the update.
 - The automatic correction of single-choice and true/false answers stays
   possible when the monthly limit is reached: it costs nothing.
 
