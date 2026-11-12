@@ -23,6 +23,13 @@ final class Didactics
     public const TYPE_CROSSMULTIPLICATION = 'crossMultiplicationQuestionWidget';
     public const TYPE_TRADECOSTING = 'tradeCostingQuestionWidget';
 
+    /**
+     * Accounting exercise (Buchhaltung). A requestable type only: the brain
+     * answers it with tradeCostingQuestionWidget tasks, so display and
+     * evaluation are those of the spreadsheet calculation.
+     */
+    public const TYPE_ACCOUNTING = 'accountingWidget';
+
     /** @var string[] */
     public const TYPES = [
         self::TYPE_SINGLECHOICE,
@@ -30,6 +37,7 @@ final class Didactics
         self::TYPE_OPEN,
         self::TYPE_CROSSMULTIPLICATION,
         self::TYPE_TRADECOSTING,
+        self::TYPE_ACCOUNTING,
     ];
 
     /** @var int[] Difficulty grades (1 Easy, 2 Medium, 3 Hard). */
@@ -102,6 +110,8 @@ final class Didactics
                 return 'qtype_crossmultiplication';
             case self::TYPE_TRADECOSTING:
                 return 'qtype_tradecosting';
+            case self::TYPE_ACCOUNTING:
+                return 'qtype_accounting';
             default:
                 return 'qtype_unknown';
         }

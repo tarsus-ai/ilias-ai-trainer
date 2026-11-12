@@ -160,6 +160,7 @@ qtype_truefalse#:#Wahr / Falsch
 qtype_open#:#Offene Frage
 qtype_crossmultiplication#:#Dreisatz
 qtype_tradecosting#:#Tabellenkalkulation
+qtype_accounting#:#Buchhaltung
 qtype_unknown#:#Unbekannter Fragetyp
 operators#:#Operatoren
 operators_help#:#Welcher Operatoren-Taxonomie die Übungsfragen folgen. Standard erlaubt alle Operatoren; IHK beschränkt die Fragen auf die vier IHK-Operatoren (nennen, beschreiben, erklären, erläutern).

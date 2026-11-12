@@ -2,6 +2,7 @@
 
 namespace TarsusIlias\Client;
 
+use TarsusIlias\Activity\Didactics;
 use TarsusIlias\Support\Config;
 
 /**
@@ -237,6 +238,10 @@ class MockClient implements ClientInterface
         $allowed = [];
         foreach ((array) ($params['questiontypes'] ?? []) as $types) {
             foreach ((array) $types as $type) {
+                // The brain answers an accounting exercise with spreadsheet tasks.
+                if ($type === Didactics::TYPE_ACCOUNTING) {
+                    $type = Didactics::TYPE_TRADECOSTING;
+                }
                 $allowed[(string) $type] = true;
             }
         }

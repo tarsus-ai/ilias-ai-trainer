@@ -160,6 +160,7 @@ qtype_truefalse#:#True / false
 qtype_open#:#Open question
 qtype_crossmultiplication#:#Rule of three
 qtype_tradecosting#:#Spreadsheet calculation
+qtype_accounting#:#Accounting exercise
 qtype_unknown#:#Unknown question type
 operators#:#Task operators
 operators_help#:#Which operator taxonomy the practice questions follow. Standard allows any task operator; IHK limits questions to the four IHK operators (name, describe, explain, elaborate).
