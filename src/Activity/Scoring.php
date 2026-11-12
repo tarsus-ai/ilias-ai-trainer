@@ -21,7 +21,7 @@ use TarsusIlias\Support\Ilias;
  * The learning progress compares that progress with the teacher's
  * completion threshold.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Scoring

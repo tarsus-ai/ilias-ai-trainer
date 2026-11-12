@@ -16,7 +16,7 @@ use TarsusIlias\Support\Config;
  * - bitkey distinguishes several bits of one object (each link of a web
  *   link list); single-bit objects use 'main'.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class ResourceId

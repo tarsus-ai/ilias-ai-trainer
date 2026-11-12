@@ -12,7 +12,7 @@ namespace TarsusIlias\Activity;
  * may generate in that grade. Difficulty has no API parameter of its own;
  * the brain requires every grade to carry at least one type.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Didactics

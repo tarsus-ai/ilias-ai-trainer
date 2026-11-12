@@ -10,7 +10,7 @@ namespace TarsusIlias\Material;
  * modification times, link targets - so detecting a change never needs the
  * content itself; the payload is only built when a bit is actually sent.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Material

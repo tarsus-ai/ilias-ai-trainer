@@ -5,7 +5,7 @@ namespace TarsusIlias\Cron;
 /**
  * Builds the cron job object for the running ILIAS release.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Jobs

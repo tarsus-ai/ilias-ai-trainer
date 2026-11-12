@@ -6,7 +6,7 @@
  * identity, the guardrails, the brain picker, outstanding deletions and
  * the live status.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  *
  * @ilCtrl_IsCalledBy ilTarsusConfigGUI: ilObjComponentSettingsGUI

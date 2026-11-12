@@ -5,7 +5,7 @@
  * material list, learner overview and settings, plus the AJAX endpoints the
  * chat and the material list talk to.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  *
  * @ilCtrl_isCalledBy ilObjTarsusGUI: ilRepositoryGUI, ilAdministrationGUI, ilObjPluginDispatchGUI

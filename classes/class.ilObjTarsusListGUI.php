@@ -4,7 +4,7 @@
  * How Tarsus objects appear in course and category listings: offline flag
  * for teachers, the learner's own progress for learners.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 

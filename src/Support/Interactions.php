@@ -32,7 +32,7 @@ use TarsusIlias\Material\BitType;
  * and to price the month (the status page). What the brain actually
  * charged is fetched separately and wins when it is higher.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Interactions

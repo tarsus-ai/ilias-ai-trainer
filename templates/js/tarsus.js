@@ -8,7 +8,7 @@
  * on their root element. No framework; MathJax is used when the page has
  * it.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 (function () {

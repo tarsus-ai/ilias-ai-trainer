@@ -5,7 +5,7 @@ namespace TarsusIlias\Output;
 /**
  * HTML helpers.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Html

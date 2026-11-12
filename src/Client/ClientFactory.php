@@ -10,7 +10,7 @@ use TarsusIlias\Support\Config;
  * Defaults to the mock when mock mode is unset (fresh install), so no code
  * path can reach a live endpoint by accident.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class ClientFactory

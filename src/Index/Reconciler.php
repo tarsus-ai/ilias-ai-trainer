@@ -28,7 +28,7 @@ use TarsusIlias\Support\Ilias;
  * A deletion that cannot be delivered stays recorded as pendingdeletion,
  * the durable record a later run (or the admin's deletions page) retries.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class Reconciler

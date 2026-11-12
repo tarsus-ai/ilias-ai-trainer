@@ -25,7 +25,7 @@ use TarsusIlias\Guardrail\Pipeline;
  * Crossing 50, 75, 90 and 100 percent of it raises a banner for teachers
  * and administrators and sends one mail per threshold and month.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Budget

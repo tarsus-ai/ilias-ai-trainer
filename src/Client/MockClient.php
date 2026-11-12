@@ -17,7 +17,7 @@ use TarsusIlias\Support\Interactions;
  * answers earn experience points, units add up to completion and the
  * learning progress moves, exactly as with the real brain.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class MockClient implements ClientInterface

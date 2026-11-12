@@ -6,7 +6,7 @@
  * Holds the didactic settings and reports the learning progress the
  * brain's figures add up to.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 

@@ -10,7 +10,7 @@ use TarsusIlias\Support\Ilias;
  * rendered client-side (tarsus.js); everything here is the frame they live
  * in, and the teacher's material and learner lists.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Views

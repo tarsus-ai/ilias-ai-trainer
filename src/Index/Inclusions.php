@@ -10,7 +10,7 @@ use TarsusIlias\Support\Ilias;
  * Different Tarsus objects in one course can cover different subsets of
  * the course's indexed material.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Inclusions

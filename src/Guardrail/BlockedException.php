@@ -8,7 +8,7 @@ namespace TarsusIlias\Guardrail;
  * The reason ('killswitch', 'breaker', 'budget', 'ratelimit') lets callers
  * decide whether to hold, back off, or surface an error.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class BlockedException extends \RuntimeException

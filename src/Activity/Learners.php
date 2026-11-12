@@ -11,7 +11,7 @@ use TarsusIlias\Support\Ilias;
  * calls the brain. The summary counts the course (or group) members, so
  * tutors and admins trying the object do not skew it.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Learners

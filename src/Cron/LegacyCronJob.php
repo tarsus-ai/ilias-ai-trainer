@@ -6,7 +6,7 @@ namespace TarsusIlias\Cron;
  * The cron job for ILIAS 9 and 10 (ilCronJob). Declared only where that
  * API exists, so loading this file on another release is harmless.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 

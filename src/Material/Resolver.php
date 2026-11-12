@@ -14,7 +14,7 @@ use TarsusIlias\Support\Ilias;
  * the page editor tables; files are read from the resource storage at send
  * time.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Resolver

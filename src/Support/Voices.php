@@ -11,7 +11,7 @@ use TarsusIlias\Client\ClientFactory;
  * The admin decides: one voice for everyone, or the first voice of the
  * learner's language with the configured voice as the fallback.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Voices

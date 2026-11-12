@@ -32,7 +32,7 @@ use TarsusIlias\Support\Voices;
  * ({@see Interactions}). Results are plain arrays with a 'status'
  * (success, noscope, disabled, blocked, error) and a user-facing 'error'.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class LearnerApi

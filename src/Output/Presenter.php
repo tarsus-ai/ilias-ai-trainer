@@ -10,7 +10,7 @@ use TarsusIlias\Index\Status;
  * Single source of truth for the server-rendered material list and its
  * live updates, so the two never drift.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Presenter

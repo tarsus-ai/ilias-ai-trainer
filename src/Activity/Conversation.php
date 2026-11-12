@@ -14,7 +14,7 @@ use TarsusIlias\Support\Pseudonymizer;
  * a global admin setting, and the user travels as pseudonym + display name
  * + interface language. Email addresses and logins never leave ILIAS.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Conversation
