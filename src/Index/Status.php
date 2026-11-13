@@ -10,7 +10,7 @@ use TarsusIlias\Support\Ilias;
  *   notindexed -> pending -> pendingconfirmation -> indexed
  * plus pendingreindex, pendingdeletion and error.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Status

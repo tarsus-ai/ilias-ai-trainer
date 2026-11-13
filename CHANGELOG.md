@@ -3,6 +3,12 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [1.2.1] – 2026-11-13
+
+### Changed
+
+- The plugin is published and maintained by Tarsus GmbH: author and responsible developer now read *Tarsus GmbH* throughout – `plugin.php` (shown in the ILIAS plugin administration), every file header and the README. No functional change, no database step.
+
 ## [1.2.0] – 2026-11-12
 
 ### Added
@@ -91,6 +97,7 @@ First release for ILIAS 9, 10 and 11.
 - Default permissions seeded on first activation for course and group roles.
 - English and German.
 
+[1.2.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.1
 [1.2.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.0
 [1.1.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.1.0
 [1.0.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.0.0

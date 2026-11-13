@@ -7,7 +7,7 @@ namespace TarsusIlias\Client;
  * no API key, or no brain selected). The message key names a language
  * variable of the plugin.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class ConfigurationException extends \RuntimeException

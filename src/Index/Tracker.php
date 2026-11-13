@@ -19,7 +19,7 @@ use TarsusIlias\Support\UsageMeter;
  * propagates to the caller, which decides how to present it and how to
  * revert the row (Indexer::executeNow()).
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class Tracker

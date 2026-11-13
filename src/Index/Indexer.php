@@ -18,7 +18,7 @@ use TarsusIlias\Material\ResourceId;
  * failure reverts the row to its previous stable state and surfaces to
  * the caller.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class Indexer

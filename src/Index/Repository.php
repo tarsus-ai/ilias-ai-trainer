@@ -12,7 +12,7 @@ use TarsusIlias\Support\Ilias;
  * transition is validated against Status, so a row can only move through
  * legal states.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class Repository

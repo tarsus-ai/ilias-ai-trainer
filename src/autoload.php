@@ -8,7 +8,7 @@
  * loader is a safety net on top of it: when the plugin is updated and new
  * files arrive before the class map is rebuilt, they still load.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 

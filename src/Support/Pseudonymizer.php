@@ -7,7 +7,7 @@ namespace TarsusIlias\Support;
  * of the user id with a secret generated once per installation. Tarsus
  * never receives logins or email addresses.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Pseudonymizer

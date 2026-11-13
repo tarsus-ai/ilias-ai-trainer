@@ -8,7 +8,7 @@ namespace TarsusIlias\Support;
  * The plugin runs on ILIAS 9, 10 and 11. Everything that differs between
  * those releases is decided here, in one place, by feature detection.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Ilias

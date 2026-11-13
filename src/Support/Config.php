@@ -12,7 +12,7 @@ namespace TarsusIlias\Support;
  * that flipping one mid-run - during a long cron run, say - takes effect
  * immediately.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Config

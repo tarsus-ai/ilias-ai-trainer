@@ -11,7 +11,7 @@
  * step with the repository. ILIAS 11 renamed the cron API, so the base
  * class picks the provider interface the running release knows.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 

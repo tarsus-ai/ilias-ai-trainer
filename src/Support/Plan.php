@@ -22,7 +22,7 @@ namespace TarsusIlias\Support;
  * change the figures, so the partner sets them in the plugin configuration.
  * A customer with a Tarsus license key is billed by Tarsus directly.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Plan

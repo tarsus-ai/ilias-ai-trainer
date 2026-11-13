@@ -321,10 +321,8 @@ Issues and pull requests are welcome.
 
 Our thanks go to **Fred Neumann**, **Martin Studer** and **Lars Egger** for all the years of support in the ILIAS world – this plugin stands on what they built and shared.
 
-[lern.link GmbH](https://lern.link/) is Tarsus' integration partner for Moodle and ILIAS: lern.link installs the plugin for customers and records their plan and credits.
-
 ## Licence
 
-GPL-3.0-or-later – see [LICENSE](LICENSE). © 2026 lern.link GmbH. Tarsus is a product of Tarsus GmbH, [tarsus.ai](https://tarsus.ai).
+GPL-3.0-or-later – see [LICENSE](LICENSE). © 2026 Tarsus GmbH, [tarsus.ai](https://tarsus.ai).
 
 <p align="center"><sub>Our goal is to make high-quality education as accessible as Netflix.</sub></p>

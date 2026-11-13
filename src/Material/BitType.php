@@ -6,7 +6,7 @@ namespace TarsusIlias\Material;
  * The four bit types the brain ingests: it tracks text, links, documents
  * and audio/video differently.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class BitType

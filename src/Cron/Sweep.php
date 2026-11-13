@@ -11,7 +11,7 @@ use TarsusIlias\Support\Ilias;
  * What the cron job does, independent of the ILIAS release's cron API:
  * reconcile every course with indexed material against the brain.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Sweep

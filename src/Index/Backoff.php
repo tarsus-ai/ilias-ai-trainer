@@ -7,7 +7,7 @@ namespace TarsusIlias\Index;
  * four attempts at most, with optional jitter so a batch does not retry in
  * lockstep.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Backoff

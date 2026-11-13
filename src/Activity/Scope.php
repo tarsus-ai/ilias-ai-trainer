@@ -17,7 +17,7 @@ use TarsusIlias\Support\Config;
  * An empty scope must never reach the brain: it reads an empty list as
  * "search everything", which would cross course boundaries.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Scope

@@ -7,7 +7,7 @@ namespace TarsusIlias\Support;
  * user. The shared brain's usage cannot be broken down by course, so this
  * ledger provides the attribution.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class UsageMeter

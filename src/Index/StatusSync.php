@@ -16,7 +16,7 @@ use TarsusIlias\Guardrail\Pipeline;
  * number: one page costs exactly one call. Only the local index map is
  * written; the brain is never mutated here.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class StatusSync

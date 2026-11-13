@@ -12,7 +12,7 @@ use TarsusIlias\Support\Ilias;
  * Read straight from the page_object table: the format has been stable for
  * many ILIAS releases, and reading it needs no page GUI or rendering.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class PageText

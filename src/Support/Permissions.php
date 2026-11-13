@@ -15,7 +15,7 @@ namespace TarsusIlias\Support;
  * exist. Administrators may change them afterwards like any other
  * permission; the plugin never writes them again.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Permissions

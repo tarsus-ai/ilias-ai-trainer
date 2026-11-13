@@ -26,7 +26,7 @@ use TarsusIlias\Support\Interactions;
  * All transport and protocol failures surface as TransportException so the
  * guardrails pipeline and the retry budget stay in control.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class HttpClient implements ClientInterface

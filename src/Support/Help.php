@@ -7,7 +7,7 @@ namespace TarsusIlias\Support;
  * "Title | URL" line each. YouTube and Vimeo links play inside the panel;
  * anything else opens in a new tab.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Help

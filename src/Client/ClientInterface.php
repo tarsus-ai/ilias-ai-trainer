@@ -14,7 +14,7 @@ namespace TarsusIlias\Client;
  * ({@see \TarsusIlias\Support\Interactions}); it feeds the local ledger,
  * the monthly limit and the cost estimate.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 interface ClientInterface

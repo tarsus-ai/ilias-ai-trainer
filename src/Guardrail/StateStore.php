@@ -11,7 +11,7 @@ use TarsusIlias\Support\Ilias;
  * Concurrent requests and cron runs must not corrupt them, so every
  * mutation runs under a named database lock.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class StateStore

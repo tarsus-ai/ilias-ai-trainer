@@ -10,7 +10,7 @@ use TarsusIlias\Support\Ilias;
  * Markdown rendered to safe HTML, labels localised, and nothing passed on
  * that the learner should not see before answering.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Shaper

@@ -4,7 +4,7 @@
  * Access rules of Tarsus objects: learners only see objects that are
  * online; everyone with write permission always does.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 

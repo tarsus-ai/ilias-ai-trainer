@@ -3,7 +3,7 @@
 /**
  * Tarsus for ILIAS - repository object plugin.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 
@@ -12,14 +12,14 @@
 $id = 'xtar';
 
 // Plugin version.
-$version = '1.2.0';
+$version = '1.2.1';
 
 // ILIAS releases this version runs on.
 $ilias_min_version = '9.0';
 $ilias_max_version = '11.999';
 
 // Responsible developer.
-$responsible = 'lern.link GmbH';
+$responsible = 'Tarsus GmbH';
 $responsible_mail = '';
 
 // The plugin reports learning progress (ilLPStatusPluginInterface).

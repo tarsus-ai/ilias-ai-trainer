@@ -14,7 +14,7 @@ namespace TarsusIlias\Output;
  * Uses league/commonmark (shipped with ILIAS 9, 10 and 11) and falls back
  * to a small built-in renderer if it is ever missing.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Markdown

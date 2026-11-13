@@ -9,7 +9,7 @@ namespace TarsusIlias\Client;
  * retry, back off, or trip the circuit breaker. The mock raises this to
  * exercise those paths deterministically.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class TransportException extends \RuntimeException

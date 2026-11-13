@@ -10,7 +10,7 @@ use TarsusIlias\Support\Plan;
  * The settings of one Tarsus object: availability, the didactic AI
  * settings grouped by mode, and the completion threshold.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class Settings

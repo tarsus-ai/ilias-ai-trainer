@@ -14,7 +14,7 @@ use TarsusIlias\Support\Ilias;
  * delimiters inside elements with the class c-legacy__content--latex,
  * which is what the Markdown renderer emits.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 final class MathSupport

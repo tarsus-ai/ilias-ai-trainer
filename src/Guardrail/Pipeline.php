@@ -16,7 +16,7 @@ use TarsusIlias\Support\Config;
  * when the month's credits are spent. The pipeline never sleeps: retries
  * are the caller's business.
  *
- * @author  lern.link GmbH
+ * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
 class Pipeline
