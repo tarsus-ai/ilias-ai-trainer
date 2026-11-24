@@ -376,7 +376,7 @@ plan_section#:#Abonnement
 plan_section_desc#:#Das vom Kunden gebuchte Paket, wie in der Tarsus-Partnervereinbarung. Der Partner trägt es ein; es bestimmt, welche Funktionen die Objekte anbieten – ein Kunde erreicht nur, was er gebucht hat – und wie die Nutzung berechnet wird. Jedes Paket enthält die Stufe davor.
 plan#:#Plan
 plan_learn#:#Build Knowledge (LEARN)
-plan_learn_desc#:#Der volle KI-Lerncoach: Frage stellen, Wissen testen, Wissen aufbauen mit Audio-Erklärer, Spracheingabe und Agent-Modus (KI-gesteuerter Interaktionstyp). Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
+plan_learn_desc#:#Der volle KI-Lerncoach: Frage stellen, Wissen testen, Wissen aufbauen mit Audio-Erklärer, Spracheingabe, Agent-Modus (KI-gesteuerter Interaktionstyp) und Live-Interaktion. Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
 plan_practice#:#Knowledge Test (PRACTICE)
 plan_practice_desc#:#Frage stellen und Wissen testen (adaptive Quizze). Kein Wissen aufbauen, kein Audio-Erklärer, keine Spracheingabe, nur trainergesteuerte Interaktion. Enthält ein monatliches Kontingent an KI-Interaktionen; weitere werden je Interaktion berechnet.
 plan_ask#:#Ask Question (ASK)
@@ -409,6 +409,7 @@ plan_feature_build#:#Wissen aufbauen: Der KI-Lerncoach erklärt Schritt für Sch
 plan_feature_audio_explainer#:#Audio-Erklärer im KI-Lerncoach
 plan_feature_voice_input#:#Spracheingabe im KI-Lerncoach
 plan_feature_ai_driven#:#Agent-Modus (KI-gesteuerter Interaktionstyp)
+plan_feature_discuss#:#Live-Interaktion: Sprachanruf mit dem KI-Trainer, mit Folien
 plan_features_note#:#Audio-Erklärer, Spracheingabe und Agent-Modus gehören zum KI-Lerncoach Tarsus Zero. Die Standard-Vertonung (Audio Generation) ist davon nicht betroffen.
 plan_included#:#Enthalten
 plan_included_value#:#{credits} KI-Interaktionen pro Monat, danach {price} je Interaktion

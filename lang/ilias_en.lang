@@ -376,7 +376,7 @@ plan_section#:#Subscription
 plan_section_desc#:#The package the customer booked, as in the Tarsus partner agreement. The partner sets it; it decides which features the objects offer – a customer reaches only what was booked – and how usage is priced. Each package contains the one before it.
 plan#:#Plan
 plan_learn#:#Build Knowledge (LEARN)
-plan_learn_desc#:#The full AI coach: Ask a question, Test knowledge, Build knowledge with the audio explainer, voice input and the agent mode (AI-driven interaction). Includes a monthly amount of AI interactions; further interactions are charged per interaction.
+plan_learn_desc#:#The full AI coach: Ask a question, Test knowledge, Build knowledge with the audio explainer, voice input, the agent mode (AI-driven interaction) and the live interaction. Includes a monthly amount of AI interactions; further interactions are charged per interaction.
 plan_practice#:#Knowledge Test (PRACTICE)
 plan_practice_desc#:#Ask a question and Test knowledge (adaptive quizzes). No Build knowledge, no audio explainer, no voice input, trainer-driven interaction only. Includes a monthly amount of AI interactions; further interactions are charged per interaction.
 plan_ask#:#Ask Question (ASK)
@@ -409,6 +409,7 @@ plan_feature_build#:#Build knowledge: the AI coach explains step by step
 plan_feature_audio_explainer#:#Audio explainer in the AI coach
 plan_feature_voice_input#:#Voice input in the AI coach
 plan_feature_ai_driven#:#Agent mode (AI-driven interaction type)
+plan_feature_discuss#:#Live interaction: a voice call with the AI trainer, with slides
 plan_features_note#:#Audio explainer, voice input and agent mode belong to the AI coach Tarsus Zero. The standard narration of text (Audio Generation) is not affected.
 plan_included#:#Included
 plan_included_value#:#{credits} AI interactions per month, then {price} per interaction
