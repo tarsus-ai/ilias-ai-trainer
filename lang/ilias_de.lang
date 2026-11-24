@@ -615,3 +615,23 @@ err_toolarge#:#Die Aufnahme ist zu groß. Bitte fassen Sie sich kürzer.
 err_busy#:#Tarsus ist gerade ausgelastet. Bitte versuchen Sie es gleich noch einmal.
 err_server#:#Bei Tarsus ist ein Fehler aufgetreten. Bitte versuchen Sie es gleich noch einmal.
 err_request#:#Tarsus konnte diese Anfrage nicht bearbeiten.
+// Accessibility (screen readers, keyboard)
+a11y_region#:#KI-Trainer
+a11y_skip#:#Zum Eingabefeld springen
+a11y_feed#:#Unterhaltung
+a11y_composer#:#Ihre Eingabe
+a11y_you_asked#:#Ihre Frage:
+a11y_question#:#Frage
+a11y_learning_unit#:#Lerneinheit
+a11y_working#:#{name} arbeitet daran.
+a11y_answered#:#{name} antwortet:
+a11y_correct#:#Richtig.
+a11y_incorrect#:#Nicht richtig.
+a11y_partial#:#Teilweise richtig: {score} %.
+a11y_your_answer_correct#:#(Ihre Antwort, richtig)
+a11y_your_answer_incorrect#:#(Ihre Antwort, nicht richtig)
+a11y_not_correct#:#(nicht richtig)
+a11y_answer_missing#:#Bitte wählen Sie zuerst eine Antwort aus oder füllen Sie alle Felder aus.
+a11y_mode_ask#:#Geben Sie Ihre Frage ein und drücken Sie die Eingabetaste.
+a11y_mode_next#:#Die Schaltfläche „{button}“ bringt den nächsten Schritt.
+a11y_mode_discuss#:#Die Schaltfläche „{button}“ startet das Gespräch.

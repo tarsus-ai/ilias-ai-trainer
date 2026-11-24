@@ -61,6 +61,8 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
 
     /** @var string[] Interface texts of the coach. */
     private const CHAT_STRINGS = [
+        'a11y_you_asked', 'a11y_question', 'a11y_learning_unit', 'a11y_working', 'a11y_answered', 'a11y_correct', 'a11y_incorrect', 'a11y_partial',
+        'a11y_your_answer_correct', 'a11y_your_answer_incorrect', 'a11y_not_correct', 'a11y_answer_missing', 'a11y_mode_ask', 'a11y_mode_next', 'a11y_mode_discuss',
         'practice_start', 'practice_next', 'practice_check', 'practice_answer_placeholder',
         'practice_variable_placeholder', 'practice_score', 'practice_correct_value', 'xp', 'learning_units', 'learn_slide_of',
         'learn_previous', 'learn_next', 'learn_image_enlarge', 'learn_image_close', 'learn_audio', 'learn_audio_play',

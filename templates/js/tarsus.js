@@ -11,7 +11,9 @@
  * Tarsus returns; nothing about its behaviour is assumed here. Both boot from the JSON configuration the server puts
  * on their root element. No framework; Tarsus's texts are rendered like in
  * the Tarsus app (React-Markdown with KaTeX formulas) by
- * tarsus-markdown.min.js.
+ * tarsus-markdown.min.js. Screen readers hear what happens (a live
+ * region, headings on every card, words for colours) and everything works
+ * with the keyboard alone.
  *
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
@@ -169,6 +171,15 @@
             return '';
         }
         var copy = node.cloneNode(true);
+        Array.prototype.forEach.call(copy.querySelectorAll('.tarsus-sr-only'), function (hidden) {
+            hidden.parentNode.removeChild(hidden);
+        });
+        Array.prototype.forEach.call(copy.querySelectorAll('td, th'), function (cell) {
+            cell.appendChild(document.createTextNode(' '));
+        });
+        Array.prototype.forEach.call(copy.querySelectorAll('p, li, tr, h1, h2, h3, h4, h5, h6, pre, blockquote, label, br'), function (block) {
+            block.parentNode.insertBefore(document.createTextNode('\n'), block.nextSibling);
+        });
         Array.prototype.forEach.call(copy.querySelectorAll('.katex'), function (math) {
             var tex = math.querySelector('annotation[encoding="application/x-tex"]');
             if (math.parentNode) {
@@ -176,6 +187,70 @@
             }
         });
         return copy.textContent;
+    }
+
+    // ------------------------------------------------------------------
+    // Accessibility: what screen readers hear, where keyboard focus goes
+    // ------------------------------------------------------------------
+
+    var uid = 0;
+
+    /** A fresh element id. */
+    function nextId(prefix) {
+        uid += 1;
+        return prefix + uid;
+    }
+
+    /**
+     * Move keyboard focus to a node that does not take it by itself (a
+     * question, a feedback box, a heading): screen readers then read it.
+     */
+    function focusOn(node) {
+        if (!node || typeof node.focus !== 'function') {
+            return;
+        }
+        if (!node.hasAttribute('tabindex') && !node.matches('a[href], button, input, select, textarea, iframe')) {
+            node.setAttribute('tabindex', '-1');
+        }
+        node.focus({preventScroll: true});
+    }
+
+    /** Text only screen readers read. */
+    function srText(text) {
+        return el('span', {'class': 'tarsus-sr-only', text: text});
+    }
+
+    /** What keyboard focus can reach inside a container, in order. */
+    function tabbables(container) {
+        return Array.prototype.filter.call(container.querySelectorAll(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]),'
+            + ' iframe, audio[controls], video[controls], [tabindex]:not([tabindex="-1"])'
+        ), function (node) {
+            return node.getClientRects().length > 0;
+        });
+    }
+
+    /** Keep Tab and Shift+Tab inside a dialog. */
+    function trapTab(container, event) {
+        if (!container || event.key !== 'Tab') {
+            return;
+        }
+        var nodes = tabbables(container);
+        if (!nodes.length) {
+            event.preventDefault();
+            focusOn(container);
+            return;
+        }
+        var first = nodes[0];
+        var last = nodes[nodes.length - 1];
+        var active = document.activeElement;
+        if (event.shiftKey && (active === first || active === container || !container.contains(active))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (active === last || !container.contains(active))) {
+            event.preventDefault();
+            first.focus();
+        }
     }
 
     /**
@@ -453,6 +528,144 @@
         show(box, true);
     };
 
+    // --- accessibility ---------------------------------------------------
+
+    Chat.prototype.robotName = function () {
+        return this.config.robotName || 'Tarsus';
+    };
+
+    /**
+     * Tell screen-reader users what happened, without moving focus (a
+     * polite live region). Messages of the same moment are read together.
+     */
+    Chat.prototype.announce = function (text) {
+        var self = this;
+        var region = this.q('[data-region="announcer"]');
+        if (!region || !text) {
+            return;
+        }
+        this.pendingAnnouncement = (this.pendingAnnouncement ? this.pendingAnnouncement + ' ' : '') + text;
+        if (this.announceTimer) {
+            window.clearTimeout(this.announceTimer);
+        }
+        region.textContent = '';
+        this.announceTimer = window.setTimeout(function () {
+            region.textContent = self.pendingAnnouncement;
+            self.pendingAnnouncement = '';
+            self.announceTimer = null;
+            // Gone after a while, so reading the page later does not meet it again.
+            if (self.announceClear) {
+                window.clearTimeout(self.announceClear);
+            }
+            self.announceClear = window.setTimeout(function () {
+                region.textContent = '';
+            }, 15000);
+        }, 80);
+    };
+
+    /** The answer of a new exchange card, read out. */
+    Chat.prototype.announceAnswer = function (card) {
+        var body = card ? card.querySelector('[data-region="card-answer"]') : null;
+        if (!body) {
+            return;
+        }
+        var text = readableText(body).trim();
+        if (body.querySelector('iframe')) {
+            text = (text ? text + ' ' : '') + this.t('frame_title');
+        }
+        this.announce(this.t('a11y_answered', {name: this.robotName()}) + ' ' + text);
+    };
+
+    /** How to go on in a mode, for the announcement of a mode change. */
+    Chat.prototype.modeHint = function (mode) {
+        if (mode === 'ask') {
+            return this.t('a11y_mode_ask');
+        }
+        if (mode === 'discuss') {
+            var live = this.q('[data-region="live-label"]');
+            return this.t('a11y_mode_discuss', {button: live ? live.textContent : this.t('live_start')});
+        }
+        var label = this.q('[data-region="practice-label"]');
+        return this.t('a11y_mode_next', {button: label ? label.textContent : this.t('practice_next')});
+    };
+
+    /** Correct, not correct or partly correct, in words. */
+    Chat.prototype.verdictText = function (correct, score) {
+        if (typeof score === 'number' && score > 0 && score < 100) {
+            return this.t('a11y_partial', {score: Math.round(score)});
+        }
+        return this.t(correct ? 'a11y_correct' : 'a11y_incorrect');
+    };
+
+    /** The learner's experience points and result as they are shown. */
+    Chat.prototype.scoreText = function () {
+        var parts = [];
+        var badge = this.q('[data-region="xp-badge"]');
+        var chip = this.q('[data-region="grade-chip"]');
+        [badge, chip].forEach(function (node) {
+            if (node && !node.classList.contains('tarsus-hidden') && node.textContent.trim() !== '') {
+                parts.push(node.textContent.split('\u00a0').join(' ').trim());
+            }
+        });
+        return parts.join(', ');
+    };
+
+    /** The heading of a question card: "Question, Knowledge, easy". */
+    Chat.prototype.questionHeading = function (widget) {
+        var parts = [this.t('a11y_question')];
+        if (widget.taxonomy) {
+            parts.push(widget.taxonomy);
+        }
+        if (widget.difficulty) {
+            parts.push(widget.difficulty);
+        }
+        return parts.join(', ');
+    };
+
+    /**
+     * Keyboard focus on a new card, where reading starts: the slide's
+     * title, the question, the card's title or its text.
+     */
+    Chat.prototype.focusCard = function (card) {
+        if (!card) {
+            return;
+        }
+        var slide = card.querySelector('[data-region="slide"]:not(.tarsus-hidden)');
+        var scope = slide || card;
+        var heading = scope.querySelector('[data-region="question-heading"], .tarsus-learn-slide__title, .tarsus-card__title');
+        var body = scope.querySelector('.tarsus-practice-card__question, .tarsus-learn-slide__text, .tarsus-card__welcome-text');
+        focusOn(heading || body || scope);
+        if (heading && body) {
+            this.announce(readableText(body).trim());
+        }
+    };
+
+    /** The skip link: to the control the current mode starts with. */
+    Chat.prototype.focusComposer = function () {
+        var mode = this.state.mode;
+        var target = null;
+        if (mode === 'ask') {
+            target = this.state.voiceInput ? this.q('[data-region="voice"] button:not(.tarsus-hidden):not([disabled])') : this.q('.tarsus-chat-input');
+        } else if (mode === 'discuss') {
+            target = this.q('[data-action="live-start"]');
+        } else {
+            target = this.q('[data-action="next"]');
+        }
+        focusOn(target || this.q('[data-region="composer"]'));
+    };
+
+    /** Check pressed before anything was chosen or filled in. */
+    Chat.prototype.missingAnswer = function (card) {
+        this.alert(this.t('a11y_answer_missing'));
+        var empty = null;
+        card.querySelectorAll('input:not([type="radio"]), textarea').forEach(function (input) {
+            if (!empty && !input.disabled && input.value.trim() === '') {
+                empty = input;
+            }
+        });
+        focusOn(empty || card.querySelector('input[type="radio"]'));
+    };
+
     Chat.prototype.flow = function () {
         return this.q('[data-region="flow"]');
     };
@@ -602,7 +815,7 @@
                     this.avatar(this.config.userAvatar, ''),
                     el('div', {'class': 'tarsus-card__question-main'}, [
                         voice,
-                        el('div', {'class': 'tarsus-card__question-text', text: question})
+                        el('h3', {'class': 'tarsus-card__question-text'}, [srText(this.t('a11y_you_asked') + ' '), question])
                     ])
                 ]),
                 el('hr', {'class': 'tarsus-card__divider'}),
@@ -729,6 +942,7 @@
         });
         iframe.setAttribute('srcdoc', html || '');
         dialog.appendChild(iframe);
+        dialog.setAttribute('aria-label', title || self.t('frame_title'));
         if (!dialog.open) {
             if (typeof dialog.showModal === 'function') {
                 dialog.showModal();
@@ -786,14 +1000,15 @@
     Chat.prototype.practiceBody = function (widget) {
         var self = this;
         var inner = el('div', {'class': 'tarsus-practice-card__inner'});
-        inner.appendChild(el('div', {'class': 'tarsus-practice-card__question', html: widget.question || ''}));
+        var qid = nextId('tarsus-question-');
+        inner.appendChild(el('div', {'class': 'tarsus-practice-card__question', id: qid, html: widget.question || ''}));
 
         var choices = widget.choices || [];
         var variables = widget.variables || [];
         var table = widget.table || [];
 
         if (choices.length) {
-            var group = el('div', {'class': 'tarsus-practice-card__choices', 'data-region': 'choices', role: 'radiogroup'});
+            var group = el('div', {'class': 'tarsus-practice-card__choices', 'data-region': 'choices', role: 'radiogroup', 'aria-labelledby': qid});
             choices.forEach(function (choice) {
                 group.appendChild(el('label', {'class': 'tarsus-practice-choice', 'data-value': choice.value}, [
                     el('input', {type: 'radio', 'class': 'tarsus-practice-choice__input', name: 'practice-' + widget.id, value: choice.value}),
@@ -803,7 +1018,7 @@
             });
             inner.appendChild(group);
         } else if (variables.length) {
-            var vars = el('div', {'class': 'tarsus-practice-card__variables', 'data-region': 'variables'});
+            var vars = el('div', {'class': 'tarsus-practice-card__variables', 'data-region': 'variables', role: 'group', 'aria-labelledby': qid});
             variables.forEach(function (name) {
                 vars.appendChild(el('label', {'class': 'tarsus-practice-variable'}, [
                     el('span', {'class': 'tarsus-practice-variable__name', text: name}),
@@ -825,7 +1040,7 @@
                         : el('span', {'class': 'tarsus-practice-table__value', text: cell.value}));
                 })));
             });
-            inner.appendChild(el('div', {'class': 'tarsus-practice-card__table-wrap'}, el('table', {'class': 'tarsus-practice-table', 'data-region': 'table'}, [
+            inner.appendChild(el('div', {'class': 'tarsus-practice-card__table-wrap'}, el('table', {'class': 'tarsus-practice-table', 'data-region': 'table', 'aria-labelledby': qid}, [
                 el('thead', {}, el('tr', {}, columns.map(function (column) {
                     return el('th', {text: column});
                 }))),
@@ -833,7 +1048,7 @@
             ])));
         } else {
             inner.appendChild(el('textarea', {'class': 'tarsus-practice-card__input tarsus-input', rows: '3',
-                placeholder: this.t('practice_answer_placeholder'), 'aria-label': this.t('practice_answer_placeholder')}));
+                placeholder: this.t('practice_answer_placeholder'), 'aria-label': this.t('practice_answer_placeholder'), 'aria-describedby': qid}));
         }
 
         inner.appendChild(el('div', {'class': 'tarsus-practice-card__actions'},
@@ -846,7 +1061,7 @@
             el('div', {'class': 'tarsus-practice-card__score-track'}, el('div', {'class': 'tarsus-practice-card__score-fill', 'data-region': 'score-fill'})),
             el('span', {'class': 'tarsus-practice-card__score-value', 'data-region': 'score-value'})
         ]));
-        inner.appendChild(el('div', {'class': 'tarsus-practice-card__feedback tarsus-hidden', 'data-region': 'feedback'}));
+        inner.appendChild(el('div', {'class': 'tarsus-practice-card__feedback tarsus-hidden', 'data-region': 'feedback', tabindex: '-1'}));
         return inner;
     };
 
@@ -871,6 +1086,7 @@
         if (ask) {
             band.appendChild(ask);
         }
+        card.appendChild(el('h3', {'class': 'tarsus-sr-only', 'data-region': 'question-heading', text: this.questionHeading(widget)}));
         card.appendChild(band);
         card.appendChild(this.practiceBody(widget));
         return card;
@@ -889,8 +1105,9 @@
         var total = slides.length;
 
         var card = el('div', {'class': 'tarsus-card tarsus-learn-card', 'data-region': 'learn-card', 'data-stack-id': item.id, 'data-total': String(total)});
+        card.appendChild(el('h3', {'class': 'tarsus-sr-only', text: this.t('a11y_learning_unit')}));
         var band = el('div', {'class': 'tarsus-card__band tarsus-learn-card__meta'});
-        band.innerHTML = '<svg class="tarsus-learn-ring" data-region="ring" viewBox="0 0 24 24" width="24" height="24" role="img" aria-live="polite"'
+        band.innerHTML = '<svg class="tarsus-learn-ring" data-region="ring" viewBox="0 0 24 24" width="24" height="24" role="img"'
             + ' aria-label="' + escapeHtml(this.t('learn_slide_of', {current: 1, total: total})) + '">'
             + '<circle class="tarsus-learn-ring__track" cx="12" cy="12" r="9"></circle>'
             + '<circle class="tarsus-learn-ring__fill" cx="12" cy="12" r="9" style="stroke-dashoffset: ' + ringOffset(1, total) + '"></circle></svg>';
@@ -945,17 +1162,18 @@
                     'data-widget-id': question.id, 'data-widget-type': question.type,
                     'data-columns': (question.table || []).length ? JSON.stringify(question.columns || []) : null
                 });
+                qcard.appendChild(el('h4', {'class': 'tarsus-sr-only', 'data-region': 'question-heading', text: self.questionHeading(question)}));
                 qcard.appendChild(self.practiceBody(question));
                 node.appendChild(qcard);
             } else if (slide.kind === 'html' && slide.html) {
                 // An interactive page (ai-driven interaction).
                 if (slide.title) {
-                    node.appendChild(el('h5', {'class': 'tarsus-learn-slide__title', text: slide.title}));
+                    node.appendChild(el('h4', {'class': 'tarsus-learn-slide__title', text: slide.title}));
                 }
                 node.appendChild(self.frame(slide.html, slide.title));
             } else {
                 if (slide.title) {
-                    node.appendChild(el('h5', {'class': 'tarsus-learn-slide__title', text: slide.title}));
+                    node.appendChild(el('h4', {'class': 'tarsus-learn-slide__title', text: slide.title}));
                 }
                 // The picture goes where Tarsus puts it: above the text
                 // ("top") or beside it ("left", "right").
@@ -963,7 +1181,8 @@
                 var body = el('div', {'class': 'tarsus-learn-slide__body tarsus-learn-slide__body--' + (slide.image ? position : 'text')});
                 if (slide.image) {
                     body.appendChild(el('img', {'class': 'tarsus-learn-slide__image', src: slide.image, alt: '', tabindex: '0', role: 'button',
-                        'data-action': 'enlarge', title: self.t('learn_image_enlarge'), 'aria-label': self.t('learn_image_enlarge')}));
+                        'data-action': 'enlarge', 'data-title': slide.title || '', title: self.t('learn_image_enlarge'),
+                        'aria-label': self.t('learn_image_enlarge') + (slide.title ? ': ' + slide.title : '')}));
                 }
                 if (slide.text) {
                     body.appendChild(el('div', {'class': 'tarsus-learn-slide__text', html: slide.text}));
@@ -1001,7 +1220,7 @@
     };
 
     Chat.prototype.processingCard = function () {
-        return el('div', {'class': 'tarsus-card tarsus-processing', 'data-region': 'processing', role: 'status', 'aria-live': 'polite'}, [
+        return el('div', {'class': 'tarsus-card tarsus-processing', 'data-region': 'processing', 'aria-hidden': 'true'}, [
             el('div', {'class': 'tarsus-processing__row'}, [
                 el('span', {'class': 'tarsus-processing__icon', 'data-region': 'icon'}),
                 el('span', {'class': 'tarsus-processing__text', 'data-region': 'text'})
@@ -1041,6 +1260,7 @@
             }
         };
         showStep(0);
+        this.announce(this.t('a11y_working', {name: this.robotName()}));
         this.scrollToEnd();
         return {
             stop: function () {
@@ -1113,6 +1333,11 @@
             var row = input.closest('.tarsus-practice-variable');
             if (row && verdictByVariable[name] && !verdictByVariable[name].iscorrect) {
                 row.classList.add('tarsus-practice-variable--incorrect');
+                var nameNode = row.querySelector('.tarsus-practice-variable__name');
+                if (nameNode && !nameNode.querySelector('.tarsus-sr-only')) {
+                    nameNode.appendChild(srText(' ' + self.t('a11y_not_correct')));
+                    row.appendChild(el('span', {'class': 'tarsus-verdict-mark tarsus-verdict-mark--incorrect', 'aria-hidden': 'true', html: self.icon('close')}));
+                }
             }
         });
 
@@ -1167,6 +1392,12 @@
             var box = chosen.closest('.tarsus-practice-choice');
             if (box) {
                 box.classList.add(verdict.correct ? 'tarsus-practice-choice--correct' : 'tarsus-practice-choice--incorrect');
+                var label = box.querySelector('.tarsus-practice-choice__label');
+                if (label && !box.querySelector('.tarsus-verdict-mark')) {
+                    label.appendChild(srText(' ' + self.t(verdict.correct ? 'a11y_your_answer_correct' : 'a11y_your_answer_incorrect')));
+                    box.appendChild(el('span', {'class': 'tarsus-verdict-mark tarsus-verdict-mark--' + (verdict.correct ? 'correct' : 'incorrect'),
+                        'aria-hidden': 'true', html: self.icon(verdict.correct ? 'check' : 'close')}));
+                }
             }
         }
 
@@ -1188,6 +1419,8 @@
                 : (verdict.correct ? 'tarsus-practice-card__feedback--correct' : 'tarsus-practice-card__feedback--incorrect'));
             feedback.innerHTML = verdict.feedback;
             typeset(feedback);
+            feedback.insertBefore(el('h4', {'class': 'tarsus-sr-only', 'data-region': 'verdict-heading', text: self.verdictText(verdict.correct, score)}),
+                feedback.firstChild);
         }
     };
 
@@ -1447,6 +1680,7 @@
         if (target === current) {
             return;
         }
+        var navFocused = document.activeElement && document.activeElement.classList.contains('tarsus-learn-nav') && card.contains(document.activeElement);
         show(slides[current], false);
         show(slides[target], true);
         card.querySelectorAll('[data-region="slide-badge"]').forEach(function (badge) {
@@ -1462,9 +1696,21 @@
             button.disabled = (stepDir < 0 && target === 0) || (stepDir > 0 && target === slides.length - 1);
         });
         typeset(slides[target]);
+        var where = this.t('learn_slide_of', {current: target + 1, total: slides.length});
+        if (navFocused && (document.activeElement === document.body || document.activeElement.disabled)) {
+            // The button pressed is now at its end: reading goes on at the slide.
+            this.announce(where);
+            this.focusCard(card);
+            return;
+        }
+        var parts = [where];
+        slides[target].querySelectorAll('.tarsus-learn-slide__title, .tarsus-learn-slide__text, .tarsus-practice-card__question').forEach(function (part) {
+            parts.push(readableText(part).trim());
+        });
+        this.announce(parts.join('. '));
     };
 
-    Chat.prototype.openLightbox = function (src) {
+    Chat.prototype.openLightbox = function (src, title) {
         var self = this;
         var dialog = document.querySelector('.tarsus-lightbox');
         if (!dialog) {
@@ -1480,6 +1726,8 @@
             document.body.appendChild(dialog);
         }
         dialog.querySelector('.tarsus-lightbox__image').src = src;
+        dialog.querySelector('.tarsus-lightbox__image').alt = title || '';
+        dialog.setAttribute('aria-label', title || this.t('learn_image_enlarge'));
         if (!dialog.open) {
             if (typeof dialog.showModal === 'function') {
                 dialog.showModal();
@@ -1644,6 +1892,7 @@
             unlock();
             if (result.status !== 'success' || !result.items || !result.items.length) {
                 self.alert(result.error || self.t('unexpected_error'));
+                button.focus();
                 return;
             }
             if (result.progress) {
@@ -1667,9 +1916,11 @@
             self.scrollToCard(first);
             self.state.learnStarted = true;
             self.updateNextLabel();
+            self.focusCard(first);
         }).catch(function (error) {
             unlock();
             self.alert(error.message || self.t('unexpected_error'));
+            button.focus();
         });
     };
 
@@ -1694,6 +1945,7 @@
             unlock();
             if (result.status !== 'success' || !result.widgets || !result.widgets.length) {
                 self.alert(result.error || self.t('unexpected_error'));
+                button.focus();
                 return;
             }
             self.updateXp(result.progress);
@@ -1705,9 +1957,11 @@
             self.scrollToCard(first);
             self.state.practiceStarted = true;
             self.updateNextLabel();
+            self.focusCard(first);
         }).catch(function (error) {
             unlock();
             self.alert(error.message || self.t('unexpected_error'));
+            button.focus();
         });
     };
 
@@ -1747,6 +2001,7 @@
                 table.push(cells);
             });
             if (!complete) {
+                self.missingAnswer(card);
                 return;
             }
         } else if (variableInputs.length) {
@@ -1756,6 +2011,7 @@
                 }
             });
             if (answers.length !== variableInputs.length) {
+                self.missingAnswer(card);
                 return;
             }
         } else if (chosen) {
@@ -1764,8 +2020,10 @@
             answer = textinput.value.trim();
         }
         if (answer === '' && !answers.length && !table.length) {
+            this.missingAnswer(card);
             return;
         }
+        this.alert('');
 
         check.disabled = true;
         show(spinner, true);
@@ -1782,6 +2040,7 @@
             if (result.status !== 'success') {
                 check.disabled = false;
                 self.alert(result.error || self.t('unexpected_error'));
+                check.focus();
                 return;
             }
             self.finalizePracticeCard(card, {
@@ -1796,16 +2055,27 @@
             });
             self.updateXp(result.progress);
             self.scrollToEnd();
+            // Focus on the verdict (a heading); the feedback and the result are read out.
+            var feedbackBox = card.querySelector('[data-region="feedback"]');
+            var shown = feedbackBox && !feedbackBox.classList.contains('tarsus-hidden');
+            if (shown) {
+                focusOn(feedbackBox.querySelector('[data-region="verdict-heading"]') || feedbackBox);
+                self.announce(readableText(feedbackBox).trim() + ' ' + self.scoreText());
+            } else {
+                focusOn(card.querySelector('[data-region="question-heading"]') || card.querySelector('.tarsus-practice-card__question'));
+                self.announce(self.verdictText(result.correct, result.score) + ' ' + self.scoreText());
+            }
         }).catch(function (error) {
             check.disabled = false;
             show(spinner, false);
             self.alert(error.message || self.t('unexpected_error'));
+            check.focus();
         });
     };
 
     // --- modes, reply chip, asking -------------------------------------
 
-    Chat.prototype.setMode = function (mode) {
+    Chat.prototype.setMode = function (mode, quiet) {
         if (this.state.mode === 'discuss' && mode !== 'discuss' && this.state.live) {
             // Leaving the live interaction ends the call; a call the
             // learner already hung up needs no question.
@@ -1843,6 +2113,9 @@
         this.renderBadge();
         this.renderProgressBar();
         this.updateNextLabel();
+        if (!quiet) {
+            this.announce(this.t('mode_' + mode) + '. ' + this.modeHint(mode));
+        }
     };
 
     Chat.prototype.setReply = function (reply) {
@@ -1891,8 +2164,9 @@
         if (!reply) {
             return;
         }
-        this.setMode('ask');
+        this.setMode('ask', true);
         this.setReply(reply);
+        this.announce(this.t('chat_reply_about', {title: reply.title}));
         var input = this.q('.tarsus-chat-input');
         if (input && !this.state.voiceInput) {
             input.focus();
@@ -1916,7 +2190,10 @@
         if (query === '') {
             return;
         }
-        input.disabled = true;
+        // Read-only rather than disabled: the field keeps the keyboard focus
+        // (and a screen reader its place) while Tarsus answers.
+        input.readOnly = true;
+        input.setAttribute('aria-busy', 'true');
         submit.disabled = true;
         show(spinner, true);
         this.alert('');
@@ -1927,7 +2204,8 @@
         var processing = this.startProcessing('ask', false);
         var unlock = function () {
             processing.stop();
-            input.disabled = false;
+            input.readOnly = false;
+            input.removeAttribute('aria-busy');
             submit.disabled = false;
             show(spinner, false);
             input.focus();
@@ -1943,10 +2221,11 @@
             (result.messages || []).forEach(function (message) {
                 self.attach(self.noticeCard('', message.title, message.text), null, true);
             });
-            self.attach(self.exchangeCard(result.question || query, result.answer, reply ? reply.title : '', result.html || '',
+            var answered = self.attach(self.exchangeCard(result.question || query, result.answer, reply ? reply.title : '', result.html || '',
                 {id: result.widgetid, state: 'ask', sources: result.sources}), null, true);
             self.setReply(null);
             self.scrollToEnd();
+            self.announceAnswer(answered);
         }).catch(function (error) {
             unlock();
             input.value = query;
@@ -2024,7 +2303,7 @@
         } else {
             this.setVoiceState(this.voice.state);
         }
-        this.setMode(this.state.mode);
+        this.setMode(this.state.mode, true);
     };
 
     Chat.prototype.setVoiceState = function (name) {
@@ -2263,10 +2542,11 @@
             (result.messages || []).forEach(function (message) {
                 self.attach(self.noticeCard('', message.title, message.text), null, true);
             });
-            self.attach(self.exchangeCard(result.question || self.t('voice_question'), result.answer, reply ? reply.title : '', result.html || '',
+            var answered = self.attach(self.exchangeCard(result.question || self.t('voice_question'), result.answer, reply ? reply.title : '', result.html || '',
                 {id: result.widgetid, state: 'ask', sources: result.sources, voice: {src: url, duration: duration}}), null, true);
             self.setReply(null);
             self.scrollToEnd();
+            self.announceAnswer(answered);
         }).catch(function (error) {
             unlock();
             self.alert(error.message || self.t('unexpected_error'));
@@ -2316,6 +2596,7 @@
             self.state.live = card;
             self.attach(card, null, true);
             self.scrollToCard(card);
+            focusOn(frame);
             self.setLiveLabel('live_new');
         }).catch(function (error) {
             button.disabled = false;
@@ -2466,7 +2747,8 @@
             ])));
         } else if (type === 'image' && bit.image) {
             content.appendChild(el('img', {'class': 'tarsus-source__image', src: bit.image, alt: bit.title || '', tabindex: '0', role: 'button',
-                'data-action': 'enlarge', title: this.t('learn_image_enlarge')}));
+                'data-action': 'enlarge', title: this.t('learn_image_enlarge'),
+                'aria-label': this.t('learn_image_enlarge') + (bit.title ? ': ' + bit.title : '')}));
         }
         if ((type === 'audio' || type === 'video') && bit.text) {
             content.appendChild(el('div', {'class': 'tarsus-source__label', text: this.t('sources_transcript')}));
@@ -2759,7 +3041,7 @@
             el('th', {text: this.t('stats_col_build')}),
             el('th', {text: this.t('stats_col_test')}),
             el('th', {text: this.t('stats_col_last')}),
-            el('th', {'aria-label': this.t('panel_history')})
+            el('th', {}, srText(this.t('panel_history')))
         ]);
         var rows = learners.map(function (learner) {
             var status = learner.status === LP_COMPLETED ? 'lp_completed' : (learner.status === LP_IN_PROGRESS ? 'lp_in_progress' : 'lp_not_attempted');
@@ -3099,6 +3381,11 @@
                 self.autosize(input);
             });
             input.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && self.state.replyTo) {
+                    // Escape drops the reference to an earlier card.
+                    self.setReply(null);
+                    return;
+                }
                 if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
                     event.preventDefault();
                     if (form && typeof form.requestSubmit === 'function') {
@@ -3122,7 +3409,7 @@
         }
 
         var initial = this.modes.indexOf('ask') !== -1 ? 'ask' : (this.modes[0] || 'ask');
-        this.setMode(initial);
+        this.setMode(initial, true);
 
         this.root.addEventListener('click', function (event) {
             var target = event.target;
@@ -3131,6 +3418,11 @@
             }
             var action = target.closest('[data-action]');
             var name = action && self.root.contains(action) ? action.getAttribute('data-action') : '';
+            if (name === 'skip-input') {
+                event.preventDefault();
+                self.focusComposer();
+                return;
+            }
             if (name === 'drawer-close') {
                 self.closeDrawer();
                 return;
@@ -3190,7 +3482,7 @@
             }
             var picture = target.closest('[data-action="enlarge"]');
             if (picture && self.root.contains(picture)) {
-                self.openLightbox(picture.getAttribute('src'));
+                self.openLightbox(picture.getAttribute('src'), picture.getAttribute('data-title') || picture.getAttribute('alt') || '');
                 return;
             }
             var enlarge = target.closest('[data-action="frame-enlarge"]');
@@ -3225,12 +3517,24 @@
             var jump = target.closest('[data-action="jump-top"]');
             if (jump && self.root.contains(jump)) {
                 self.scrollPage(0);
+                // The button hides at the top: focus goes to the first card.
+                var firstCard = self.flow() ? self.flow().querySelector('.tarsus-card') : null;
+                if (firstCard) {
+                    self.focusCard(firstCard);
+                }
             }
         });
         this.root.addEventListener('keydown', function (event) {
             if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof Element && event.target.matches('[data-action="enlarge"]')) {
                 event.preventDefault();
-                self.openLightbox(event.target.getAttribute('src'));
+                self.openLightbox(event.target.getAttribute('src'), event.target.getAttribute('data-title') || event.target.getAttribute('alt') || '');
+            }
+        });
+        // The side panel is a dialog: Tab and Shift+Tab stay inside it.
+        this.root.addEventListener('keydown', function (event) {
+            var drawer = self.q('.tarsus-drawer');
+            if (event.key === 'Tab' && drawer && !drawer.hidden && drawer.contains(event.target)) {
+                trapTab(drawer.querySelector('.tarsus-drawer__panel'), event);
             }
         });
         document.addEventListener('keydown', function (event) {
@@ -3590,11 +3894,16 @@
         panel.querySelectorAll('[data-action="help-close"]').forEach(function (close) {
             close.addEventListener('click', function () {
                 setOpen(false);
+                button.focus();
             });
         });
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && !panel.classList.contains('tarsus-hidden')) {
+                var inside = panel.contains(document.activeElement);
                 setOpen(false);
+                if (inside) {
+                    button.focus();
+                }
             }
         });
     }

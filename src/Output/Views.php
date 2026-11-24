@@ -90,25 +90,29 @@ final class Views
 
         $drawer = '<div class="tarsus-drawer" data-region="drawer" hidden>'
             . '<div class="tarsus-drawer__backdrop" data-action="drawer-close"></div>'
-            . '<aside class="tarsus-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="' . Html::e($containerid) . '-drawer-title" tabindex="-1">'
-            . '<header class="tarsus-drawer__head"><h2 class="tarsus-drawer__title" id="' . Html::e($containerid) . '-drawer-title" data-region="drawer-title"></h2>'
+            . '<div class="tarsus-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="' . Html::e($containerid) . '-drawer-title" tabindex="-1">'
+            . '<div class="tarsus-drawer__head"><h2 class="tarsus-drawer__title" id="' . Html::e($containerid) . '-drawer-title" data-region="drawer-title"></h2>'
             . '<button type="button" class="tarsus-drawer__close" data-action="drawer-close" title="' . self::t('panel_close') . '" aria-label="'
-            . self::t('panel_close') . '">' . Html::icon('close') . '</button></header>'
+            . self::t('panel_close') . '">' . Html::icon('close') . '</button></div>'
             . '<div class="tarsus-drawer__body" data-region="drawer-body"></div>'
-            . '</aside></div>';
+            . '</div></div>';
 
-        return '<div class="tarsus-app tarsus-chat-box" id="' . Html::e($containerid) . '" data-config="' . Html::e(Html::json($config)) . '">'
+        return '<div class="tarsus-app tarsus-chat-box" id="' . Html::e($containerid) . '" role="region" aria-label="' . self::t('a11y_region') . '"'
+            . ' data-config="' . Html::e(Html::json($config)) . '">'
+            . '<a class="tarsus-skip" href="#' . Html::e($containerid) . '-composer" data-action="skip-input">' . self::t('a11y_skip') . '</a>'
             . $demo
             . $teacherbar
             . '<div class="tarsus-top-dock">' . $help . '<button type="button" class="tarsus-jump-top tarsus-hidden" data-action="jump-top" title="'
             . self::t('jump_top') . '" aria-label="' . self::t('jump_top') . '">' . Html::icon('jump_top') . '</button></div>'
             . '<div class="tarsus-progress tarsus-hidden" data-region="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"'
             . ' aria-valuenow="0" aria-label="' . self::t('practice_progress') . '"><div class="tarsus-progress__fill" data-region="progress-fill"></div></div>'
+            . '<h2 class="tarsus-sr-only">' . self::t('a11y_feed') . '</h2>'
             . '<div class="tarsus-chat-flow" data-region="flow">'
             . '<div class="tarsus-feed-older tarsus-hidden" data-region="feed-older"><span class="tarsus-spinner" aria-hidden="true"></span></div>'
             . '<div class="tarsus-feed-loading"><span class="tarsus-spinner" aria-hidden="true"></span><span>' . self::t('loading_history') . '</span></div>'
             . '</div>'
-            . '<form class="tarsus-chat-form" data-region="composer" action="#" autocomplete="off">'
+            . '<form class="tarsus-chat-form" data-region="composer" id="' . Html::e($containerid) . '-composer" tabindex="-1" aria-label="'
+            . self::t('a11y_composer') . '" action="#" autocomplete="off">'
             . '<div class="tarsus-chat-alert tarsus-hidden" role="alert" data-region="alert"></div>'
             . '<div class="tarsus-reply-chip tarsus-hidden" data-region="reply-chip">' . Html::icon('reply')
             . '<span class="tarsus-reply-chip__title" data-region="reply-title"></span>'
@@ -137,6 +141,7 @@ final class Views
             . '</div>'
             . '</div>'
             . '</form>'
+            . '<div class="tarsus-sr-only" data-region="announcer" role="status" aria-live="polite" aria-atomic="true"></div>'
             . $drawer
             . '</div>';
     }

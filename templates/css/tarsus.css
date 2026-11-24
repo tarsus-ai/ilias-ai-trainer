@@ -3306,3 +3306,108 @@ html.tarsus-drawer-lock {
 .tarsus-history__pick {
     min-width: 18rem;
 }
+
+/* Accessibility: text only screen readers read, the skip link, a visible
+   focus on what the script focuses, and right and wrong as a symbol too
+   (never as a colour alone). */
+.tarsus-sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+.tarsus-app .tarsus-skip:not(:focus) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.tarsus-app .tarsus-skip:focus {
+    display: inline-block;
+    align-self: flex-start;
+    width: auto;
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.5rem;
+    background: var(--tz-accent);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    outline: 3px solid var(--tz-focus);
+    outline-offset: 2px;
+}
+
+/* The learner's question is a heading for screen readers; it looks as before. */
+.tarsus-chat-box h3.tarsus-card__question-text {
+    margin: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+/* Where the script puts the focus: a question, a feedback box, a title. */
+.tarsus-app [tabindex="-1"]:focus,
+.tarsus-chat-box .tarsus-chat-form:focus {
+    outline: none;
+}
+
+.tarsus-app [tabindex="-1"]:focus-visible {
+    outline: 2px solid var(--tz-focus);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+
+.tarsus-app .tarsus-verdict-mark {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-size: 1.1rem;
+}
+
+.tarsus-app .tarsus-verdict-mark .tarsus-icon {
+    stroke-width: 2.6;
+}
+
+.tarsus-app .tarsus-verdict-mark--correct {
+    color: #1f7a3f;
+}
+
+.tarsus-app .tarsus-verdict-mark--incorrect {
+    color: #b3261e;
+}
+
+/* Red text on white: a darker red keeps it readable (contrast above 4.5:1). */
+.tarsus-app .tarsus-btn--danger {
+    border-color: #b3261e;
+    color: #b3261e;
+}
+
+/* The input field shows the keyboard focus too. */
+.tarsus-chat-box .tarsus-chat-input:focus-visible {
+    outline: 2px solid var(--tz-focus);
+    outline-offset: 2px;
+    border-radius: 0.4rem;
+}
+
+/* A card whose hidden heading has the keyboard focus shows it as a ring. */
+.tarsus-app .tarsus-card:has(> .tarsus-sr-only:focus-visible),
+.tarsus-app .tarsus-practice-card:has(> .tarsus-sr-only:focus-visible),
+.tarsus-app .tarsus-practice-card__feedback:has(> .tarsus-sr-only:focus-visible) {
+    outline: 2px solid var(--tz-focus);
+    outline-offset: 3px;
+}

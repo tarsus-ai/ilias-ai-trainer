@@ -615,3 +615,23 @@ err_toolarge#:#The recording is too large. Please keep it shorter.
 err_busy#:#Tarsus is busy right now. Please try again in a moment.
 err_server#:#An error occurred at Tarsus. Please try again in a moment.
 err_request#:#Tarsus could not process this request.
+// Accessibility (screen readers, keyboard)
+a11y_region#:#AI trainer
+a11y_skip#:#Skip to the input field
+a11y_feed#:#Conversation
+a11y_composer#:#Your input
+a11y_you_asked#:#You asked:
+a11y_question#:#Question
+a11y_learning_unit#:#Learning unit
+a11y_working#:#{name} is working on it.
+a11y_answered#:#{name} answers:
+a11y_correct#:#Correct.
+a11y_incorrect#:#Not correct.
+a11y_partial#:#Partly correct: {score} %.
+a11y_your_answer_correct#:#(your answer, correct)
+a11y_your_answer_incorrect#:#(your answer, not correct)
+a11y_not_correct#:#(not correct)
+a11y_answer_missing#:#Please choose an answer or fill in every field first.
+a11y_mode_ask#:#Type your question and press Enter.
+a11y_mode_next#:#The button “{button}” brings the next step.
+a11y_mode_discuss#:#The button “{button}” starts the conversation.
