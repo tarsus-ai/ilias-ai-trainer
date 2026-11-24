@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d2125; background: #f7f8fb; }
+  .call { display: flex; min-height: 460px; height: 100%; }
+  .slide { flex: 1; padding: 24px; }
+  .card { height: 100%; min-height: 400px; background: #fff; border: 1px solid #e6e8ee; border-radius: 12px; padding: 22px 26px; }
+  .card h1 { font-size: 22px; margin: 0 0 12px; }
+  .card p { color: #50555c; line-height: 1.5; }
+  .bar { width: 76px; background: linear-gradient(180deg, #2f6fb1, #24558a); color: #fff; display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 14px; }
+  .logo { width: 50px; height: 50px; border-radius: 50%; background: #fff; color: #2f6fb1; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .name { writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: 1px; }
+  .time { font-variant-numeric: tabular-nums; font-size: 13px; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #c9ced6; background: #fff; cursor: pointer; margin: 4px 6px 4px 0; }
+  .status { margin-top: 10px; font-size: 14px; color: #23704a; }
+  .status.bad { color: #9b2c2c; }
+</style>
+</head>
+<body>
+<div class="call">
+  <div class="slide"><div class="card">
+    <h1 data-de="Live-Interaktion (Demo)" data-en="Live interaction (demo)">Live-Interaktion (Demo)</h1>
+    <p data-de="Im echten Betrieb kommt diese Seite von Tarsus: der Anruf beim KI-Trainer mit Folien. In der Demo lässt sich hier prüfen, ob der Rahmen das Mikrofon benutzen darf."
+       data-en="In real use this page comes from Tarsus: the call with the AI trainer, with slides. In the demo you can check here that the frame may use the microphone.">.</p>
+    <button type="button" id="mic" data-de="Mikrofon testen" data-en="Test the microphone">Mikrofon testen</button>
+    <button type="button" id="expire" data-de="Ablauf simulieren" data-en="Simulate expiry">Ablauf simulieren</button>
+    <div class="status" id="status" role="status"></div>
+  </div></div>
+  <div class="bar" aria-label="Call">
+    <div class="logo">AI</div>
+    <div class="time" id="time">0:00</div>
+    <div class="name">{{name}}</div>
+  </div>
+</div>
+<script>
+(function () {
+  var lang = document.documentElement.lang === 'en' ? 'en' : 'de';
+  document.querySelectorAll('[data-de]').forEach(function (node) { node.textContent = node.getAttribute('data-' + lang); });
+  var status = document.getElementById('status');
+  var started = Date.now();
+  setInterval(function () {
+    var s = Math.floor((Date.now() - started) / 1000);
+    document.getElementById('time').textContent = Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+  }, 1000);
+  document.getElementById('mic').addEventListener('click', function () {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      status.className = 'status bad';
+      status.textContent = lang === 'de' ? 'Kein Mikrofon-Zugriff in diesem Rahmen.' : 'No microphone access in this frame.';
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({audio: true}).then(function (stream) {
+      stream.getTracks().forEach(function (track) { track.stop(); });
+      status.className = 'status';
+      status.textContent = lang === 'de' ? 'Mikrofon funktioniert.' : 'The microphone works.';
+    }).catch(function (error) {
+      status.className = 'status bad';
+      status.textContent = (lang === 'de' ? 'Mikrofon nicht erlaubt: ' : 'Microphone not allowed: ') + (error && error.name);
+    });
+  });
+  document.getElementById('expire').addEventListener('click', function () {
+    parent.postMessage({type: 'genericLiveWidget:expired'}, '*');
+  });
+  function report() { parent.postMessage({type: 'genericWebWidget:resize', height: document.documentElement.scrollHeight}, '*'); }
+  window.addEventListener('load', report);
+  report();
+})();
+</script>
+</body>
+</html>

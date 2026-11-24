@@ -20,6 +20,12 @@ final class Settings
     /** Default completion threshold in percent. */
     public const DEFAULT_COMPLETION = 80;
 
+    /** Thinking levels (1 fast, 2 slow, 3 deep, 4 intensive). */
+    public const THINKING_LEVELS = [1, 2, 3, 4];
+
+    /** What Tarsus does when no level is sent: no change for existing objects. */
+    public const DEFAULT_THINKING_LEVEL = 4;
+
     public int $objid = 0;
     public bool $online = false;
     public int $conversationstyle = 3;
@@ -35,7 +41,17 @@ final class Settings
     public bool $askenabled = true;
     public bool $testenabled = true;
     public bool $buildenabled = true;
+    /** Live interaction (state discuss): a spoken conversation with the coach. */
+    public bool $discussenabled = true;
     public bool $gifenabled = false;
+    /** How thoroughly the coach thinks: 1 fast .. 4 intensive (Tarsus's default). */
+    public int $thinkinglevel = self::DEFAULT_THINKING_LEVEL;
+    /** Pictures and other visual content come with a description. */
+    public bool $visualaccessibility = false;
+    /** Learners may look at the sources of an answer. */
+    public bool $referencesenabled = true;
+    /** Learners may speak their question in Ask a question. */
+    public bool $voiceinput = true;
     public string $learningmethod = Didactics::METHOD_MICROLEARNING;
     /** trainer-driven (text and pictures) or ai-driven (interactive pages). */
     public string $interactiontype = Plan::INTERACTION_TRAINER;
@@ -69,7 +85,12 @@ final class Settings
         $settings->askenabled = !empty($row['ask_on']);
         $settings->testenabled = !empty($row['test_on']);
         $settings->buildenabled = !empty($row['build_on']);
+        $settings->discussenabled = !empty($row['discuss_on']);
         $settings->gifenabled = !empty($row['gif_on']);
+        $settings->thinkinglevel = self::within((int) ($row['think_level'] ?? self::DEFAULT_THINKING_LEVEL), self::THINKING_LEVELS, self::DEFAULT_THINKING_LEVEL);
+        $settings->visualaccessibility = !empty($row['visual_acc']);
+        $settings->referencesenabled = !isset($row['refs_on']) || !empty($row['refs_on']);
+        $settings->voiceinput = !isset($row['voice_on']) || !empty($row['voice_on']);
         $settings->learningmethod = Didactics::learningMethod((string) ($row['learn_method'] ?? ''));
         $settings->interactiontype = self::interaction((string) ($row['interaction'] ?? ''));
         $settings->completionprogress = max(0, min(100, (int) ($row['compl_progress'] ?? self::DEFAULT_COMPLETION)));
@@ -92,7 +113,12 @@ final class Settings
             'ask_on' => ['integer', $this->askenabled ? 1 : 0],
             'test_on' => ['integer', $this->testenabled ? 1 : 0],
             'build_on' => ['integer', $this->buildenabled ? 1 : 0],
+            'discuss_on' => ['integer', $this->discussenabled ? 1 : 0],
             'gif_on' => ['integer', $this->gifenabled ? 1 : 0],
+            'think_level' => ['integer', self::within($this->thinkinglevel, self::THINKING_LEVELS, self::DEFAULT_THINKING_LEVEL)],
+            'visual_acc' => ['integer', $this->visualaccessibility ? 1 : 0],
+            'refs_on' => ['integer', $this->referencesenabled ? 1 : 0],
+            'voice_on' => ['integer', $this->voiceinput ? 1 : 0],
             'learn_method' => ['text', Didactics::learningMethod($this->learningmethod)],
             'interaction' => ['text', self::interaction($this->interactiontype)],
             'compl_progress' => ['integer', max(0, min(100, $this->completionprogress))],
@@ -158,8 +184,19 @@ final class Settings
                 return $this->testenabled;
             case 'build':
                 return $this->buildenabled;
+            case 'discuss':
+                return $this->discussenabled;
         }
         return false;
+    }
+
+    /**
+     * Whether learners may speak their question: switched on here and part
+     * of the package.
+     */
+    public function voiceInputActive(): bool
+    {
+        return $this->voiceinput && $this->modeActive('ask') && Plan::allowsVoiceInput();
     }
 
     /**

@@ -61,12 +61,15 @@ final class Status
         ],
         // The brain is the source of truth: it may report a resource as
         // simply absent ("failed"), which drops the row to the start state.
+        // When the connection moves to another brain, the upload is sent
+        // again there (Reconciler::retarget()).
         self::PENDING_CONFIRMATION => [
             self::INDEXED,
             self::PENDING,
             self::NOT_INDEXED,
             self::ERROR,
             self::PENDING_DELETION,
+            self::PENDING_REINDEX,
         ],
         self::INDEXED => [self::PENDING_REINDEX, self::NOT_INDEXED, self::PENDING_DELETION],
         // pending is reached mid-re-index: once the old bits are untracked

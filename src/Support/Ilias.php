@@ -286,6 +286,46 @@ final class Ilias
     }
 
     /**
+     * The largest upload this server accepts, in bytes: the smaller of
+     * PHP's upload_max_filesize and post_max_size (0 for one means no limit).
+     */
+    public static function uploadLimit(): int
+    {
+        $limits = [];
+        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
+            $bytes = self::iniBytes((string) ini_get($key));
+            if ($bytes > 0) {
+                $limits[] = $bytes;
+            }
+        }
+        return $limits === [] ? 0 : min($limits);
+    }
+
+    /**
+     * A php.ini size ("8M", "512K", "1G", "1048576") in bytes.
+     */
+    private static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+        $unit = strtoupper(substr($value, -1));
+        $number = (float) (ctype_alpha($unit) ? substr($value, 0, -1) : $value);
+        switch ($unit) {
+            case 'G':
+                $number *= 1024;
+                // no break
+            case 'M':
+                $number *= 1024;
+                // no break
+            case 'K':
+                $number *= 1024;
+        }
+        return (int) $number;
+    }
+
+    /**
      * The POST body of the current request as an array.
      *
      * @return array<string, mixed>

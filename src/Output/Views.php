@@ -21,7 +21,10 @@ final class Views
     }
 
     /**
-     * The learner chat: feed, progress bar, composer with the mode switch.
+     * The coach: feed, progress bar, composer with the mode switch, the
+     * recorder for spoken questions, the bar of the live interaction, and
+     * the panel that slides in from the right (sources for everyone;
+     * settings, evaluation and history for teachers).
      *
      * @param array<string, mixed> $config The client configuration (JSON-encoded into the page).
      */
@@ -38,8 +41,65 @@ final class Views
             ? '<div class="tarsus-demo-note" role="note">' . self::t('demo_note') . '</div>'
             : '';
 
+        $teacherbar = '';
+        if (!empty($config['teacher'])) {
+            $teacherbar = '<div class="tarsus-teacher-bar" role="group" aria-label="' . self::t('teacher_tools') . '">';
+            foreach (['settings' => 'settings', 'stats' => 'chart', 'history' => 'history'] as $panel => $icon) {
+                $teacherbar .= '<button type="button" class="tarsus-btn tarsus-btn--sm tarsus-teacher-bar__btn" data-action="panel" data-panel="'
+                    . $panel . '">' . Html::icon($icon) . '<span>' . self::t('panel_' . $panel) . '</span></button>';
+            }
+            $teacherbar .= '</div>';
+        }
+
+        $voice = '';
+        $voicetoggle = '';
+        if (!empty($config['voice'])) {
+            $button = static fn(string $action, string $icon, string $label, string $extra = ''): string =>
+                '<button type="button" class="tarsus-voice__btn' . $extra . '" data-action="' . $action . '">'
+                . Html::icon($icon) . '<span>' . self::t($label) . '</span></button>';
+            $voice = '<div class="tarsus-voice tarsus-hidden" data-region="voice" data-state="idle">'
+                . '<span class="tarsus-voice__dot" aria-hidden="true"></span>'
+                . '<span class="tarsus-voice__state" data-region="voice-state" aria-live="polite">' . self::t('voice_question') . '</span>'
+                . '<span class="tarsus-voice__time" data-region="voice-time">0:00</span>'
+                . '<span class="tarsus-voice__wave" data-region="voice-wave" aria-hidden="true"></span>'
+                . '<audio class="tarsus-hidden" data-region="voice-audio" preload="auto"></audio>'
+                . '<span class="tarsus-voice__actions">'
+                . $button('voice-start', 'record', 'voice_start', ' tarsus-voice__btn--record')
+                . $button('voice-pause', 'audio_pause', 'voice_pause')
+                . $button('voice-resume', 'record', 'voice_resume')
+                . $button('voice-stop', 'stop', 'voice_stop')
+                . $button('voice-play', 'audio_play', 'voice_play')
+                . $button('voice-discard', 'trash', 'voice_discard')
+                . '</span></div>';
+            $voicetoggle = '<button type="button" class="tarsus-btn tarsus-btn--ghost tarsus-voice-toggle tarsus-hidden" data-action="voice-toggle"'
+                . ' title="' . self::t('voice_to_voice') . '" aria-label="' . self::t('voice_to_voice') . '">'
+                . '<span data-region="voice-toggle-mic">' . Html::icon('mic') . '</span>'
+                . '<span class="tarsus-hidden" data-region="voice-toggle-text">' . Html::icon('keyboard') . '</span>'
+                . '<span class="tarsus-voice-toggle__label" data-region="voice-toggle-label">' . self::t('voice_to_voice') . '</span></button>';
+        }
+
+        $live = '';
+        if (in_array('discuss', $modes, true)) {
+            $live = '<div class="tarsus-live-bar tarsus-hidden" data-region="live-bar">'
+                . '<span class="tarsus-live-bar__text" data-region="live-text">' . self::t('live_intro') . '</span>'
+                . '<button type="button" class="tarsus-btn tarsus-btn--primary" data-action="live-start">' . Html::icon('mode_discuss')
+                . '<span data-region="live-label">' . self::t('live_start') . '</span>'
+                . '<span class="tarsus-spinner tarsus-spinner--light tarsus-hidden" data-region="live-spinner" aria-hidden="true"></span></button>'
+                . '</div>';
+        }
+
+        $drawer = '<div class="tarsus-drawer" data-region="drawer" hidden>'
+            . '<div class="tarsus-drawer__backdrop" data-action="drawer-close"></div>'
+            . '<aside class="tarsus-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="' . Html::e($containerid) . '-drawer-title" tabindex="-1">'
+            . '<header class="tarsus-drawer__head"><h2 class="tarsus-drawer__title" id="' . Html::e($containerid) . '-drawer-title" data-region="drawer-title"></h2>'
+            . '<button type="button" class="tarsus-drawer__close" data-action="drawer-close" title="' . self::t('panel_close') . '" aria-label="'
+            . self::t('panel_close') . '">' . Html::icon('close') . '</button></header>'
+            . '<div class="tarsus-drawer__body" data-region="drawer-body"></div>'
+            . '</aside></div>';
+
         return '<div class="tarsus-app tarsus-chat-box" id="' . Html::e($containerid) . '" data-config="' . Html::e(Html::json($config)) . '">'
             . $demo
+            . $teacherbar
             . '<div class="tarsus-top-dock">' . $help . '<button type="button" class="tarsus-jump-top tarsus-hidden" data-action="jump-top" title="'
             . self::t('jump_top') . '" aria-label="' . self::t('jump_top') . '">' . Html::icon('jump_top') . '</button></div>'
             . '<div class="tarsus-progress tarsus-hidden" data-region="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"'
@@ -56,12 +116,17 @@ final class Views
             . '" aria-label="' . self::t('chat_reply_clear') . '">' . Html::icon('close') . '</button></div>'
             . '<textarea class="tarsus-chat-input" rows="1" maxlength="4000" placeholder="' . self::t('chat_placeholder') . '" aria-label="'
             . self::t('chat_placeholder') . '"></textarea>'
+            . $voice
+            . $live
             . '<div class="tarsus-composer-row">'
             . '<div class="tarsus-composer-left">'
             . '<div class="tarsus-mode-switch__group" role="group" aria-label="' . self::t('mode_switch') . '">' . $buttons . '</div>'
             . '<span class="tarsus-xp-badge tarsus-hidden" data-region="xp-badge"><span data-region="xp-earned">0</span>&nbsp;/&nbsp;'
             . '<span data-region="xp-total">0</span>&nbsp;<span data-region="xp-unit">' . self::t('xp') . '</span></span>'
+            . '<span class="tarsus-grade-chip tarsus-hidden" data-region="grade-chip" title="' . self::t('grade_title') . '"></span>'
             . '</div>'
+            . '<div class="tarsus-composer-right">'
+            . $voicetoggle
             . '<button class="tarsus-btn tarsus-btn--primary tarsus-practice-next tarsus-hidden" type="button" data-action="next">'
             . '<span data-region="practice-label">' . self::t('practice_start') . '</span>'
             . '<span class="tarsus-practice-next__icon">' . Html::icon('send') . '</span>'
@@ -70,7 +135,9 @@ final class Views
             . '<span class="tarsus-spinner tarsus-spinner--light tarsus-hidden" data-region="send-spinner" aria-hidden="true"></span>'
             . '<span>' . self::t('send') . '</span>' . Html::icon('send') . '</button>'
             . '</div>'
+            . '</div>'
             . '</form>'
+            . $drawer
             . '</div>';
     }
 
@@ -168,127 +235,6 @@ final class Views
     }
 
     /**
-     * The teacher's learner overview: summary card and per-learner table.
-     *
-     * @param array<string, mixed> $overview From Activity\Learners::overview().
-     */
-    public static function learners(array $overview, bool $hastest, bool $hasbuild, int $threshold): string
-    {
-        if (!$hastest && !$hasbuild) {
-            // Ask a question alone: a read-only activity without score or
-            // progress - just who took part and when.
-            return self::learnersReadOnly($overview);
-        }
-        $summary = $overview['summary'];
-        $total = max(0, (int) $summary['total']);
-        $pct = static fn(int $n): string => $total > 0 ? number_format($n / $total * 100, 1, '.', '') : '0';
-        $avg = (float) $summary['avgprogress'];
-        $ring = number_format(56.55 * (1 - max(0, min(100, $avg)) / 100), 2, '.', '');
-
-        $html = '<div class="tarsus-app tarsus-learners">';
-        $html .= '<div class="tarsus-summary">'
-            . '<div class="tarsus-summary__hero">'
-            . '<span class="tarsus-ring" style="--tarsus-ring:64px"><svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="'
-            . self::t('avg_progress') . ' ' . (int) round($avg) . '%"><circle class="tarsus-ring__track" cx="12" cy="12" r="9"></circle>'
-            . '<circle class="tarsus-ring__fill" cx="12" cy="12" r="9" style="stroke-dashoffset:' . $ring . '"></circle></svg>'
-            . '<span class="tarsus-ring__value">' . (int) round($avg) . '%</span></span>'
-            . '<div class="tarsus-summary__text"><div class="tarsus-eyebrow">' . self::t('avg_progress') . '</div>'
-            . '<div class="tarsus-headline">' . self::t('n_learners', ['count' => $total]) . '</div>'
-            . ($summary['avggrade'] !== null ? '<div class="tarsus-muted">' . self::t('avg_score', ['score' => (int) round((float) $summary['avggrade'])]) . '</div>' : '')
-            . '</div></div>'
-            . '<div class="tarsus-summary__dist">'
-            . '<div class="tarsus-stack" role="img" aria-label="' . self::t('distribution', [
-                'completed' => (int) $summary['completed'], 'inprogress' => (int) $summary['inprogress'], 'notstarted' => (int) $summary['notstarted'],
-            ]) . '">'
-            . '<span class="tarsus-stack__part tarsus-stack__part--done" style="width:' . $pct((int) $summary['completed']) . '%"></span>'
-            . '<span class="tarsus-stack__part tarsus-stack__part--open" style="width:' . $pct((int) $summary['inprogress']) . '%"></span>'
-            . '<span class="tarsus-stack__part tarsus-stack__part--none" style="width:' . $pct((int) $summary['notstarted']) . '%"></span>'
-            . '</div>'
-            . '<div class="tarsus-legend">'
-            . '<span><i class="tarsus-dot tarsus-dot--done"></i>' . self::t('n_completed', ['count' => (int) $summary['completed']]) . '</span>'
-            . '<span><i class="tarsus-dot tarsus-dot--open"></i>' . self::t('n_inprogress', ['count' => (int) $summary['inprogress']]) . '</span>'
-            . '<span><i class="tarsus-dot tarsus-dot--none"></i>' . self::t('n_notstarted', ['count' => (int) $summary['notstarted']]) . '</span>'
-            . '</div>';
-
-        $buckets = (array) $summary['buckets'];
-        $peak = max(1, max($buckets ?: [0]));
-        $labels = ['0-25', '25-50', '50-75', '75-100'];
-        $html .= '<div class="tarsus-histogram" role="img" aria-label="' . self::t('histogram') . '">';
-        foreach ($buckets as $i => $count) {
-            $html .= '<div class="tarsus-histogram__bucket" title="' . Html::e($labels[$i] . ' %: ' . $count) . '">'
-                . '<span class="tarsus-histogram__count">' . (int) $count . '</span>'
-                . '<span class="tarsus-histogram__bar"><span class="tarsus-histogram__fill" style="height:' . (int) round($count / $peak * 100) . '%"></span></span>'
-                . '<span class="tarsus-histogram__label">' . Html::e($labels[$i]) . '</span></div>';
-        }
-        $html .= '</div></div></div>';
-
-        if ($threshold > 0) {
-            $html .= '<p class="tarsus-muted tarsus-small">' . self::t('learners_threshold', ['threshold' => $threshold]) . '</p>';
-        }
-
-        if ($overview['learners'] === []) {
-            return $html . '<div class="tarsus-empty">' . self::t('no_learners') . '</div></div>';
-        }
-
-        $html .= '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr>'
-            . '<th scope="col">' . self::t('col_learner') . '</th>'
-            . '<th scope="col">' . self::t('col_progress') . '</th>'
-            . ($hastest ? '<th scope="col">' . self::t('xp') . '</th>' : '')
-            . ($hasbuild ? '<th scope="col">' . self::t('learning_units') . '</th>' : '')
-            . (($hastest || $hasbuild) ? '<th scope="col">' . self::t('col_score') . '</th>' : '')
-            . '<th scope="col">' . self::t('col_lp_status') . '</th>'
-            . '<th scope="col">' . self::t('col_last_activity') . '</th>'
-            . '</tr></thead><tbody>';
-        foreach ($overview['learners'] as $learner) {
-            $statuskey = $learner['status'] === Scoring::LP_COMPLETED ? 'lp_completed'
-                : ($learner['status'] === Scoring::LP_IN_PROGRESS ? 'lp_in_progress' : 'lp_not_attempted');
-            $statusclass = $learner['status'] === Scoring::LP_COMPLETED ? 'success'
-                : ($learner['status'] === Scoring::LP_IN_PROGRESS ? 'info' : 'neutral');
-            $name = trim($learner['lastname'] . ', ' . $learner['firstname'], ', ');
-            $html .= '<tr>'
-                . '<td>' . Html::e($name) . ($learner['member'] ? '' : ' <span class="tarsus-muted tarsus-small">(' . self::t('not_member') . ')</span>') . '</td>'
-                . '<td><div class="tarsus-minibar"><span class="tarsus-minibar__track"><span class="tarsus-minibar__fill" style="width:'
-                . (int) round($learner['progress']) . '%"></span></span><span>' . (int) round($learner['progress']) . ' %</span></div></td>'
-                . ($hastest ? '<td class="tarsus-nowrap">' . self::figure($learner['earnedxp']) . ' / ' . self::figure($learner['totalxp']) . '</td>' : '')
-                . ($hasbuild ? '<td class="tarsus-nowrap">' . self::figure($learner['earnedunits']) . ' / ' . self::figure($learner['totalunits']) . '</td>' : '')
-                . (($hastest || $hasbuild) ? '<td>' . ($learner['grade'] === null ? '&ndash;' : (int) round($learner['grade'])) . '</td>' : '')
-                . '<td><span class="tarsus-badge tarsus-badge--' . $statusclass . '">' . self::t($statuskey) . '</span></td>'
-                . '<td class="tarsus-nowrap">' . ($learner['lastactivity'] > 0 ? Html::e(self::date((int) $learner['lastactivity'])) : '&ndash;') . '</td>'
-                . '</tr>';
-        }
-        return $html . '</tbody></table></div></div>';
-    }
-
-    /**
-     * The learner list of a read-only activity (neither Test nor Build
-     * knowledge active): participation and last activity only.
-     *
-     * @param array<string, mixed> $overview
-     */
-    private static function learnersReadOnly(array $overview): string
-    {
-        $html = '<div class="tarsus-app tarsus-learners">'
-            . '<div class="tarsus-readonly-note">' . Html::icon('mode_ask', 'tarsus-icon tarsus-icon--inline') . ' ' . self::t('learners_readonly') . '</div>';
-        if ($overview['learners'] === []) {
-            return $html . '<div class="tarsus-empty">' . self::t('no_learners') . '</div></div>';
-        }
-        $html .= '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr>'
-            . '<th scope="col">' . self::t('col_learner') . '</th>'
-            . '<th scope="col">' . self::t('col_participation') . '</th>'
-            . '<th scope="col">' . self::t('col_last_activity') . '</th>'
-            . '</tr></thead><tbody>';
-        foreach ($overview['learners'] as $learner) {
-            $name = trim($learner['lastname'] . ', ' . $learner['firstname'], ', ');
-            $html .= '<tr>'
-                . '<td>' . Html::e($name) . ($learner['member'] ? '' : ' <span class="tarsus-muted tarsus-small">(' . self::t('not_member') . ')</span>') . '</td>'
-                . '<td><span class="tarsus-badge tarsus-badge--' . ($learner['started'] ? 'info' : 'neutral') . '">' . self::t($learner['started'] ? 'participated' : 'lp_not_attempted') . '</span></td>'
-                . '<td class="tarsus-nowrap">' . ($learner['lastactivity'] > 0 ? Html::e(self::date((int) $learner['lastactivity'])) : '&ndash;') . '</td>'
-                . '</tr>';
-        }
-        return $html . '</tbody></table></div></div>';
-    }
-
-    /**
      * The help button with its panel of support links and videos. Empty
      * when nothing is configured.
      *
@@ -321,110 +267,21 @@ final class Views
     /**
      * A horizontal usage bar: used against limit, coloured by severity.
      */
-    public static function usageBar(int $used, int $limit, string $level): string
+    public static function usageBar(float $used, int $limit, string $level): string
     {
         $percent = $limit > 0 ? min(100, $used / $limit * 100) : 0;
+        // The brain's figure, written the way the user's language writes numbers.
         $label = $limit > 0
-            ? self::t('usage_bar_label', ['used' => number_format($used), 'limit' => number_format($limit), 'percent' => number_format($percent, 0)])
-            : self::t('usage_bar_nolimit', ['used' => number_format($used)]);
+            ? self::t('usage_bar_label', [
+                'used' => \TarsusIlias\Support\Budget::format($used),
+                'limit' => \TarsusIlias\Support\Budget::format((float) $limit),
+                'percent' => number_format($percent, 0),
+            ])
+            : self::t('usage_bar_nolimit', ['used' => \TarsusIlias\Support\Budget::format($used)]);
         return '<div class="tarsus-usage tarsus-usage--' . Html::e($level) . '" role="img" aria-label="' . $label . '">'
             . '<div class="tarsus-usage__track"><span class="tarsus-usage__fill" style="width:' . number_format($percent, 1, '.', '') . '%"></span>'
             . '<i class="tarsus-usage__mark" style="left:50%"></i><i class="tarsus-usage__mark" style="left:75%"></i><i class="tarsus-usage__mark" style="left:90%"></i></div>'
             . '<div class="tarsus-usage__label">' . $label . '</div></div>';
-    }
-
-    /**
-     * The teacher's analytics: this month's figures, a 30-day chart of
-     * requests, the split by mode and the most active learners.
-     *
-     * @param array<string, mixed> $data
-     */
-    public static function analytics(array $data, string $help = ''): string
-    {
-        $month = $data['month'];
-        $html = '<div class="tarsus-app tarsus-analytics">' . ($help !== '' ? '<div class="tarsus-help-row">' . $help . '</div>' : '');
-
-        $cards = [
-            ['value' => number_format((int) $month['requests']), 'label' => self::t('analytics_requests_month')],
-            ['value' => number_format((int) $month['credits']), 'label' => self::t('analytics_credits_month')],
-            ['value' => number_format((int) $month['learners']), 'label' => self::t('analytics_active_learners')],
-            ['value' => number_format((float) $month['share'], 1) . ' %', 'label' => self::t('analytics_share')],
-        ];
-        $html .= '<div class="tarsus-cards">';
-        foreach ($cards as $card) {
-            $html .= '<div class="tarsus-stat-card"><div class="tarsus-stat-card__value">' . Html::e($card['value']) . '</div>'
-                . '<div class="tarsus-stat-card__label">' . $card['label'] . '</div></div>';
-        }
-        $html .= '</div>';
-
-        // Installation-wide budget, so a teacher knows when the month runs dry.
-        $budget = $data['budget'];
-        $html .= '<div class="tarsus-panel"><div class="tarsus-eyebrow">' . self::t('analytics_budget') . '</div>'
-            . self::usageBar((int) $budget['used'], (int) $budget['limit'], (string) $budget['level'])
-            . '<p class="tarsus-muted tarsus-small">' . self::t('analytics_budget_note', ['reset' => (string) $budget['reset']]) . '</p></div>';
-
-        // Requests per day, last 30 days.
-        $days = $data['days'];
-        $max = 1;
-        foreach ($days as $day) {
-            $max = max($max, (int) $day['calls']);
-        }
-        $count = max(1, count($days));
-        $w = 900;
-        $h = 220;
-        $pad = ['l' => 36, 'r' => 8, 't' => 10, 'b' => 30];
-        $plotw = $w - $pad['l'] - $pad['r'];
-        $ploth = $h - $pad['t'] - $pad['b'];
-        $slot = $plotw / $count;
-        $svg = '<svg class="tarsus-chart" viewBox="0 0 ' . $w . ' ' . $h . '" role="img" aria-label="' . self::t('analytics_chart_label') . '">';
-        foreach ([0, 0.5, 1] as $tick) {
-            $y = $pad['t'] + $ploth * (1 - $tick);
-            $svg .= '<line class="tarsus-chart__grid" x1="' . $pad['l'] . '" x2="' . ($w - $pad['r']) . '" y1="' . $y . '" y2="' . $y . '"></line>'
-                . '<text class="tarsus-chart__tick" x="' . ($pad['l'] - 8) . '" y="' . ($y + 4) . '" text-anchor="end">' . (int) round($max * $tick) . '</text>';
-        }
-        foreach (array_values($days) as $index => $day) {
-            $calls = (int) $day['calls'];
-            $barh = $max > 0 ? $ploth * $calls / $max : 0;
-            $x = $pad['l'] + $slot * $index + $slot * 0.15;
-            $y = $pad['t'] + $ploth - $barh;
-            $svg .= '<rect class="tarsus-chart__bar' . ($calls === 0 ? ' tarsus-chart__bar--empty' : '') . '" x="' . number_format($x, 1, '.', '') . '" y="' . number_format($y, 1, '.', '')
-                . '" width="' . number_format($slot * 0.7, 1, '.', '') . '" height="' . number_format(max($barh, $calls > 0 ? 2 : 0), 1, '.', '') . '" rx="2">'
-                . '<title>' . Html::e($day['label']) . ': ' . self::t('analytics_tooltip', ['calls' => $calls, 'credits' => (int) $day['credits']]) . '</title></rect>';
-            if ($index % 5 === 0 || $index === $count - 1) {
-                $svg .= '<text class="tarsus-chart__tick" x="' . number_format($x + $slot * 0.35, 1, '.', '') . '" y="' . ($h - 10) . '" text-anchor="middle">' . Html::e($day['short']) . '</text>';
-            }
-        }
-        $svg .= '</svg>';
-        $html .= '<div class="tarsus-panel"><div class="tarsus-eyebrow">' . self::t('analytics_chart_title') . '</div>' . $svg . '</div>';
-
-        // Split by mode.
-        $html .= '<div class="tarsus-analytics__grid">';
-        $html .= '<div class="tarsus-panel"><div class="tarsus-eyebrow">' . self::t('analytics_by_mode') . '</div>'
-            . '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr><th>' . self::t('analytics_mode') . '</th><th class="tarsus-num">'
-            . self::t('status_calls') . '</th><th class="tarsus-num">' . self::t('status_credits') . '</th></tr></thead><tbody>';
-        foreach ($data['modes'] as $mode) {
-            $html .= '<tr><td>' . Html::icon($mode['icon'], 'tarsus-icon tarsus-icon--inline') . ' ' . Html::e($mode['label']) . '</td><td class="tarsus-num">'
-                . number_format((int) $mode['calls']) . '</td><td class="tarsus-num">' . number_format((int) $mode['credits']) . '</td></tr>';
-        }
-        $html .= '</tbody></table></div></div>';
-
-        // Most active learners.
-        $html .= '<div class="tarsus-panel"><div class="tarsus-eyebrow">' . self::t('analytics_top_learners') . '</div>';
-        if ($data['top'] === []) {
-            $html .= '<p class="tarsus-muted">' . self::t('analytics_none') . '</p>';
-        } else {
-            $html .= '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr><th>' . self::t('col_learner') . '</th><th class="tarsus-num">'
-                . self::t('status_calls') . '</th><th>' . self::t('col_lastactivity') . '</th></tr></thead><tbody>';
-            foreach ($data['top'] as $row) {
-                $html .= '<tr><td>' . Html::e($row['name']) . '</td><td class="tarsus-num">' . number_format((int) $row['calls']) . '</td>'
-                    . '<td class="tarsus-nowrap">' . Html::e(self::date((int) $row['last'])) . '</td></tr>';
-            }
-            $html .= '</tbody></table></div>';
-        }
-        $html .= '</div></div>';
-
-        $html .= '<p class="tarsus-muted tarsus-small">' . self::t('analytics_note') . '</p></div>';
-        return $html;
     }
 
     /**
@@ -441,17 +298,18 @@ final class Views
         $html = '<div class="tarsus-panel tarsus-panel--plan">'
             . '<div class="tarsus-plan-head"><div><div class="tarsus-eyebrow">' . self::t('plan_current') . '</div>'
             . '<div class="tarsus-headline">' . Html::e($data['plan']) . '</div></div>'
-            . '<div class="tarsus-plan-head__usage">' . self::usageBar((int) $data['used'], (int) $data['limit'], (string) $data['level']) . '</div></div>'
+            . '<div class="tarsus-plan-head__usage">' . self::usageBar((float) $data['used'], (int) $data['limit'], (string) $data['level']) . '</div></div>'
             . '<div class="tarsus-table-wrap"><table class="tarsus-table"><tbody>' . $rows . '</tbody></table></div>';
         if ($data['items'] !== []) {
             $html .= '<details class="tarsus-details"><summary>' . self::t('usage_breakdown') . '</summary>'
                 . '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr><th>' . self::t('usage_service') . '</th><th>'
                 . self::t('usage_name') . '</th><th class="tarsus-num">' . self::t('status_credits') . '</th></tr></thead><tbody>';
             foreach ($data['items'] as $item) {
-                if ((int) $item['credits'] === 0) {
+                if ((float) $item['credits'] <= 0) {
                     continue;
                 }
-                $html .= '<tr><td>' . Html::e($item['service']) . '</td><td>' . Html::e($item['name']) . '</td><td class="tarsus-num">' . number_format((int) $item['credits']) . '</td></tr>';
+                $html .= '<tr><td>' . Html::e($item['service']) . '</td><td>' . Html::e($item['name']) . '</td><td class="tarsus-num">'
+                    . Html::e(\TarsusIlias\Support\Budget::format((float) $item['credits'])) . '</td></tr>';
             }
             $html .= '</tbody></table></div></details>';
         }

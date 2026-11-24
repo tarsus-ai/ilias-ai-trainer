@@ -174,11 +174,14 @@ class ilObjTarsus extends ilObjectPlugin implements ilLPStatusPluginInterface
     }
 
     /**
-     * The learner's progress in percent (shown in the learning progress
-     * tables).
+     * The learner's result in percent, shown in the learning progress
+     * tables: the experience points Tarsus reports as a share of all
+     * (the learning units when only Build knowledge is active). XP and
+     * learning units themselves are only shown, never used as the score.
      */
     public function getPercentageForUser(int $a_user_id): int
     {
-        return (int) round(Scoring::progress($this->getSettings(), Scoring::row($this->getId(), $a_user_id)));
+        $grade = Scoring::grade($this->getSettings(), Scoring::row($this->getId(), $a_user_id));
+        return $grade === null ? 0 : (int) round($grade);
     }
 }

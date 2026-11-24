@@ -138,6 +138,25 @@ final class Config
     }
 
     /**
+     * Which brain the connection leads to: the demo, or a server with a
+     * brain ID or license key. When it changes, what the index map records
+     * was true of the previous brain only (see Reconciler::retarget()).
+     * The API key is not part of it: another key for the same brain is
+     * still the same brain.
+     */
+    public static function target(): string
+    {
+        if (self::mockMode()) {
+            return 'demo';
+        }
+        return implode("\x1f", [
+            strtolower(rtrim(self::baseUrl(), '/')),
+            self::brainId(),
+            self::licenseKey() === '' ? '' : hash('sha256', self::licenseKey()),
+        ]);
+    }
+
+    /**
      * Mock mode defaults to on (fresh install), so no code path can reach a
      * live endpoint by accident.
      */

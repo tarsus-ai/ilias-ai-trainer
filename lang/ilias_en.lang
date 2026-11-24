@@ -93,7 +93,7 @@ status_error#:#Error
 // Learners
 col_learner#:#Learner
 col_progress#:#Progress
-col_score#:#Score
+col_score#:#Result (%)
 col_lp_status#:#Learning progress
 col_last_activity#:#Last activity
 avg_progress#:#Average progress
@@ -335,6 +335,7 @@ brain_deleted#:#Deleted
 brain_inuse#:#In use
 brain_activate#:#Activate
 brain_activated#:#This installation now uses brain "{brain}".
+retarget_notice#:#The connection now leads to another brain. The materials indexed before ({count}) are being sent there again: automatically by the cron job, or right away with “Re-index” on a course’s material page.
 brain_activate_failed#:#That brain cannot be activated: it is unknown to this API key or no longer active.
 brain_none_found#:#The API key returned no brains. Check the base URL and API key, or ask Tarsus to activate the key.
 brain_none_selected#:#No brain is selected yet. Indexing and chat stay blocked until you activate one.
@@ -375,7 +376,7 @@ plan_section#:#Subscription
 plan_section_desc#:#The package the customer booked, as in the Tarsus partner agreement. The partner sets it; it decides which features the objects offer – a customer reaches only what was booked – and how usage is priced. Each package contains the one before it.
 plan#:#Plan
 plan_learn#:#Build Knowledge (LEARN)
-plan_learn_desc#:#The full AI coach: Ask a question, Test knowledge, Build knowledge with the audio explainer, voice input and the agent mode (AI-driven interaction). Includes a monthly amount of AI interactions; further interactions are charged per interaction.
+plan_learn_desc#:#The full AI coach: Ask a question, Test knowledge, Build knowledge with the audio explainer, voice input, the agent mode (AI-driven interaction) and the live interaction. Includes a monthly amount of AI interactions; further interactions are charged per interaction.
 plan_practice#:#Knowledge Test (PRACTICE)
 plan_practice_desc#:#Ask a question and Test knowledge (adaptive quizzes). No Build knowledge, no audio explainer, no voice input, trainer-driven interaction only. Includes a monthly amount of AI interactions; further interactions are charged per interaction.
 plan_ask#:#Ask Question (ASK)
@@ -408,22 +409,8 @@ plan_feature_build#:#Build knowledge: the AI coach explains step by step
 plan_feature_audio_explainer#:#Audio explainer in the AI coach
 plan_feature_voice_input#:#Voice input in the AI coach
 plan_feature_ai_driven#:#Agent mode (AI-driven interaction type)
+plan_feature_discuss#:#Live interaction: a voice call with the AI trainer, with slides
 plan_features_note#:#Audio explainer, voice input and agent mode belong to the AI coach Tarsus Zero. The standard narration of text (Audio Generation) is not affected.
-counting_title#:#How AI interactions are counted
-counting_desc#:#Every request in which the AI answers, creates, marks, voices or indexes something is one AI interaction. Audio plus another AI step counts twice; “think longer” doubles any request. This installation records these figures for every call it makes; what the brain actually charged is fetched separately and wins when it is higher.
-counting_what#:#What the AI does
-counting_count#:#AI interactions
-counting_answer#:#Answer a question (Ask a question)
-counting_step#:#Create the next learning step: explanation, slide or quiz question
-counting_agent#:#Agent mode: the AI steers the learning flow (per request)
-counting_audio_explainer#:#Audio explainer of a learning unit
-counting_voice#:#Spoken question or answer (audio file)
-counting_eval_open#:#Mark an open question, a rule of three or a spreadsheet calculation, with feedback
-counting_eval_choice#:#Correct a single-choice or true/false answer
-counting_index#:#Index text, a table, a question, a URL, a document or an image (per request)
-counting_index_media#:#Index audio or video (per started two hours)
-counting_management#:#Manage keys and brains, read the usage, retrieve, list, check, release, edit or delete content
-counting_note#:#The public overview without prices is at tarsus.ai/ki-interaktionen.
 plan_included#:#Included
 plan_included_value#:#{credits} AI interactions per month, then {price} per interaction
 plan_payg_note#:#Nothing included: every AI interaction costs {price}
@@ -442,18 +429,16 @@ notify_emails#:#Warning recipients
 notify_emails_desc#:#E-mail addresses (one per line or separated by commas) that receive a mail when {thresholds} of the limit are reached. Leave empty to notify the installation's administrator address ({admin}).
 error_email#:#"{email}" is not a valid e-mail address.
 limit_reduce_confirm#:#You are lowering the monthly limit from {old} to {new} AI credits. {used} credits are already used this month; once the new limit is reached, AI requests are refused until next month or until the limit is raised again. Continue?
-usage_local#:#Counted by this installation
-usage_local_value#:#{credits} AI interactions in {requests} requests this month
-usage_remote#:#Charged by the brain
-usage_remote_none#:#not fetched yet (the cron job fetches it every 15 minutes)
-usage_remote_value#:#{credits} AI credits this month (as of {fetched}); covers everything using this brain
+usage_remote#:#AI credits according to Tarsus
+usage_remote_none#:#not fetched yet (asked from Tarsus at most once a minute)
+usage_remote_value#:#{credits} AI credits this month (as of {fetched}). This is the only figure: Tarsus reports it for the whole brain; the plugin estimates nothing.
 usage_charged#:#Beyond the included amount
-usage_charged_value#:#{requests} AI interactions, about {cost}
-usage_charged_value_tarsus#:#{requests} AI interactions, billed by Tarsus
+usage_charged_value#:#{requests} AI credits, about {cost}
+usage_charged_value_tarsus#:#{requests} AI credits, billed by Tarsus
 usage_charged_none#:#nothing so far this month
 usage_reset#:#Next reset
 usage_refresh#:#Refresh usage from the brain
-usage_refreshed#:#The brain reports {credits} AI credits for this month.
+usage_refreshed#:#Tarsus reports {credits} AI credits for this month.
 usage_refresh_failed#:#The usage could not be fetched from the brain.
 usage_breakdown#:#Breakdown by service (brain figures)
 usage_service#:#Service
@@ -505,3 +490,128 @@ col_lastactivity#:#Last activity
 learners_readonly#:#Neither Test knowledge nor Build knowledge is active here (switched off, or not included in the plan), so this object has no score and no learning progress: it is a read-only activity.
 col_participation#:#Participation
 participated#:#Took part
+// Version 2: live interaction, spoken questions, sources, evaluation, history, thinking level
+mode_discuss#:#Live interaction
+discussenabled#:#Enable Live interaction
+discussenabled_help#:#Talk live with the AI trainer about a topic and deepen the content in conversation. When switched off, this mode is hidden from learners.
+voiceinput#:#Voice input
+voiceinput_help#:#In Ask a question, learners can speak their question. Tarsus turns the recording into text and answers it.
+referencesenabled#:#Show references
+referencesenabled_help#:#Participants can look at the references of an answer.
+visualaccessibility#:#Accessible content
+visualaccessibility_help#:#Pictures and other visual content of the AI trainer come with a description.
+thinkinglevel#:#Thinking effort
+thinkinglevel_help#:#How thoroughly the AI trainer thinks. Sent to Tarsus with every request; what it costs shows in the Tarsus usage.
+thinking_fast#:#Fast
+thinking_fast_help#:#Answers right away, with a brief check.
+thinking_slow#:#Slow
+thinking_slow_help#:#Takes a little more time for each answer.
+thinking_deep#:#Deep
+thinking_deep_help#:#Thinks every answer through, with a longer response time.
+thinking_intense#:#Intense
+thinking_intense_help#:#Highest answer quality, with the longest response time.
+plan_feature_locked#:#Not included in the current plan ({plan}).
+settings_lp#:#Learning progress
+error_completion#:#Please enter a number from 0 to 100.
+teacher_tools#:#Tools for teachers
+panel_settings#:#Settings
+panel_stats#:#Evaluation
+panel_history#:#History
+panel_close#:#Close
+loading#:#Loading …
+settings_save#:#Save
+settings_saving#:#Saving …
+settings_saved#:#Saved. The AI trainer reloads.
+settings_open_full#:#All settings in ILIAS
+form_invalid#:#Please check the marked fields.
+grade_chip#:#Result {percent} %
+grade_title#:#Your result in percent: experience points (or learning units) from Tarsus as a share of all.
+practice_correct_value#:#Correct: {value}
+learn_ask_about_unit#:#This learning unit
+voice_to_voice#:#Switch to voice input
+voice_to_text#:#Switch to text input
+voice_start#:#Start recording
+voice_stop#:#Stop recording
+voice_pause#:#Pause recording
+voice_resume#:#Resume recording
+voice_discard#:#Discard recording
+voice_play#:#Play audio
+voice_recording#:#Recording
+voice_paused#:#Recording paused
+voice_ready#:#Recording ready to send
+voice_question#:#Spoken question
+voice_transcribing#:#Your recording is being converted to text
+voice_transcript_note#:#Text of your recording
+voice_limit#:#A recording lasts at most {seconds} seconds.
+voice_unsupported#:#This browser cannot record. Please type your question.
+voice_unavailable#:#Voice input is not switched on here.
+mic_denied#:#No access to the microphone. Please allow it in your browser.
+mic_notfound#:#No microphone was found.
+mic_failed#:#The recording could not start. Please check the access to the microphone.
+proc_ask_transcribe#:#Your recording is being converted to text
+live_start#:#Start conversation
+live_new#:#New conversation
+live_starting#:#Preparing the conversation …
+live_intro#:#Just talk to the AI trainer. The slides appear above, the answers stay in the history.
+live_expired#:#This live interaction has expired. “New conversation” starts a new one.
+live_end_confirm#:#The running conversation will end. Continue?
+live_title#:#Live interaction with the AI trainer
+sources_show#:#View sources
+sources_title#:#References
+sources_count#:#{count} sources for this answer
+sources_none#:#There are no sources for this answer.
+sources_open#:#Open in ILIAS
+sources_transcript#:#Transcript
+source_type_text#:#Text
+source_type_table#:#Table
+source_type_image#:#Image
+source_type_audio#:#Audio
+source_type_video#:#Video
+source_type_question#:#Question
+source_type_form#:#Form
+source_type_other#:#Source
+references_disabled#:#Sources are switched off in this object.
+stats_learners#:#Participants
+stats_count_learners#:#{count} participants
+stats_avg_grade#:#average result
+stats_completed#:#completed per ILIAS learning progress
+stats_avg_progress#:#average progress
+stats_distribution#:#Distribution of results
+stats_distribution_help#:#Participants per result range in percent
+stats_status#:#Learning status
+stats_status_help#:#per ILIAS learning progress
+stats_col_name#:#Participant
+stats_col_grade#:#Result
+stats_col_progress#:#Progress
+stats_col_status#:#Learning progress
+stats_col_build#:#Build knowledge
+stats_col_test#:#Test knowledge
+stats_col_last#:#Last activity
+stats_history#:#History ›
+stats_group#:#Group
+stats_group_all#:#All participants
+stats_export#:#Export CSV
+stats_none#:#No participants yet.
+history_of#:#History of {name}
+history_readonly#:#read only
+history_pick#:#Choose a person
+history_growth#:#Growth, last 30 days
+history_xp#:#XP reached
+history_units#:#LU reached
+history_empty#:#No history yet.
+history_more#:#Load older
+history_back#:#Back to the evaluation
+err_connection#:#Tarsus cannot be reached right now. Please try again in a moment.
+err_access#:#The AI trainer is not connected to Tarsus correctly. Please tell your teacher or support.
+err_notindexed#:#The course materials are still being prepared. Please try again a little later.
+err_audio_nospeech#:#No speech could be heard in the recording. Please speak your question again.
+err_audio_format#:#The recording could not be read. Please record your question again.
+err_audio_transcribe#:#The recording could not be turned into text right now. Please try again in a moment.
+err_live_unavailable#:#The live interaction is not available right now.
+err_voice#:#Tarsus does not know the configured voice. Please tell support.
+err_stack#:#This learning unit is no longer available.
+err_evaluate#:#The answer could not be evaluated right now. Please try again.
+err_toolarge#:#The recording is too large. Please keep it shorter.
+err_busy#:#Tarsus is busy right now. Please try again in a moment.
+err_server#:#An error occurred at Tarsus. Please try again in a moment.
+err_request#:#Tarsus could not process this request.

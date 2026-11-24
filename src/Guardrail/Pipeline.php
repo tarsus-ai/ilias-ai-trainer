@@ -2,6 +2,7 @@
 
 namespace TarsusIlias\Guardrail;
 
+use TarsusIlias\Client\ReplayException;
 use TarsusIlias\Client\TransportException;
 use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
@@ -11,9 +12,10 @@ use TarsusIlias\Support\Config;
  *
  * Gate order: kill switch -> circuit breaker -> monthly credit limit ->
  * rate limit -> send. A success resets the failure counter; repeated
- * transport failures trip the breaker. The monthly limit only gates calls
- * that cost credits: reading the feed or the usage figures stays possible
- * when the month's credits are spent. The pipeline never sleeps: retries
+ * outages (no answer, 5xx) trip the breaker, a refused request (4xx) does
+ * not. The monthly limit only gates calls that may cost credits, judged
+ * by the brain's own usage figure: reading the feed or the figures stays
+ * possible when the month's credits are spent. The pipeline never sleeps: retries
  * are the caller's business.
  *
  * @author  Tarsus GmbH
@@ -39,26 +41,38 @@ class Pipeline
      *
      * @template T
      * @param callable(): T $call
+     * @param bool $charged Whether the call may cost AI credits: it is
+     *                      refused once the month's limit is reached, by
+     *                      the brain's own usage figure. Reading back
+     *                      (feed, statistics, sources) is never refused.
      * @return T
      * @throws BlockedException  When a gate refuses the call.
      * @throws TransportException When the call fails at the transport level.
      */
-    public function execute(callable $call, int $estimatedcredits = 0)
+    public function execute(callable $call, bool $charged = false)
     {
         $this->guardKillswitch();
         $this->guardBreaker();
-        $this->guardBudget($estimatedcredits);
+        $this->guardBudget($charged);
         $this->guardRatelimit();
 
         try {
             $result = $call();
         } catch (TransportException $e) {
-            $this->recordFailure();
+            // Only an outage (no answer, 5xx) trips the breaker; a 4xx is
+            // Tarsus refusing this one request and says nothing about the
+            // service.
+            if ($e->isOutage()) {
+                $this->recordFailure();
+            }
+            throw $e;
+        } catch (ReplayException $e) {
+            // HTTP 409 is a normal answer of Build knowledge.
+            $this->recordSuccess();
             throw $e;
         }
 
-        $credits = (is_array($result) && isset($result['credits'])) ? (int) $result['credits'] : 0;
-        $this->recordSuccess($credits);
+        $this->recordSuccess();
 
         return $result;
     }
@@ -89,11 +103,12 @@ class Pipeline
     }
 
     /**
-     * Refuse a charged call when it would cross the monthly credit limit.
+     * Refuse a call that may cost credits once the month's limit is
+     * reached - by what the brain says it charged, not by an estimate.
      */
-    private function guardBudget(int $estimatedcredits): void
+    private function guardBudget(bool $charged): void
     {
-        if ($estimatedcredits > 0 && Budget::wouldExceed($estimatedcredits)) {
+        if ($charged && Budget::exhausted(true)) {
             throw new BlockedException('budget');
         }
     }
@@ -140,7 +155,7 @@ class Pipeline
         });
     }
 
-    private function recordSuccess(int $credits): void
+    private function recordSuccess(): void
     {
         $this->store->mutate('breaker', function (\stdClass $row): void {
             $row->failurecount = 0;

@@ -29,6 +29,7 @@ final class PlanTest extends PluginTestCase
             'Audio-Erklaerer' => [Plan::FEATURE_AUDIO_EXPLAINER, false, false, true, true],
             'Spracheingabe' => [Plan::FEATURE_VOICE_INPUT, false, false, true, true],
             'Agent-Modus' => [Plan::FEATURE_AI_DRIVEN, false, false, true, true],
+            'Live-Interaktion' => [Plan::FEATURE_DISCUSS, false, false, true, true],
         ];
     }
 
@@ -56,8 +57,9 @@ final class PlanTest extends PluginTestCase
     {
         $this->assertSame(['ask'], Plan::modes(Plan::ASK));
         $this->assertSame(['ask', 'test'], Plan::modes(Plan::PRACTICE));
-        $this->assertSame(['ask', 'test', 'build'], Plan::modes(Plan::LEARN));
-        $this->assertSame(['ask', 'test', 'build'], Plan::modes(Plan::PAYG));
+        $this->assertSame(['ask', 'test', 'build', 'discuss'], Plan::modes(Plan::LEARN));
+        $this->assertSame(['ask', 'test', 'build', 'discuss'], Plan::modes(Plan::PAYG));
+        $this->assertFalse(Plan::allowsMode('discuss', Plan::PRACTICE), 'the live interaction belongs to Wissen aufbauen and Pay as you grow');
         $this->assertFalse(Plan::allowsMode('build', Plan::PRACTICE), 'who pays for Wissen testen must not reach Wissen aufbauen');
         $this->assertFalse(Plan::allowsMode('test', Plan::ASK), 'who pays for Fragen stellen must not reach Wissen testen');
     }

@@ -3,6 +3,41 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [2.0.0] – 2026-11-24
+
+Catches the plugin up with Tarsus: everything the coach shows comes from the Tarsus API, and nothing is assumed about what happens in the brain.
+
+### Added
+
+- **Live interaction**, a fourth mode next to *Build knowledge*, *Test knowledge* and *Ask a question*: a voice call with the AI trainer that shows slides while it talks. Teachers switch it on or off per object like the other modes. Included in the Build Knowledge and Pay as you grow packages.
+- **Spoken questions** in *Ask a question*: record, listen back, send. The answer card shows the recording and the text Tarsus heard. Can be switched off per object.
+- **View sources** at the top right of an answer: the passages, tables and pictures of the course material Tarsus used, in a panel that slides in from the right, each with a link to the material in ILIAS.
+- **Ask about this** at the top right of learning stacks and quiz questions: the next question refers to that stack or question.
+- **Teacher panels** that slide in from the right, as in Tarsus: *Settings*, *Evaluation* (every learner's result, progress and learning status, the distribution of results, CSV export) and *History* (one learner's conversation, read only, with the growth of experience points and learning units over the last 30 days).
+- **Thinking level** 1–4 per object (default 4), replacing "Think longer".
+- **Visual accessibility** per object, for learners who use a screen reader.
+- **AI-driven** pages in *Build knowledge* and *Ask a question*; pictures and diagrams stay where Tarsus puts them (above or beside the text), animated GIFs included.
+
+### Changed
+
+- **AI credits come from the brain only**: the plugin shows and enforces the usage figure Tarsus reports (fractions included) and no longer estimates or counts credits itself.
+- **ILIAS learning progress** shows the result in percent: the experience points as a share of all (the learning units when only *Build knowledge* is active). Experience points and learning units themselves are only shown.
+- The *Learners* and *Analytics* tabs are replaced by the teacher panels; the CSV export is in *Evaluation*.
+- Widgets form a centred column as in Tarsus, and the modes are in the same order as in Tarsus.
+- When a learning path is finished, Tarsus repeats its closing card: it is shown once.
+- Every refusal Tarsus can send has its own clear message in English and German; the circuit breaker opens only on outages, not on refusals.
+- **Changing the connection** (leaving demo mode, another server, brain ID or license key) sends the material the previous brain held to the new one by itself; material indexed in demo mode no longer shows as indexed against a real brain.
+- A result that falls back to 0 (a reset chat, another brain) is written to ILIAS' learning progress too.
+
+### Removed
+
+- The local credit estimates and the counting panel.
+- The "Think longer" setting.
+
+### Database
+
+- Step 10: per-object settings for the live interaction, the thinking level, visual accessibility, sources and spoken questions.
+
 ## [1.2.1] – 2026-11-13
 
 ### Changed
@@ -97,6 +132,7 @@ First release for ILIAS 9, 10 and 11.
 - Default permissions seeded on first activation for course and group roles.
 - English and German.
 
+[2.0.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.0.0
 [1.2.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.1
 [1.2.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.0
 [1.1.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.1.0

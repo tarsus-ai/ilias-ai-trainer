@@ -974,6 +974,24 @@
     color: var(--tz-muted);
 }
 
+/* The top line of an answer: what it replies to on the left, its
+   sources at the top right. */
+.tarsus-chat-box .tarsus-card__top {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.tarsus-chat-box .tarsus-card__top .tarsus-card__reply {
+    margin-bottom: 0;
+}
+
+.tarsus-chat-box .tarsus-card__top [data-action="sources"] {
+    margin-left: auto;
+}
+
 /* The welcome card: a gradient frame around a white body. */
 .tarsus-chat-box .tarsus-card--welcome {
     border: 0;
@@ -2074,4 +2092,991 @@
     border-radius: 12px;
     background: var(--tz-soft);
     color: var(--tz-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Version 2: the whole width, four modes, spoken questions, the live  */
+/* interaction, sources and the teacher's panels                       */
+/* ------------------------------------------------------------------ */
+
+.tarsus-app,
+.tarsus-lightbox {
+    --tz-series-1: #2a78d6;
+    --tz-series-2: #eb6834;
+    --tz-live: #6250d6;
+    --tz-live-soft: #efedfc;
+    --tz-drawer-width: 34rem;
+    --tz-drawer-wide: min(76rem, 94vw);
+}
+
+/* Widgets as in Tarsus: a centred column, not the whole width. Answers,
+   questions and notices read best at about 780 px; a learning stack and
+   the live call get more room for their slides. The composer below keeps
+   the whole width. */
+.tarsus-chat-box .tarsus-card {
+    max-width: 48.75rem;
+}
+
+.tarsus-chat-box .tarsus-learn-card,
+.tarsus-chat-box .tarsus-live {
+    max-width: 62.5rem;
+}
+
+.tarsus-chat-box .tarsus-card--flash {
+    animation: tarsus-flash 1.2s ease;
+}
+
+@keyframes tarsus-flash {
+    0%, 100% { box-shadow: var(--tz-card-shadow); }
+    30% { box-shadow: 0 0 0 4px var(--tz-accent-soft), var(--tz-card-shadow); }
+}
+
+/* The teacher's buttons above the coach. */
+.tarsus-chat-box .tarsus-teacher-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem;
+}
+
+.tarsus-chat-box .tarsus-teacher-bar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* The composer's right side: voice toggle, Next / Send. */
+.tarsus-chat-box .tarsus-composer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.tarsus-chat-box .tarsus-btn--ghost {
+    background: transparent;
+    border: 1px solid var(--tz-line-strong);
+    color: var(--tz-ink);
+}
+
+.tarsus-chat-box .tarsus-voice-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tarsus-chat-box .tarsus-grade-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: var(--tz-success-soft);
+    color: #23704a;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Spoken question: the recorder in place of the text field. */
+.tarsus-chat-box .tarsus-voice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 38px;
+    padding: 0.35rem 0.4rem;
+}
+
+.tarsus-chat-box .tarsus-voice__dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--tz-line-strong);
+    flex: none;
+}
+
+.tarsus-chat-box .tarsus-voice[data-state="recording"] .tarsus-voice__dot {
+    background: #d64545;
+    box-shadow: 0 0 0 4px rgba(214, 69, 69, 0.18);
+    animation: tarsus-pulse 1.2s ease-in-out infinite;
+}
+
+.tarsus-chat-box .tarsus-voice[data-state="ready"] .tarsus-voice__dot {
+    background: var(--tz-success);
+}
+
+@keyframes tarsus-pulse {
+    50% { box-shadow: 0 0 0 7px rgba(214, 69, 69, 0.08); }
+}
+
+.tarsus-chat-box .tarsus-voice__state {
+    font-weight: 600;
+}
+
+.tarsus-chat-box .tarsus-voice__time {
+    font-variant-numeric: tabular-nums;
+    color: var(--tz-muted);
+}
+
+.tarsus-chat-box .tarsus-voice__wave {
+    flex: 1 1 4rem;
+    height: 1.1rem;
+    min-width: 3rem;
+    border-radius: 999px;
+    background: repeating-linear-gradient(90deg, var(--tz-track) 0 3px, transparent 3px 6px);
+}
+
+.tarsus-chat-box .tarsus-voice[data-state="recording"] .tarsus-voice__wave {
+    background: repeating-linear-gradient(90deg, rgba(214, 69, 69, 0.55) 0 3px, transparent 3px 6px);
+    animation: tarsus-wave 0.9s linear infinite;
+}
+
+@keyframes tarsus-wave {
+    to { background-position: 12px 0; }
+}
+
+.tarsus-chat-box .tarsus-voice__actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.tarsus-chat-box .tarsus-voice__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 8px;
+    background: var(--tz-card);
+    color: var(--tz-ink);
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.tarsus-chat-box .tarsus-voice__btn--record {
+    border-color: rgba(214, 69, 69, 0.4);
+    color: #b42c2c;
+}
+
+.tarsus-chat-box .tarsus-voice__btn:focus-visible {
+    outline: 3px solid var(--tz-focus);
+    outline-offset: 2px;
+}
+
+/* The learner's recording above its transcript. */
+.tarsus-chat-box .tarsus-card__question-main,
+.tarsus-chat-box .tarsus-card__answer-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tarsus-chat-box .tarsus-card__voice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+    color: var(--tz-muted);
+    font-size: 0.85rem;
+}
+
+.tarsus-chat-box .tarsus-card__voice-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.tarsus-chat-box .tarsus-card__voice-audio {
+    height: 2rem;
+    max-width: 100%;
+}
+
+/* Under an answer: View sources, Ask about this. */
+.tarsus-chat-box .tarsus-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.tarsus-chat-box .tarsus-chip-btn,
+.tarsus-chat-box .tarsus-card__actions .tarsus-learn-ask {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.7rem;
+    border: 0;
+    border-radius: 8px;
+    background: var(--tz-reply-pad);
+    color: var(--tz-ink);
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.tarsus-chat-box .tarsus-chip-btn:hover,
+.tarsus-chat-box .tarsus-chip-btn:focus-visible {
+    background: var(--tz-reply-hover);
+}
+
+/* Pictures where Tarsus puts them: above the text, or beside it. */
+.tarsus-learn-slide__body--top {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.tarsus-learn-slide__body--top .tarsus-learn-slide__image {
+    flex: none;
+    width: auto;
+    max-width: min(100%, 56rem);
+    max-height: 60vh;
+    align-self: center;
+    object-fit: contain;
+}
+
+.tarsus-learn-slide__body--text {
+    display: block;
+}
+
+.tarsus-learn-slide__audio {
+    display: block;
+    width: 100%;
+    margin-top: 0.75rem;
+}
+
+/* A task table: the model value under a wrong cell. */
+.tarsus-practice-table__model {
+    display: block;
+    margin-top: 0.25rem;
+    color: #9b2c2c;
+    font-size: 0.8rem;
+}
+
+/* The live interaction: Tarsus's page in its own frame. */
+.tarsus-chat-box .tarsus-live-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem;
+}
+
+.tarsus-chat-box .tarsus-live-bar__text {
+    flex: 1 1 16rem;
+    color: var(--tz-muted);
+}
+
+.tarsus-chat-box .tarsus-live {
+    overflow: hidden;
+    padding: 0;
+}
+
+.tarsus-chat-box .tarsus-live__frame {
+    display: block;
+    width: 100%;
+    height: 72vh;
+    min-height: 420px;
+    border: 0;
+}
+
+.tarsus-chat-box .tarsus-live__notice {
+    margin: 0;
+    padding: 0.7rem 1rem;
+    background: var(--tz-warning-soft);
+    color: #7a4b06;
+}
+
+/* The panel that slides in from the right. */
+.tarsus-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+}
+
+.tarsus-drawer[hidden] {
+    display: none !important;
+}
+
+.tarsus-drawer__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 24, 28, 0.28);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.tarsus-drawer__panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    width: min(var(--tz-drawer-width), 100vw);
+    background: var(--tz-card);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.14);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
+    outline: none;
+}
+
+.tarsus-drawer--wide .tarsus-drawer__panel {
+    width: var(--tz-drawer-wide);
+}
+
+.tarsus-drawer--open .tarsus-drawer__backdrop {
+    opacity: 1;
+}
+
+.tarsus-drawer--open .tarsus-drawer__panel {
+    transform: none;
+}
+
+.tarsus-drawer__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--tz-line);
+}
+
+.tarsus-drawer__title {
+    flex: 1 1 auto;
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.tarsus-drawer__close {
+    display: inline-flex;
+    padding: 0.4rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--tz-ink);
+    cursor: pointer;
+}
+
+.tarsus-drawer__close:hover,
+.tarsus-drawer__close:focus-visible {
+    background: var(--tz-reply-pad);
+}
+
+.tarsus-drawer__body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1rem 1.25rem 2rem;
+}
+
+.tarsus-drawer__loading {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 2rem 0;
+    color: var(--tz-muted);
+}
+
+.tarsus-drawer__lead {
+    margin: 0 0 0.75rem;
+    color: var(--tz-muted);
+}
+
+.tarsus-drawer__error {
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    background: var(--tz-danger-soft);
+    color: #9b2c2c;
+}
+
+.tarsus-drawer__warning {
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    background: var(--tz-warning-soft);
+    color: #7a4b06;
+}
+
+html.tarsus-drawer-lock {
+    overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tarsus-drawer__panel,
+    .tarsus-drawer__backdrop {
+        transition: none;
+    }
+}
+
+/* Sources: every bit type as Tarsus sends it. */
+.tarsus-source {
+    margin: 0 0 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 10px;
+    background: var(--tz-card);
+}
+
+.tarsus-source__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tarsus-source__type {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 6px;
+    background: var(--tz-number-bg);
+    color: var(--tz-number-fg);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.tarsus-source__title {
+    font-weight: 600;
+}
+
+.tarsus-source__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+    font-size: 0.85rem;
+}
+
+.tarsus-source__content {
+    margin-top: 0.45rem;
+}
+
+.tarsus-source__text {
+    font-size: 0.92rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.tarsus-source__label,
+.tarsus-source__subtitle {
+    color: var(--tz-muted);
+    font-size: 0.8rem;
+}
+
+.tarsus-source__image {
+    display: block;
+    max-width: 100%;
+    max-height: 18rem;
+    border-radius: 8px;
+    cursor: zoom-in;
+}
+
+.tarsus-source__table-wrap {
+    overflow-x: auto;
+}
+
+.tarsus-source__table {
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.tarsus-source__table th,
+.tarsus-source__table td {
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--tz-line-table);
+    text-align: left;
+}
+
+.tarsus-source__table th {
+    background: var(--tz-soft);
+}
+
+/* Settings panel. */
+.tarsus-settings__section {
+    padding: 0.75rem 0 1rem;
+    border-bottom: 1px solid var(--tz-line);
+}
+
+.tarsus-settings__title {
+    margin: 0 0 0.35rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.tarsus-settings__field {
+    margin: 0.65rem 0;
+}
+
+.tarsus-settings__label {
+    font-weight: 500;
+}
+
+.tarsus-settings__help,
+.tarsus-settings__locked {
+    margin-top: 0.2rem;
+    color: var(--tz-muted);
+    font-size: 0.82rem;
+}
+
+.tarsus-settings__locked {
+    font-weight: 600;
+}
+
+.tarsus-settings__check,
+.tarsus-settings__radio {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0.25rem 0;
+}
+
+.tarsus-settings__radio .tarsus-settings__option,
+.tarsus-settings__card .tarsus-settings__option {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.tarsus-settings__option span,
+.tarsus-settings__option em {
+    color: var(--tz-muted);
+    font-size: 0.82rem;
+}
+
+.tarsus-settings__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.6rem;
+}
+
+.tarsus-settings__card {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--tz-line-strong);
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.tarsus-settings__card:has(input:checked) {
+    border: 2px solid var(--tz-accent);
+    background: var(--tz-accent-soft);
+}
+
+.tarsus-settings__multi {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+}
+
+.tarsus-settings select.tarsus-input,
+.tarsus-settings input[type="text"].tarsus-input {
+    width: 100%;
+    max-width: 32rem;
+}
+
+.tarsus-settings__suffixed {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tarsus-settings__suffixed input {
+    width: 6rem;
+}
+
+.tarsus-settings__error {
+    margin-top: 0.25rem;
+    color: #9b2c2c;
+    font-size: 0.85rem;
+}
+
+.tarsus-settings__footer {
+    position: sticky;
+    bottom: -2rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding: 0.75rem 0;
+    background: var(--tz-card);
+}
+
+.tarsus-settings__full {
+    margin-left: auto;
+    font-size: 0.85rem;
+}
+
+/* Evaluation. */
+.tarsus-stats__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+}
+
+.tarsus-stats__export {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: auto;
+}
+
+.tarsus-stats__kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+}
+
+.tarsus-stats__kpi {
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 12px;
+}
+
+.tarsus-stats__kpi-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.tarsus-stats__kpi-label {
+    color: var(--tz-muted);
+    font-size: 0.85rem;
+}
+
+.tarsus-stats__charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+}
+
+.tarsus-stats__chart {
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 12px;
+}
+
+.tarsus-stats__chart h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.tarsus-stats__chart-help {
+    margin: 0 0 0.4rem;
+    color: var(--tz-muted);
+    font-size: 0.8rem;
+}
+
+.tarsus-chart {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.tarsus-chart__grid {
+    stroke: var(--tz-line);
+    stroke-width: 1;
+}
+
+.tarsus-chart__axis {
+    fill: var(--tz-faint);
+    font-size: 11px;
+}
+
+.tarsus-chart__bar {
+    fill: var(--tz-series-1);
+}
+
+.tarsus-chart__bar:hover {
+    fill: var(--tz-accent-deep);
+}
+
+.tarsus-chart__line {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+}
+
+.tarsus-chart__line--xp {
+    stroke: var(--tz-series-1);
+}
+
+.tarsus-chart__line--units {
+    stroke: var(--tz-series-2);
+}
+
+.tarsus-chart__dot.tarsus-chart__line--xp {
+    fill: var(--tz-series-1);
+    stroke: var(--tz-card);
+    stroke-width: 2;
+}
+
+.tarsus-chart__dot.tarsus-chart__line--units {
+    fill: var(--tz-series-2);
+    stroke: var(--tz-card);
+    stroke-width: 2;
+}
+
+.tarsus-chart__legend,
+.tarsus-status-bar__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    margin: 0.35rem 0;
+    color: var(--tz-muted);
+    font-size: 0.82rem;
+}
+
+.tarsus-chart__legend > span,
+.tarsus-status-bar__legend > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tarsus-chart__key {
+    display: inline-block;
+    width: 0.9rem;
+    height: 2px;
+    border-top: 2px solid currentColor;
+}
+
+.tarsus-chart__key.tarsus-chart__line--xp {
+    color: var(--tz-series-1);
+}
+
+.tarsus-chart__key.tarsus-chart__line--units {
+    color: var(--tz-series-2);
+}
+
+.tarsus-status-bar {
+    display: flex;
+    gap: 2px;
+    height: 1.4rem;
+    margin-top: 0.6rem;
+    overflow: hidden;
+    border-radius: 6px;
+}
+
+.tarsus-status-bar__part--completed {
+    background: var(--tz-success);
+}
+
+.tarsus-status-bar__part--progress {
+    background: var(--tz-series-1);
+}
+
+.tarsus-status-bar__part--notstarted {
+    background: var(--tz-track);
+}
+
+.tarsus-status-bar__dot {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 3px;
+}
+
+.tarsus-stats__table-wrap {
+    overflow-x: auto;
+}
+
+.tarsus-stats__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.tarsus-stats__table th {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 2px solid var(--tz-line-strong);
+    color: var(--tz-muted);
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.tarsus-stats__table td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--tz-line);
+    vertical-align: middle;
+}
+
+.tarsus-stats__table tbody tr:nth-child(even) td {
+    background: var(--tz-row-alt);
+}
+
+.tarsus-stats__grade {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.tarsus-pill {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 6px;
+    background: var(--tz-badge);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.tarsus-pill--lp_completed {
+    background: var(--tz-success-soft);
+    color: #23704a;
+}
+
+.tarsus-meter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+}
+
+.tarsus-meter__track {
+    display: inline-block;
+    width: 5.5rem;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--tz-track);
+}
+
+.tarsus-meter__fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--tz-series-1);
+}
+
+.tarsus-meter--xp .tarsus-meter__fill {
+    background: var(--tz-live);
+}
+
+.tarsus-meter__text {
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.tarsus-link-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--tz-accent-deep);
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tarsus-link-btn:hover,
+.tarsus-link-btn:focus-visible {
+    text-decoration: underline;
+}
+
+/* History (read only). */
+.tarsus-history__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+}
+
+.tarsus-history__name {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.tarsus-history__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    background: var(--tz-number-bg);
+    color: var(--tz-number-fg);
+    font-size: 0.8rem;
+}
+
+.tarsus-history__head .tarsus-link-btn {
+    margin-left: auto;
+}
+
+.tarsus-history {
+    display: grid;
+    grid-template-columns: minmax(16rem, 22rem) 1fr;
+    gap: 1rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .tarsus-history {
+        grid-template-columns: 1fr;
+    }
+}
+
+.tarsus-history__figures,
+.tarsus-history__growth {
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 12px;
+    margin-bottom: 0.75rem;
+}
+
+.tarsus-history__growth h4 {
+    margin: 0 0 0.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.tarsus-history__grade {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+    font-size: 1.6rem;
+    font-weight: 600;
+}
+
+.tarsus-history__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--tz-line-soft);
+    font-size: 0.88rem;
+}
+
+.tarsus-history__feed {
+    min-width: 0;
+}
+
+.tarsus-history__feed .tarsus-card {
+    max-width: none;
+    margin: 0 0 0.75rem;
+    border: 1px solid var(--tz-line);
+    border-radius: 12px;
+    background: var(--tz-card);
+}
+
+.tarsus-history__more {
+    display: block;
+    margin: 0 auto 0.75rem;
+}
+
+.tarsus-card--readonly .tarsus-practice-card__actions {
+    display: none;
+}
+
+.tarsus-history__pick {
+    min-width: 18rem;
 }

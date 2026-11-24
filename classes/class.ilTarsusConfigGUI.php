@@ -30,7 +30,6 @@ use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
 use TarsusIlias\Support\Help;
 use TarsusIlias\Support\Ilias;
-use TarsusIlias\Support\Interactions;
 use TarsusIlias\Support\Plan;
 use TarsusIlias\Support\UsageMeter;
 use TarsusIlias\Support\Voices;
@@ -316,6 +315,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $this->configure($form);
             return;
         }
+        $target = Config::target();
         Config::set('base_url', $url);
 
         $apikey = trim((string) $form->getInput('api_key'));
@@ -355,8 +355,31 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             }
         }
 
+        $this->retargetIfMoved($target);
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('settings_saved'), true);
         $this->ctrl->redirect($this, 'configure');
+    }
+
+    /**
+     * After the connection moved to another brain (demo mode switched,
+     * another server, brain ID or license key): what the previous brain
+     * held is sent to the new one, and the admin is told. Saving never
+     * fails over it.
+     */
+    private function retargetIfMoved(string $before): void
+    {
+        if (Config::target() === $before) {
+            return;
+        }
+        try {
+            $count = (new Reconciler())->retarget();
+        } catch (Throwable $e) {
+            Ilias::log('retarget after a connection change: ' . $e->getMessage(), 'error');
+            return;
+        }
+        if ($count > 0) {
+            $this->tpl->setOnScreenMessage('info', $this->txt('retarget_notice', ['count' => $count]), true);
+        }
     }
 
     /**
@@ -435,7 +458,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
                 'notify_emails' => (string) Config::get('notify_emails', ''),
             ]);
         }
-        $this->tpl->setContent('<div class="tarsus-app">' . $this->usagePanel() . $this->featurePanel() . $this->countingPanel() . '</div>' . $form->getHTML());
+        $this->tpl->setContent('<div class="tarsus-app">' . $this->usagePanel() . $this->featurePanel() . '</div>' . $form->getHTML());
     }
 
     /**
@@ -464,35 +487,6 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $html .= '</tr>';
         }
         $html .= '</tbody></table></div><p class="tarsus-muted">' . $this->txt('plan_features_note') . '</p></details>';
-        return $html;
-    }
-
-    /**
-     * How AI interactions are counted - the agreement's rules, which the
-     * ledger applies to every call this installation makes.
-     */
-    private function countingPanel(): string
-    {
-        $rows = [
-            ['counting_answer', Interactions::forGenerate()],
-            ['counting_step', Interactions::forGenerate()],
-            ['counting_agent', Interactions::forGenerate()],
-            ['counting_audio_explainer', Interactions::forAudioExplainer()],
-            ['counting_voice', Interactions::forGenerate(true)],
-            ['counting_eval_open', Interactions::forEvaluation(Didactics::TYPE_OPEN)],
-            ['counting_eval_choice', Interactions::forEvaluation(Didactics::TYPE_SINGLECHOICE)],
-            ['counting_index', Interactions::forIndexing(BitType::DOCUMENT)],
-            ['counting_index_media', Interactions::forIndexing(BitType::MEDIA)],
-            ['counting_management', Interactions::forManagement()],
-        ];
-        $html = '<details class="tarsus-details tarsus-details--plan"><summary>' . $this->txt('counting_title') . '</summary>'
-            . '<p class="tarsus-muted">' . $this->txt('counting_desc') . '</p>'
-            . '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr><th>' . $this->txt('counting_what') . '</th><th class="tarsus-num">'
-            . $this->txt('counting_count') . '</th></tr></thead><tbody>';
-        foreach ($rows as [$key, $count]) {
-            $html .= '<tr><td>' . $this->txt($key) . '</td><td class="tarsus-num">' . $count . '</td></tr>';
-        }
-        $html .= '</tbody></table></div><p class="tarsus-muted">' . $this->txt('counting_note') . '</p></details>';
         return $html;
     }
 
@@ -541,7 +535,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
 
         $limit = new ilNumberInputGUI($this->txt('monthly_limit'), 'monthly_limit');
         $limit->setInfo($this->txt('monthly_limit_desc', [
-            'used' => number_format(Budget::used()),
+            'used' => Budget::format(Budget::used()),
             'included' => number_format(Plan::includedCredits()),
             'reset' => Views::date(Budget::nextMonthStart()),
         ]));
@@ -614,7 +608,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $confirm->setHeaderText($this->txt('limit_reduce_confirm', [
                 'old' => $old > 0 ? number_format($old) : $this->txt('no_limit'),
                 'new' => number_format($new),
-                'used' => number_format(Budget::used()),
+                'used' => Budget::format(Budget::used()),
             ]));
             $confirm->setConfirm($this->lng->txt('confirm'), 'confirmPlan');
             $confirm->setCancel($this->lng->txt('cancel'), 'showPlan');
@@ -680,19 +674,19 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         if ($after === null || ($before !== null && $after['fetched'] === $before['fetched'])) {
             $this->tpl->setOnScreenMessage('failure', $this->txt('usage_refresh_failed'), true);
         } else {
-            $this->tpl->setOnScreenMessage('success', $this->txt('usage_refreshed', ['credits' => number_format($after['credits'])]), true);
+            $this->tpl->setOnScreenMessage('success', $this->txt('usage_refreshed', ['credits' => Budget::format($after['credits'])]), true);
         }
         $this->ctrl->redirect($this, 'showStatus');
     }
 
     /**
-     * The plan, this month's usage and the cost estimate.
+     * The plan, this month's usage and the cost - all from the brain's own
+     * usage figure, the only one there is.
      */
     private function usagePanel(): string
     {
-        $remote = Budget::remote();
+        $remote = Budget::refreshRemote();
         $overage = Budget::overage();
-        $local = Budget::localCredits();
         $tarsusbilled = Plan::billedByTarsus();
         $rows = [
             [$this->txt('plan_billing'), $tarsusbilled ? $this->txt('plan_billing_tarsus') : $this->txt('plan_billing_partner')],
@@ -701,17 +695,16 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
                 : ($tarsusbilled
                     ? $this->txt('plan_included_value_tarsus', ['credits' => number_format(Plan::includedCredits())])
                     : $this->txt('plan_included_value', ['credits' => number_format(Plan::includedCredits()), 'price' => Html::e(Plan::money(Plan::pricePerRequest()))]))],
-            [$this->txt('usage_local'), $this->txt('usage_local_value', ['credits' => number_format($local), 'requests' => number_format(Budget::localRequests())])],
             [$this->txt('usage_remote'), $remote === null
                 ? $this->txt('usage_remote_none')
-                : $this->txt('usage_remote_value', ['credits' => number_format($remote['credits']), 'fetched' => Html::e(Views::date($remote['fetched']))])],
+                : $this->txt('usage_remote_value', ['credits' => Budget::format($remote['credits']), 'fetched' => Html::e(Views::date($remote['fetched']))])],
             [$this->txt('monthly_limit'), Budget::hasLimit()
-                ? $this->txt('monthly_limit_value', ['limit' => number_format(Budget::limit()), 'remaining' => number_format(Budget::remaining())])
+                ? $this->txt('monthly_limit_value', ['limit' => Budget::format(Budget::limit()), 'remaining' => Budget::format(Budget::remaining())])
                 : $this->txt('no_limit')],
             [$this->txt('usage_charged'), $overage['charged'] > 0
                 ? ($tarsusbilled
-                    ? $this->txt('usage_charged_value_tarsus', ['requests' => number_format($overage['charged'])])
-                    : $this->txt('usage_charged_value', ['requests' => number_format($overage['charged']), 'cost' => Html::e(Plan::money($overage['cost']))]))
+                    ? $this->txt('usage_charged_value_tarsus', ['requests' => Budget::format($overage['charged'])])
+                    : $this->txt('usage_charged_value', ['requests' => Budget::format($overage['charged']), 'cost' => Html::e(Plan::money($overage['cost']))]))
                 : $this->txt('usage_charged_none')],
             [$this->txt('usage_reset'), Html::e(Views::date(Budget::nextMonthStart()))],
         ];
@@ -814,7 +807,9 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             }
         }
         if ($ok) {
+            $target = Config::target();
             Config::set('brain_id', $brainid);
+            $this->retargetIfMoved($target);
             $this->tpl->setOnScreenMessage('success', $this->txt('brain_activated', ['brain' => Html::e($brainid)]), true);
         } else {
             $this->tpl->setOnScreenMessage('failure', $this->txt('brain_activate_failed'), true);
@@ -937,10 +932,11 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         if ($summary === []) {
             $html .= '<p class="tarsus-muted">' . $this->txt('status_usage_none') . '</p>';
         } else {
+            // Requests this installation sent; what they cost is Tarsus's figure above.
             $html .= '<div class="tarsus-table-wrap"><table class="tarsus-table"><thead><tr><th>' . $this->txt('status_operation') . '</th><th>'
-                . $this->txt('status_calls') . '</th><th>' . $this->txt('status_credits') . '</th></tr></thead><tbody>';
+                . $this->txt('status_calls') . '</th></tr></thead><tbody>';
             foreach ($summary as $operation => $figures) {
-                $html .= '<tr><td>' . Html::e($operation) . '</td><td>' . (int) $figures['calls'] . '</td><td>' . (int) $figures['credits'] . '</td></tr>';
+                $html .= '<tr><td>' . Html::e($operation) . '</td><td>' . (int) $figures['calls'] . '</td></tr>';
             }
             $html .= '</tbody></table></div>';
         }

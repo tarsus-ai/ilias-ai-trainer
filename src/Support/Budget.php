@@ -9,17 +9,11 @@ use TarsusIlias\Guardrail\Pipeline;
  * The monthly AI-credit budget: what the brain charged this calendar
  * month, the limit the customer set, and the warnings on the way there.
  *
- * One AI credit is one AI interaction as the partner agreement counts
- * them ({@see Interactions}): the unit the packages include and the price
- * applies to.
- *
- * Two figures describe the month. The local ledger counts every request
- * this installation made, with the agreement's figure per call, and is
- * available at once. The brain's own usage endpoint reports what was
- * really charged - for the whole brain, so it also covers other systems
- * using it - and is fetched by the cron job and on the status pages. The
- * gate uses the larger of the two, so a limit holds even when only one
- * side knows about some spending.
+ * There is one figure: the brain's own usage, as Tarsus reports it (for
+ * the whole brain, so it also covers other systems using it). The plugin
+ * estimates nothing. The figure is fetched at most once a minute and kept,
+ * by the cron job, the status pages and before a call that may cost
+ * credits; one fetch runs at a time.
  *
  * The limit is in AI credits per calendar month; 0 means no limit.
  * Crossing 50, 75, 90 and 100 percent of it raises a banner for teachers
@@ -34,9 +28,13 @@ final class Budget
     public const THRESHOLDS = [50, 75, 90, 100];
 
     /** Seconds a fetched brain figure stays fresh. */
-    public const REMOTE_TTL = 600;
+    public const REMOTE_TTL = 60;
+
+    /** Seconds one fetch may take before another process may start its own. */
+    private const FETCH_LOCK = 20;
 
     private const KEY_REMOTE = 'usage_remote';
+    private const KEY_FETCHING = 'usage_fetching';
     private const KEY_NOTIFIED = 'usage_notified';
 
     // ------------------------------------------------------------------
@@ -106,39 +104,9 @@ final class Budget
     }
 
     /**
-     * Credits this installation recorded this month.
-     */
-    public static function localCredits(): int
-    {
-        $db = Ilias::db();
-        $res = $db->queryF(
-            'SELECT COALESCE(SUM(credits), 0) total FROM ' . UsageMeter::TABLE . ' WHERE created >= %s',
-            ['integer'],
-            [self::monthStart()]
-        );
-        $row = $db->fetchAssoc($res);
-        return (int) ($row['total'] ?? 0);
-    }
-
-    /**
-     * Requests (charged calls) this installation made this month.
-     */
-    public static function localRequests(): int
-    {
-        $db = Ilias::db();
-        $res = $db->queryF(
-            'SELECT COUNT(*) cnt FROM ' . UsageMeter::TABLE . ' WHERE created >= %s AND credits > 0',
-            ['integer'],
-            [self::monthStart()]
-        );
-        $row = $db->fetchAssoc($res);
-        return (int) ($row['cnt'] ?? 0);
-    }
-
-    /**
      * The brain's figure for this month, if one was fetched this month.
      *
-     * @return array{credits: int, fetched: int, items: array<int, array{key: string, name: string, service: string, credits: int}>}|null
+     * @return array{credits: float, fetched: int, items: array<int, array{key: string, name: string, service: string, credits: float}>}|null
      */
     public static function remote(): ?array
     {
@@ -151,7 +119,7 @@ final class Budget
             return null;
         }
         return [
-            'credits' => (int) ($data['credits'] ?? 0),
+            'credits' => round((float) ($data['credits'] ?? 0), 2),
             'fetched' => (int) ($data['fetched'] ?? 0),
             'items' => is_array($data['items'] ?? null) ? $data['items'] : [],
         ];
@@ -161,7 +129,7 @@ final class Budget
      * Ask the brain what it charged this month and remember the answer.
      * Failures keep the previous figure; nothing is thrown.
      *
-     * @return array{credits: int, fetched: int, items: array}|null The current figure.
+     * @return array{credits: float, fetched: int, items: array}|null The current figure.
      */
     public static function refreshRemote(bool $force = false): ?array
     {
@@ -169,14 +137,22 @@ final class Budget
         if (!$force && $current !== null && time() - $current['fetched'] < self::REMOTE_TTL) {
             return $current;
         }
+        // One fetch at a time: another process fetching right now will
+        // store the figure.
+        $fetching = (int) Config::fresh(self::KEY_FETCHING);
+        if (!$force && $current !== null && time() - $fetching < self::FETCH_LOCK) {
+            return $current;
+        }
+        Config::set(self::KEY_FETCHING, (string) time());
         try {
             $usage = (new Pipeline())->execute(
-                fn() => ClientFactory::getClient()->getUsage(self::monthStart(), time()),
-                0
+                fn() => ClientFactory::getClient()->getUsage(self::monthStart(), time())
             );
         } catch (\Throwable $e) {
             Ilias::log('usage fetch failed: ' . $e->getMessage());
             return $current;
+        } finally {
+            Config::set(self::KEY_FETCHING, null);
         }
         $items = [];
         foreach ((array) ($usage['items'] ?? []) as $item) {
@@ -187,12 +163,13 @@ final class Budget
                 'key' => (string) ($item['key'] ?? ''),
                 'name' => (string) ($item['name'] ?? ''),
                 'service' => (string) ($item['service'] ?? ''),
-                'credits' => (int) ($item['credits'] ?? 0),
+                'credits' => round((float) ($item['credits'] ?? 0), 2),
             ];
         }
+        usort($items, static fn(array $a, array $b): int => $b['credits'] <=> $a['credits']);
         $figure = [
             'month' => self::monthKey(),
-            'credits' => max(0, (int) ($usage['total'] ?? 0)),
+            'credits' => max(0.0, round((float) ($usage['total'] ?? 0), 2)),
             'fetched' => time(),
             'items' => $items,
         ];
@@ -202,12 +179,13 @@ final class Budget
     }
 
     /**
-     * Credits used this month: the larger of the local and the brain's figure.
+     * Credits the brain charged this month, as last fetched; 0 until a
+     * figure exists for the month.
      */
-    public static function used(): int
+    public static function used(): float
     {
         $remote = self::remote();
-        return max(self::localCredits(), $remote === null ? 0 : $remote['credits']);
+        return $remote === null ? 0.0 : $remote['credits'];
     }
 
     public static function percent(): float
@@ -219,22 +197,24 @@ final class Budget
         return min(999.0, round(self::used() / $limit * 100, 1));
     }
 
-    public static function remaining(): int
+    public static function remaining(): float
     {
-        return max(0, self::limit() - self::used());
-    }
-
-    public static function exhausted(): bool
-    {
-        return self::hasLimit() && self::used() >= self::limit();
+        return max(0.0, self::limit() - self::used());
     }
 
     /**
-     * Whether a call costing $estimated credits would cross the limit.
+     * Whether the month's limit is reached. With $refresh the brain's
+     * figure is fetched first when it is older than a minute.
      */
-    public static function wouldExceed(int $estimated): bool
+    public static function exhausted(bool $refresh = false): bool
     {
-        return self::hasLimit() && self::used() + max(0, $estimated) > self::limit();
+        if (!self::hasLimit()) {
+            return false;
+        }
+        if ($refresh) {
+            self::refreshRemote();
+        }
+        return self::used() >= self::limit();
     }
 
     /**
@@ -266,34 +246,45 @@ final class Budget
     // ------------------------------------------------------------------
 
     /**
-     * AI interactions this month beyond the package's included amount,
-     * and what they cost at the agreed price per interaction. On Pay as
-     * you grow every interaction counts. A customer with a license key is
-     * billed by Tarsus, so no partner price applies and the cost is 0.
+     * AI credits this month beyond the package's included amount, and
+     * what they cost at the agreed price per credit - both from the
+     * brain's figure. On Pay as you grow every credit counts. A customer
+     * with a license key is billed by Tarsus, so no partner price applies
+     * and the cost is 0.
      *
-     * @return array{requests: int, used: int, cost: float, included: int, charged: int}
+     * @return array{used: float, cost: float, included: int, charged: float}
      */
     public static function overage(): array
     {
-        return self::overageOf(self::localCredits(), self::localRequests(), Plan::includedCredits(), Plan::pricePerRequest(), Plan::billedByTarsus());
+        return self::overageOf(self::used(), Plan::includedCredits(), Plan::pricePerRequest(), Plan::billedByTarsus());
     }
 
     /**
-     * The arithmetic of {@see overage()}: interactions beyond the included
-     * amount, priced per interaction.
+     * The arithmetic of {@see overage()}: credits beyond the included
+     * amount, priced per credit.
      *
-     * @return array{requests: int, used: int, cost: float, included: int, charged: int}
+     * @return array{used: float, cost: float, included: int, charged: float}
      */
-    public static function overageOf(int $used, int $requests, int $included, float $price, bool $billedbytarsus = false): array
+    public static function overageOf(float $used, int $included, float $price, bool $billedbytarsus = false): array
     {
-        $charged = max(0, $used - max(0, $included));
+        $charged = round(max(0.0, $used - max(0, $included)), 2);
         return [
-            'requests' => $requests,
-            'used' => $used,
+            'used' => round($used, 2),
             'charged' => $charged,
             'included' => max(0, $included),
             'cost' => $billedbytarsus ? 0.0 : round($charged * $price, 2),
         ];
+    }
+
+    /**
+     * A credit figure for people: whole numbers without decimals, fractions
+     * with two (1,234.57 / 1.234,57).
+     */
+    public static function format(float $credits): string
+    {
+        $decimals = abs($credits - round($credits)) < 0.005 ? 0 : 2;
+        $german = Ilias::userLanguage() === 'de';
+        return number_format($credits, $decimals, $german ? ',' : '.', $german ? '.' : ',');
     }
 
     // ------------------------------------------------------------------
@@ -313,8 +304,8 @@ final class Budget
             return null;
         }
         $params = [
-            'used' => number_format(self::used()),
-            'limit' => number_format(self::limit()),
+            'used' => self::format(self::used()),
+            'limit' => self::format(self::limit()),
             'percent' => number_format(self::percent(), 0),
             'reset' => Ilias::date(self::nextMonthStart()),
         ];
@@ -394,8 +385,8 @@ final class Budget
         }
         $params = [
             'percent' => (string) $threshold,
-            'used' => number_format(self::used()),
-            'limit' => number_format(self::limit()),
+            'used' => self::format(self::used()),
+            'limit' => self::format(self::limit()),
             'reset' => Ilias::date(self::nextMonthStart()),
             'site' => Ilias::siteTitle(),
         ];
