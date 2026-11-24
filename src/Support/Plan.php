@@ -8,8 +8,8 @@ namespace TarsusIlias\Support;
  * Four packages exist, and each contains the one before it: Ask Question
  * (ASK) answers questions from the documents; Knowledge Test (PRACTICE)
  * adds adaptive quizzes; Build Knowledge (LEARN) adds the full coach with
- * the audio explainer, voice input and the agent (AI-driven) mode; Pay as
- * you grow (PAYG) has access to everything. The matrix in {@see FEATURES}
+ * the audio explainer, voice input, the agent (AI-driven) mode and the
+ * live interaction; Pay as you grow (PAYG) has access to everything. The matrix in {@see FEATURES}
  * is the table "Funktionen je Paket" of the Tarsus partner agreement
  * (tarsus.ai/impressum/partnervereinbarung, 12 November 2026); the partner
  * has to enforce the booked package in the integration, so everything the
@@ -50,6 +50,8 @@ final class Plan
     public const FEATURE_VOICE_INPUT = 'voice_input';
     /** Agent mode: the AI-driven interaction type. */
     public const FEATURE_AI_DRIVEN = 'ai_driven';
+    /** Live interaction: a spoken conversation with the coach (state discuss). */
+    public const FEATURE_DISCUSS = 'discuss';
 
     /** Every feature a package can include, in the agreement's order. */
     public const ALL_FEATURES = [
@@ -59,7 +61,11 @@ final class Plan
         self::FEATURE_AUDIO_EXPLAINER,
         self::FEATURE_VOICE_INPUT,
         self::FEATURE_AI_DRIVEN,
+        self::FEATURE_DISCUSS,
     ];
+
+    /** @var string[] The modes, in switcher order. */
+    public const MODES = ['ask', 'test', 'build', 'discuss'];
 
     /**
      * "Funktionen je Paket": what each package includes. Standard narration
@@ -143,14 +149,14 @@ final class Plan
     public static function modes(?string $plan = null): array
     {
         return array_values(array_filter(
-            ['ask', 'test', 'build'],
+            self::MODES,
             static fn(string $mode): bool => self::allows($mode, $plan)
         ));
     }
 
     public static function allowsMode(string $mode, ?string $plan = null): bool
     {
-        return in_array($mode, ['ask', 'test', 'build'], true) && self::allows($mode, $plan);
+        return in_array($mode, self::MODES, true) && self::allows($mode, $plan);
     }
 
     /**

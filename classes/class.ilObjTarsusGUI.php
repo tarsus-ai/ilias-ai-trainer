@@ -1,9 +1,10 @@
 <?php
 
 /**
- * The screens of a Tarsus object: the learner's chat, the teacher's
- * material list, learner overview and settings, plus the AJAX endpoints the
- * chat and the material list talk to.
+ * The screens of a Tarsus object: the coach (the learner's chat, with the
+ * teacher's settings, evaluation and history panels sliding in from the
+ * right), the teacher's material list and settings, plus the AJAX
+ * endpoints the coach and the material list talk to.
  *
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
@@ -31,12 +32,13 @@ use TarsusIlias\Output\Presenter;
 use TarsusIlias\Output\Views;
 use TarsusIlias\Service\LearnerApi;
 use TarsusIlias\Service\ManagerApi;
+use TarsusIlias\Service\SettingsApi;
+use TarsusIlias\Service\TeacherApi;
 use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
 use TarsusIlias\Support\Help;
 use TarsusIlias\Support\Ilias;
 use TarsusIlias\Support\Plan;
-use TarsusIlias\Support\UsageMeter;
 
 class ilObjTarsusGUI extends ilObjectPluginGUI
 {
@@ -44,10 +46,59 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     public const PAGE_SIZE = 10;
 
     /** @var string[] Commands that answer JSON and need read permission. */
-    private const AJAX_READ = ['ajaxFeed', 'ajaxAsk', 'ajaxPracticeNext', 'ajaxPracticeCheck', 'ajaxLearnNext', 'ajaxAudio'];
+    private const AJAX_READ = [
+        'ajaxFeed', 'ajaxAsk', 'ajaxAskVoice', 'ajaxPracticeNext', 'ajaxPracticeCheck', 'ajaxLearnNext', 'ajaxAudio',
+        'ajaxDiscuss', 'ajaxReferences',
+    ];
 
     /** @var string[] Commands that answer JSON and need write permission. */
-    private const AJAX_WRITE = ['ajaxAction', 'ajaxInclude', 'ajaxSync'];
+    private const AJAX_WRITE = [
+        'ajaxAction', 'ajaxInclude', 'ajaxSync',
+        'ajaxStats', 'ajaxHistory', 'ajaxAnalytics', 'ajaxSettings', 'ajaxSaveSettings',
+    ];
+
+    /** Longest spoken question accepted, in seconds. */
+    public const VOICE_MAX_SECONDS = 180;
+
+    /** @var string[] Interface texts of the coach. */
+    private const CHAT_STRINGS = [
+        'practice_start', 'practice_next', 'practice_check', 'practice_answer_placeholder',
+        'practice_variable_placeholder', 'practice_score', 'practice_correct_value', 'xp', 'learning_units', 'learn_slide_of',
+        'learn_previous', 'learn_next', 'learn_image_enlarge', 'learn_image_close', 'learn_audio', 'learn_audio_play',
+        'learn_audio_pause', 'learn_ask_about', 'learn_ask_about_unit', 'chat_reply_about', 'chat_reply_clear', 'learn_complete_title',
+        'frame_title', 'frame_enlarge', 'learn_motivation_title', 'mode_build', 'mode_test', 'mode_ask', 'mode_discuss',
+        'unexpected_error', 'session_lost', 'grade_chip', 'grade_title',
+        'voice_to_voice', 'voice_to_text', 'voice_start', 'voice_stop', 'voice_pause', 'voice_resume', 'voice_discard',
+        'voice_play', 'voice_recording', 'voice_paused', 'voice_ready', 'voice_question', 'voice_transcribing',
+        'voice_transcript_note', 'voice_limit', 'voice_unsupported', 'mic_denied', 'mic_notfound', 'mic_failed',
+        'live_start', 'live_new', 'live_intro', 'live_expired', 'live_end_confirm', 'live_title', 'live_starting',
+        'sources_show', 'sources_title', 'sources_count', 'sources_none', 'sources_open', 'sources_transcript',
+        'source_type_text', 'source_type_table', 'source_type_image', 'source_type_audio', 'source_type_video',
+        'source_type_question', 'source_type_form', 'source_type_other', 'panel_close', 'loading',
+        'proc_ask_classify', 'proc_ask_search', 'proc_ask_media', 'proc_ask_select', 'proc_ask_cube',
+        'proc_ask_dqr', 'proc_ask_compose', 'proc_ask_verify', 'proc_ask_polish', 'proc_ask_transcribe',
+        'proc_practice_cube_create', 'proc_practice_baseline', 'proc_practice_evaluate',
+        'proc_practice_compare', 'proc_practice_surprise', 'proc_practice_reestimate',
+        'proc_practice_align', 'proc_practice_cells', 'proc_practice_history', 'proc_practice_action',
+        'proc_practice_taxonomy', 'proc_practice_difficulty', 'proc_practice_format',
+        'proc_practice_generate', 'proc_practice_operators', 'proc_practice_options',
+        'proc_practice_solution', 'proc_practice_polish',
+        'proc_learn_path_create', 'proc_learn_progress', 'proc_learn_objectives', 'proc_learn_cells',
+        'proc_learn_next', 'proc_learn_passages', 'proc_learn_dqr', 'proc_learn_split',
+        'proc_learn_examples', 'proc_learn_link', 'proc_learn_check', 'proc_learn_path_update',
+        'proc_learn_polish',
+    ];
+
+    /** @var string[] Interface texts of the teacher's panels. */
+    private const TEACHER_STRINGS = [
+        'panel_settings', 'panel_stats', 'panel_history', 'settings_save', 'settings_saved', 'settings_saving',
+        'settings_open_full', 'form_invalid', 'stats_learners', 'stats_avg_grade', 'stats_completed', 'stats_avg_progress',
+        'stats_distribution', 'stats_distribution_help', 'stats_status', 'stats_status_help', 'stats_col_name',
+        'stats_col_grade', 'stats_col_progress', 'stats_col_status', 'stats_col_build', 'stats_col_test', 'stats_col_last',
+        'stats_history', 'stats_group_all', 'stats_group', 'stats_export', 'stats_none', 'stats_count_learners',
+        'lp_completed', 'lp_in_progress', 'lp_not_attempted', 'history_readonly', 'history_pick', 'history_growth',
+        'history_xp', 'history_units', 'history_empty', 'history_more', 'history_back', 'history_of',
+    ];
 
     public function getType(): string
     {
@@ -94,9 +145,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
                 break;
 
             case 'showMaterials':
-            case 'showLearners':
             case 'exportLearners':
-            case 'showAnalytics':
             case 'editSettings':
             case 'updateSettings':
                 $this->checkPermission('write');
@@ -142,9 +191,9 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $this->addInfoTab();
 
         if ($this->access->checkAccess('write', '', $ref)) {
+            // The evaluation and the learners' history open from the coach,
+            // as panels sliding in from the right.
             $this->tabs->addTab('materials', $this->txt('tab_materials'), $this->ctrl->getLinkTarget($this, 'showMaterials'));
-            $this->tabs->addTab('learners', $this->txt('tab_learners'), $this->ctrl->getLinkTarget($this, 'showLearners'));
-            $this->tabs->addTab('analytics', $this->txt('tab_analytics'), $this->ctrl->getLinkTarget($this, 'showAnalytics'));
             $this->tabs->addTab('settings', $this->txt('tab_settings'), $this->ctrl->getLinkTarget($this, 'editSettings'));
         }
 
@@ -271,20 +320,45 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             $useravatar = '';
         }
 
+        $teacher = $this->checkPermissionBool('write');
         $config = [
             'kind' => 'chat',
             'endpoints' => $this->endpoints([
                 'feed' => 'ajaxFeed',
                 'ask' => 'ajaxAsk',
+                'askVoice' => 'ajaxAskVoice',
                 'practiceNext' => 'ajaxPracticeNext',
                 'practiceCheck' => 'ajaxPracticeCheck',
                 'learnNext' => 'ajaxLearnNext',
                 'audio' => 'ajaxAudio',
+                'discuss' => 'ajaxDiscuss',
+                'references' => 'ajaxReferences',
             ]),
+            // The teacher's panels: settings, evaluation, history.
+            'teacher' => $teacher ? [
+                'endpoints' => $this->endpoints([
+                    'stats' => 'ajaxStats',
+                    'history' => 'ajaxHistory',
+                    'analytics' => 'ajaxAnalytics',
+                    'settings' => 'ajaxSettings',
+                    'saveSettings' => 'ajaxSaveSettings',
+                ]),
+                'exportUrl' => $this->ctrl->getLinkTarget($this, 'exportLearners'),
+                'settingsUrl' => $this->ctrl->getLinkTarget($this, 'editSettings'),
+            ] : null,
             'modes' => $modes,
             // Narration of learning units is part of Build Knowledge and
             // Pay as you grow.
             'audio' => Plan::allowsAudio(),
+            // Spoken questions in Ask a question (package and switch).
+            'voice' => $settings->voiceInputActive(),
+            'voiceMaxSeconds' => self::VOICE_MAX_SECONDS,
+            'voiceMaxBytes' => Ilias::uploadLimit(),
+            // "View sources" under the answers.
+            'references' => $settings->referencesenabled,
+            // The result in percent: the experience points' share while
+            // Test knowledge is active, the learning units' otherwise.
+            'gradeBasis' => $settings->modeActive('test') ? 'xp' : 'units',
             'interactive' => $settings->effectiveInteraction() === Plan::INTERACTION_AI,
             'pageSize' => LearnerApi::FEED_PAGE_SIZE,
             'userAvatar' => $useravatar,
@@ -298,26 +372,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
                 'success' => Ilias::assetUrl('images/success.png'),
             ],
             'icons' => Icons::PATHS,
-            'strings' => $this->strings([
-                'practice_start', 'practice_next', 'practice_check', 'practice_answer_placeholder',
-                'practice_variable_placeholder', 'practice_table_position', 'practice_table_rate', 'practice_table_amount',
-                'practice_score', 'xp', 'learning_units', 'learn_slide_of', 'learn_previous', 'learn_next',
-                'learn_image_enlarge', 'learn_image_close', 'learn_audio', 'learn_audio_play', 'learn_audio_pause',
-                'learn_ask_about', 'chat_reply_about', 'chat_reply_clear', 'learn_complete_title', 'frame_title', 'frame_enlarge',
-                'learn_motivation_title', 'mode_build', 'mode_test', 'mode_ask', 'unexpected_error', 'session_lost',
-                'proc_ask_classify', 'proc_ask_search', 'proc_ask_media', 'proc_ask_select', 'proc_ask_cube',
-                'proc_ask_dqr', 'proc_ask_compose', 'proc_ask_verify', 'proc_ask_polish',
-                'proc_practice_cube_create', 'proc_practice_baseline', 'proc_practice_evaluate',
-                'proc_practice_compare', 'proc_practice_surprise', 'proc_practice_reestimate',
-                'proc_practice_align', 'proc_practice_cells', 'proc_practice_history', 'proc_practice_action',
-                'proc_practice_taxonomy', 'proc_practice_difficulty', 'proc_practice_format',
-                'proc_practice_generate', 'proc_practice_operators', 'proc_practice_options',
-                'proc_practice_solution', 'proc_practice_polish',
-                'proc_learn_path_create', 'proc_learn_progress', 'proc_learn_objectives', 'proc_learn_cells',
-                'proc_learn_next', 'proc_learn_passages', 'proc_learn_dqr', 'proc_learn_split',
-                'proc_learn_examples', 'proc_learn_link', 'proc_learn_check', 'proc_learn_path_update',
-                'proc_learn_polish',
-            ]),
+            'strings' => $this->strings(array_merge(self::CHAT_STRINGS, $teacher ? self::TEACHER_STRINGS : [])),
         ];
 
         $this->tpl->setContent(Views::chat('tarsus-chat-' . $object->getId(), $config, Views::help(Help::links(), 'tarsus-help-chat')));
@@ -399,7 +454,53 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $payload = Ilias::jsonPayload();
         Ilias::sendJson($this->learnerApi()->ask(
             (string) ($payload['query'] ?? ''),
-            (string) ($payload['replyto'] ?? '')
+            (string) ($payload['replyto'] ?? ''),
+            (string) ($payload['replystack'] ?? '')
+        ));
+    }
+
+    /**
+     * A spoken question: the recording arrives as the uploaded file
+     * "audio", the reply target in the form field "payload".
+     */
+    private function ajaxAskVoice(): void
+    {
+        $payload = Ilias::jsonPayload();
+        $file = $_FILES['audio'] ?? null;
+        $error = is_array($file) ? (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
+        if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+            Ilias::sendJson(['status' => 'error', 'error' => $this->txt('err_toolarge')]);
+        }
+        $path = is_array($file) ? (string) ($file['tmp_name'] ?? '') : '';
+        if ($error !== UPLOAD_ERR_OK || $path === '' || !is_uploaded_file($path)) {
+            Ilias::sendJson(['status' => 'error', 'error' => $this->txt('err_audio_format')]);
+        }
+        // The browser's type without its parameters (audio/webm;codecs=opus).
+        $mimetype = strtolower(trim(explode(';', (string) ($file['type'] ?? ''))[0]));
+        if (strncmp($mimetype, 'audio/', 6) !== 0 && strncmp($mimetype, 'video/', 6) !== 0) {
+            $mimetype = 'application/octet-stream';
+        }
+        $name = basename((string) ($file['name'] ?? 'question.webm'));
+        Ilias::sendJson($this->learnerApi()->askVoice(
+            $path,
+            $mimetype,
+            $name !== '' ? $name : 'question.webm',
+            (string) ($payload['replyto'] ?? ''),
+            (string) ($payload['replystack'] ?? '')
+        ));
+    }
+
+    private function ajaxDiscuss(): void
+    {
+        Ilias::sendJson($this->learnerApi()->discuss());
+    }
+
+    private function ajaxReferences(): void
+    {
+        $payload = Ilias::jsonPayload();
+        Ilias::sendJson($this->learnerApi()->references(
+            (string) ($payload['widgetid'] ?? ''),
+            (string) ($payload['state'] ?? 'ask')
         ));
     }
 
@@ -550,6 +651,46 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         return new ManagerApi($this->object->getId(), $this->tarsus()->getContainerRefId());
     }
 
+    private function teacherApi(): TeacherApi
+    {
+        $object = $this->tarsus();
+        return new TeacherApi($object->getId(), $object->getContainerRefId(), $object->getSettings());
+    }
+
+    // ------------------------------------------------------------------
+    // AJAX: the teacher's panels (evaluation, history, settings)
+    // ------------------------------------------------------------------
+
+    private function ajaxStats(): void
+    {
+        Ilias::sendJson($this->teacherApi()->statistics());
+    }
+
+    private function ajaxHistory(): void
+    {
+        $payload = Ilias::jsonPayload();
+        Ilias::sendJson($this->teacherApi()->history((int) ($payload['userid'] ?? 0), (int) ($payload['offset'] ?? 0)));
+    }
+
+    private function ajaxAnalytics(): void
+    {
+        $payload = Ilias::jsonPayload();
+        Ilias::sendJson($this->teacherApi()->analytics((int) ($payload['userid'] ?? 0)));
+    }
+
+    private function ajaxSettings(): void
+    {
+        Ilias::sendJson(['status' => 'success', 'error' => ''] + (new SettingsApi($this->tarsus()->getSettings()))->describe());
+    }
+
+    private function ajaxSaveSettings(): void
+    {
+        $payload = Ilias::jsonPayload();
+        $settings = $this->tarsus()->getSettings();
+        $settings->objid = $this->object->getId();
+        Ilias::sendJson((new SettingsApi($settings))->save((array) ($payload['values'] ?? [])));
+    }
+
     // ------------------------------------------------------------------
     // AJAX: teacher
     // ------------------------------------------------------------------
@@ -580,111 +721,8 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     }
 
     // ------------------------------------------------------------------
-    // Learners
+    // Learners (CSV export of the evaluation)
     // ------------------------------------------------------------------
-
-    private function showLearners(): void
-    {
-        $this->tabs->activateTab('learners');
-        $this->budgetBanner();
-        $object = $this->tarsus();
-        $settings = $object->getSettings();
-        $overview = (new Learners($object->getId(), $object->getContainerRefId(), $settings))->overview();
-
-        $this->toolbar->setFormAction($this->ctrl->getFormAction($this, 'exportLearners'));
-        $this->toolbar->addFormButton($this->txt('export_csv'), 'exportLearners');
-
-        $this->includeAssets();
-        $this->tpl->setContent($this->helpHtml()
-            . Views::learners($overview, $settings->modeActive('test'), $settings->modeActive('build'), $settings->completionprogress));
-    }
-
-    // ------------------------------------------------------------------
-    // Analytics
-    // ------------------------------------------------------------------
-
-    /**
-     * Usage of this object: requests and credits this month, the last 30
-     * days, the split by mode and the most active learners - from the
-     * local ledger, so no brain call is needed.
-     */
-    private function showAnalytics(): void
-    {
-        $this->tabs->activateTab('analytics');
-        $this->budgetBanner();
-        $object = $this->tarsus();
-        $objid = $object->getId();
-        $meter = new UsageMeter();
-        $monthstart = Budget::monthStart();
-        $since = strtotime('-29 days', (int) mktime(0, 0, 0));
-
-        $month = ['requests' => 0, 'credits' => 0];
-        foreach ($meter->summary($monthstart, $objid) as $figures) {
-            $month['requests'] += (int) $figures['calls'];
-            $month['credits'] += (int) $figures['credits'];
-        }
-        $installation = Budget::localCredits();
-        $month['learners'] = $meter->activeUsers($monthstart, $objid);
-        $month['share'] = $installation > 0 ? $month['credits'] / $installation * 100 : 0.0;
-
-        $daily = $meter->daily($since, $objid);
-        $days = [];
-        for ($i = 0; $i < 30; $i++) {
-            $time = strtotime('+' . $i . ' days', $since);
-            $key = date('Y-m-d', $time);
-            $days[] = [
-                'label' => Views::date($time),
-                'short' => date('d.m.', $time),
-                'calls' => (int) ($daily[$key]['calls'] ?? 0),
-                'credits' => (int) ($daily[$key]['credits'] ?? 0),
-            ];
-        }
-
-        $groups = [
-            'ask' => ['label' => $this->txt('mode_ask'), 'icon' => 'mode_ask', 'ops' => ['chat_ask']],
-            'test' => ['label' => $this->txt('mode_test'), 'icon' => 'mode_test', 'ops' => ['practice_next', 'practice_eval']],
-            'build' => ['label' => $this->txt('mode_build'), 'icon' => 'mode_build', 'ops' => ['learn_next', 'learn_check']],
-            'audio' => ['label' => $this->txt('learn_audio'), 'icon' => 'audio', 'ops' => ['learn_audio']],
-        ];
-        $summary = $meter->summary($since, $objid);
-        $modes = [];
-        foreach ($groups as $group) {
-            $calls = 0;
-            $credits = 0;
-            foreach ($group['ops'] as $op) {
-                $calls += (int) ($summary[$op]['calls'] ?? 0);
-                $credits += (int) ($summary[$op]['credits'] ?? 0);
-            }
-            $modes[] = ['label' => $group['label'], 'icon' => $group['icon'], 'calls' => $calls, 'credits' => $credits];
-        }
-
-        $top = [];
-        foreach ($meter->perUser($since, $objid, 8) as $row) {
-            $name = '';
-            try {
-                $name = trim((string) ilObjUser::_lookupFullname($row['usrid']));
-            } catch (Throwable $e) {
-                $name = '';
-            }
-            $top[] = ['name' => $name !== '' ? $name : '#' . $row['usrid'], 'calls' => $row['calls'], 'credits' => $row['credits'], 'last' => $row['last']];
-        }
-
-        $data = [
-            'month' => $month,
-            'days' => $days,
-            'modes' => $modes,
-            'top' => $top,
-            'budget' => [
-                'used' => Budget::used(),
-                'limit' => Budget::limit(),
-                'level' => Budget::level(),
-                'reset' => Views::date(Budget::nextMonthStart()),
-            ],
-        ];
-
-        $this->includeAssets();
-        $this->tpl->setContent(Views::analytics($data, Views::help(Help::links(), 'tarsus-help-analytics')));
-    }
 
     private function exportLearners(): void
     {
@@ -765,7 +803,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $section = new ilFormSectionHeaderGUI();
         $section->setTitle($this->txt('settings_modes'));
         $form->addItem($section);
-        foreach (['ask', 'test', 'build'] as $mode) {
+        foreach (['ask', 'test', 'build', 'discuss'] as $mode) {
             $box = new ilCheckboxInputGUI($this->txt($mode . 'enabled'), $mode . 'enabled');
             if (Plan::allowsMode($mode)) {
                 $box->setInfo($this->txt($mode . 'enabled_help'));
@@ -793,6 +831,31 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         }
         $interaction->addOption($ai);
         $form->addItem($interaction);
+
+        $voice = new ilCheckboxInputGUI($this->txt('voiceinput'), 'voiceinput');
+        if (Plan::allowsVoiceInput()) {
+            $voice->setInfo($this->txt('voiceinput_help'));
+        } else {
+            $voice->setDisabled(true);
+            $voice->setInfo($this->txt('voiceinput_help') . ' <strong>' . $this->txt('plan_feature_locked', ['plan' => Plan::label()]) . '</strong>');
+        }
+        $form->addItem($voice);
+
+        $references = new ilCheckboxInputGUI($this->txt('referencesenabled'), 'referencesenabled');
+        $references->setInfo($this->txt('referencesenabled_help'));
+        $form->addItem($references);
+
+        $accessible = new ilCheckboxInputGUI($this->txt('visualaccessibility'), 'visualaccessibility');
+        $accessible->setInfo($this->txt('visualaccessibility_help'));
+        $form->addItem($accessible);
+
+        // Thinking level: how thoroughly the coach thinks (replaces "think longer").
+        $thinking = new ilRadioGroupInputGUI($this->txt('thinkinglevel'), 'thinkinglevel');
+        $thinking->setInfo($this->txt('thinkinglevel_help'));
+        foreach ([1 => 'fast', 2 => 'slow', 3 => 'deep', 4 => 'intense'] as $level => $key) {
+            $thinking->addOption(new ilRadioOption($this->txt('thinking_' . $key), (string) $level, $this->txt('thinking_' . $key . '_help')));
+        }
+        $form->addItem($thinking);
 
         // General didactics.
         $section = new ilFormSectionHeaderGUI();
@@ -918,6 +981,11 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             'askenabled' => $settings->askenabled,
             'testenabled' => $settings->testenabled,
             'buildenabled' => $settings->buildenabled,
+            'discussenabled' => $settings->discussenabled,
+            'voiceinput' => $settings->voiceinput,
+            'referencesenabled' => $settings->referencesenabled,
+            'visualaccessibility' => $settings->visualaccessibility,
+            'thinkinglevel' => (string) $settings->thinkinglevel,
             'dqr' => $settings->dqr,
             'industry' => $settings->industry,
             'anticheat' => $settings->anticheat,
@@ -945,65 +1013,40 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             return;
         }
 
-        $errors = false;
-        $modesOn = false;
-        $current = $this->tarsus()->getSettings();
-        $wanted = [];
-        foreach (['ask', 'test', 'build'] as $mode) {
-            // A locked box posts nothing: keep the stored value, so a plan
-            // upgrade later finds the teacher's choice intact.
-            $wanted[$mode] = Plan::allowsMode($mode) ? (bool) $form->getInput($mode . 'enabled') : $current->modeEnabled($mode);
-            if ($wanted[$mode] && Plan::allowsMode($mode)) {
-                $modesOn = true;
+        // The same checks as the settings panel of the coach.
+        $values = [];
+        foreach ([
+            'askenabled', 'testenabled', 'buildenabled', 'discussenabled', 'interactiontype', 'voiceinput',
+            'referencesenabled', 'visualaccessibility', 'thinkinglevel', 'dqr', 'industry', 'anticheat',
+            'conversationstyle', 'taxonomylevels', 'qtypes1', 'qtypes2', 'qtypes3', 'operators', 'learntempo',
+            'learningmethod', 'gifenabled', 'completionprogress',
+        ] as $name) {
+            $values[$name] = $form->getInput($name);
+        }
+        foreach (['taxonomylevels', 'qtypes1', 'qtypes2', 'qtypes3'] as $name) {
+            $values[$name] = (array) ($values[$name] ?? []);
+        }
+
+        $object = $this->tarsus();
+        $settings = $object->getSettings();
+        $errors = (new SettingsApi($settings))->apply($values);
+        if ($errors !== []) {
+            foreach ($errors as $name => $message) {
+                $item = $form->getItemByPostVar($name);
+                if ($item !== null) {
+                    $item->setAlert($message);
+                }
             }
-        }
-        if (!$modesOn) {
-            $form->getItemByPostVar('askenabled')->setAlert($this->txt('error_modesrequired'));
-            $errors = true;
-        }
-        if (Didactics::encodeTaxonomyLevels((array) $form->getInput('taxonomylevels')) === '') {
-            $form->getItemByPostVar('taxonomylevels')->setAlert($this->txt('error_taxonomyrequired'));
-            $errors = true;
-        }
-        $map = [];
-        foreach (Didactics::GRADES as $grade) {
-            $map[$grade] = array_values(array_intersect((array) $form->getInput('qtypes' . $grade), Didactics::TYPES));
-            if ($map[$grade] === []) {
-                $form->getItemByPostVar('qtypes' . $grade)->setAlert($this->txt('error_questiontypesrequired'));
-                $errors = true;
-            }
-        }
-        if ($errors) {
             $this->tpl->setOnScreenMessage('failure', $this->lng->txt('form_input_not_valid'));
             $form->setValuesByPost();
             $this->editSettings($form);
             return;
         }
 
-        $object = $this->tarsus();
         $object->setTitle((string) $form->getInput('title'));
         $object->setDescription((string) $form->getInput('description'));
-
-        $settings = $object->getSettings();
         $settings->objid = $object->getId();
         $settings->online = (bool) $form->getInput('online');
-        $settings->askenabled = $wanted['ask'];
-        $settings->testenabled = $wanted['test'];
-        $settings->buildenabled = $wanted['build'];
-        $interaction = (string) $form->getInput('interactiontype');
-        $settings->interactiontype = ($interaction === Plan::INTERACTION_AI && !Plan::allowsAiDriven())
-            ? $current->interactiontype : \TarsusIlias\Activity\Settings::interaction($interaction);
-        $settings->dqr = (int) $form->getInput('dqr');
-        $settings->industry = (string) $form->getInput('industry');
-        $settings->anticheat = (bool) $form->getInput('anticheat');
-        $settings->conversationstyle = (int) $form->getInput('conversationstyle');
-        $settings->taxonomylevels = Didactics::decodeTaxonomyLevels(Didactics::encodeTaxonomyLevels((array) $form->getInput('taxonomylevels')));
-        $settings->questiontypes = $map;
-        $settings->operators = Didactics::operators((string) $form->getInput('operators'));
-        $settings->learntempo = Didactics::learnTempo($form->getInput('learntempo'));
-        $settings->learningmethod = Didactics::learningMethod((string) $form->getInput('learningmethod'));
-        $settings->gifenabled = (bool) $form->getInput('gifenabled');
-        $settings->completionprogress = max(0, min(100, (int) $form->getInput('completionprogress')));
 
         $object->update();
 

@@ -151,3 +151,24 @@ if ($ilDB->tableExists('rep_robj_xtar_use')) {
     $ilDB->manipulate('UPDATE rep_robj_xtar_use SET credits = 1 WHERE credits = 6');
 }
 ?>
+<#10>
+<?php
+// Version 2: the live interaction as a fourth mode (off for existing
+// objects, the teacher switches it on), the thinking level (4 is what
+// Tarsus did before it was sent), described visual content, the sources of
+// an answer and spoken questions (both on, package permitting).
+if ($ilDB->tableExists('rep_robj_xtar_data')) {
+    $columns = [
+        'discuss_on' => ['type' => 'integer', 'length' => 1, 'notnull' => true, 'default' => 0],
+        'think_level' => ['type' => 'integer', 'length' => 1, 'notnull' => true, 'default' => 4],
+        'visual_acc' => ['type' => 'integer', 'length' => 1, 'notnull' => true, 'default' => 0],
+        'refs_on' => ['type' => 'integer', 'length' => 1, 'notnull' => true, 'default' => 1],
+        'voice_on' => ['type' => 'integer', 'length' => 1, 'notnull' => true, 'default' => 1],
+    ];
+    foreach ($columns as $name => $definition) {
+        if (!$ilDB->tableColumnExists('rep_robj_xtar_data', $name)) {
+            $ilDB->addTableColumn('rep_robj_xtar_data', $name, $definition);
+        }
+    }
+}
+?>

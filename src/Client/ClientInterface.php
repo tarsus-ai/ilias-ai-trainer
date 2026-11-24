@@ -9,10 +9,8 @@ namespace TarsusIlias\Client;
  * a concrete client. A deterministic mock backs it in mock mode; the HTTP
  * client speaks to the live brain.
  *
- * The 'credits' figure every charged result carries is the number of AI
- * interactions the call counts for under the Tarsus partner agreement
- * ({@see \TarsusIlias\Support\Interactions}); it feeds the local ledger,
- * the monthly limit and the cost estimate.
+ * Nothing here estimates what a call costs: Tarsus records that in the
+ * brain's usage ({@see getUsage()}), the only figure the plugin uses.
  *
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
@@ -86,33 +84,68 @@ interface ClientInterface
     public function listVoices(): array;
 
     /**
-     * What the brain charged between two Unix timestamps.
+     * What the brain charged between two Unix timestamps, as the brain
+     * reports it (credits may be fractions).
      *
-     * @return array{total: int, items: array<int, array{key: string, name: string, service: string, credits: int}>, credits: int}
+     * @return array{total: float, items: array<int, array{key: string, name: string, service: string, credits: float}>}
      */
     public function getUsage(int $start, int $end): array;
 
     /**
-     * Ask the activity chat and return the assistant's answer.
+     * Ask the activity chat and return the assistant's answer. A spoken
+     * question travels as 'audiofile' (a local path), 'audiomimetype' and
+     * 'audioname' instead of 'query'.
      *
-     * @param array<string, mixed> $params Conversation parameters incl. 'query'.
-     * @return array{answer: string, messages: array<int, array{title: string, text: string}>, credits: int}
+     * @param array<string, mixed> $params Conversation parameters incl. 'query', 'replytostack', 'replytowidget'.
+     * @return array{answer: string, html: string, question: string, widgetid: string, sources: bool, messages: array<int, array{title: string, text: string}>, progress: array<string, float>}
      */
     public function generateWidgets(array $params): array;
+
+    /**
+     * Start a live interaction (state discuss) and return its page.
+     *
+     * @param array<string, mixed> $params Conversation parameters plus optional 'voice'.
+     * @return array{page: string, progress: array<string, float>}
+     */
+    public function startDiscuss(array $params): array;
+
+    /**
+     * The source bits of one answer, in the order of their material.
+     *
+     * @param array<string, mixed> $params contextid, userid, state, widgetid
+     * @return array<int, array<string, mixed>>
+     */
+    public function getReferences(array $params): array;
+
+    /**
+     * Every given learner's figures in one context.
+     *
+     * @param string[] $userids Pseudonymised user ids.
+     * @return array<string, array<string, float>> User id => figures.
+     */
+    public function getContextStatistics(string $contextid, array $userids): array;
+
+    /**
+     * How one learner's experience points and learning units grew.
+     *
+     * @return array{xp: array<int, array{x: int, y: float}>, units: array<int, array{x: int, y: float}>}
+     */
+    public function getUserAnalytics(string $contextid, string $userid, int $start, int $end): array;
 
     /**
      * Generate the next practice question widgets (Test knowledge).
      *
      * @param array<string, mixed> $params
-     * @return array{widgets: array, progress: array, credits: int}
+     * @return array{widgets: array, progress: array}
      */
     public function generatePracticeWidget(array $params): array;
 
     /**
-     * Generate the next learning unit (Build knowledge).
+     * Generate the next learning unit (Build knowledge). 'replay' is true
+     * when Tarsus sent a widget again (HTTP 409) instead of a new one.
      *
      * @param array<string, mixed> $params
-     * @return array{items: array, progress: array, credits: int}
+     * @return array{items: array, progress: array, replay: bool}
      */
     public function generateLearnWidget(array $params): array;
 
@@ -128,7 +161,7 @@ interface ClientInterface
      * Read one page of the interleaved activity feed back from the brain.
      *
      * @param array<string, mixed> $params
-     * @return array{items: array, rawcount: int, progress: array, credits: int}
+     * @return array{items: array, rawcount: int, progress: array}
      */
     public function retrieveFeed(array $params): array;
 
@@ -141,7 +174,7 @@ interface ClientInterface
      * Have the brain read one learning unit (stack) aloud.
      *
      * @param array<string, mixed> $params
-     * @return array{audio: string, mimetype: string, voice: string, credits: int}
+     * @return array{audio: string, mimetype: string, voice: string, text: string}
      */
     public function generateStackAudio(array $params): array;
 }

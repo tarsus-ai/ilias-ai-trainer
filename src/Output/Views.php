@@ -21,7 +21,10 @@ final class Views
     }
 
     /**
-     * The learner chat: feed, progress bar, composer with the mode switch.
+     * The coach: feed, progress bar, composer with the mode switch, the
+     * recorder for spoken questions, the bar of the live interaction, and
+     * the panel that slides in from the right (sources for everyone;
+     * settings, evaluation and history for teachers).
      *
      * @param array<string, mixed> $config The client configuration (JSON-encoded into the page).
      */
@@ -38,8 +41,65 @@ final class Views
             ? '<div class="tarsus-demo-note" role="note">' . self::t('demo_note') . '</div>'
             : '';
 
+        $teacherbar = '';
+        if (!empty($config['teacher'])) {
+            $teacherbar = '<div class="tarsus-teacher-bar" role="group" aria-label="' . self::t('teacher_tools') . '">';
+            foreach (['settings' => 'settings', 'stats' => 'chart', 'history' => 'history'] as $panel => $icon) {
+                $teacherbar .= '<button type="button" class="tarsus-btn tarsus-btn--sm tarsus-teacher-bar__btn" data-action="panel" data-panel="'
+                    . $panel . '">' . Html::icon($icon) . '<span>' . self::t('panel_' . $panel) . '</span></button>';
+            }
+            $teacherbar .= '</div>';
+        }
+
+        $voice = '';
+        $voicetoggle = '';
+        if (!empty($config['voice'])) {
+            $button = static fn(string $action, string $icon, string $label, string $extra = ''): string =>
+                '<button type="button" class="tarsus-voice__btn' . $extra . '" data-action="' . $action . '">'
+                . Html::icon($icon) . '<span>' . self::t($label) . '</span></button>';
+            $voice = '<div class="tarsus-voice tarsus-hidden" data-region="voice" data-state="idle">'
+                . '<span class="tarsus-voice__dot" aria-hidden="true"></span>'
+                . '<span class="tarsus-voice__state" data-region="voice-state" aria-live="polite">' . self::t('voice_start') . '</span>'
+                . '<span class="tarsus-voice__time" data-region="voice-time">0:00</span>'
+                . '<span class="tarsus-voice__wave" data-region="voice-wave" aria-hidden="true"></span>'
+                . '<audio class="tarsus-hidden" data-region="voice-audio" preload="auto"></audio>'
+                . '<span class="tarsus-voice__actions">'
+                . $button('voice-start', 'record', 'voice_start', ' tarsus-voice__btn--record')
+                . $button('voice-pause', 'audio_pause', 'voice_pause')
+                . $button('voice-resume', 'record', 'voice_resume')
+                . $button('voice-stop', 'stop', 'voice_stop')
+                . $button('voice-play', 'audio_play', 'voice_play')
+                . $button('voice-discard', 'trash', 'voice_discard')
+                . '</span></div>';
+            $voicetoggle = '<button type="button" class="tarsus-btn tarsus-btn--ghost tarsus-voice-toggle tarsus-hidden" data-action="voice-toggle"'
+                . ' title="' . self::t('voice_to_voice') . '" aria-label="' . self::t('voice_to_voice') . '">'
+                . '<span data-region="voice-toggle-mic">' . Html::icon('mic') . '</span>'
+                . '<span class="tarsus-hidden" data-region="voice-toggle-text">' . Html::icon('keyboard') . '</span>'
+                . '<span class="tarsus-voice-toggle__label" data-region="voice-toggle-label">' . self::t('voice_to_voice') . '</span></button>';
+        }
+
+        $live = '';
+        if (in_array('discuss', $modes, true)) {
+            $live = '<div class="tarsus-live-bar tarsus-hidden" data-region="live-bar">'
+                . '<span class="tarsus-live-bar__text" data-region="live-text">' . self::t('live_intro') . '</span>'
+                . '<button type="button" class="tarsus-btn tarsus-btn--primary" data-action="live-start">' . Html::icon('mode_discuss')
+                . '<span data-region="live-label">' . self::t('live_start') . '</span>'
+                . '<span class="tarsus-spinner tarsus-spinner--light tarsus-hidden" data-region="live-spinner" aria-hidden="true"></span></button>'
+                . '</div>';
+        }
+
+        $drawer = '<div class="tarsus-drawer" data-region="drawer" hidden>'
+            . '<div class="tarsus-drawer__backdrop" data-action="drawer-close"></div>'
+            . '<aside class="tarsus-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="' . Html::e($containerid) . '-drawer-title" tabindex="-1">'
+            . '<header class="tarsus-drawer__head"><h2 class="tarsus-drawer__title" id="' . Html::e($containerid) . '-drawer-title" data-region="drawer-title"></h2>'
+            . '<button type="button" class="tarsus-drawer__close" data-action="drawer-close" title="' . self::t('panel_close') . '" aria-label="'
+            . self::t('panel_close') . '">' . Html::icon('close') . '</button></header>'
+            . '<div class="tarsus-drawer__body" data-region="drawer-body"></div>'
+            . '</aside></div>';
+
         return '<div class="tarsus-app tarsus-chat-box" id="' . Html::e($containerid) . '" data-config="' . Html::e(Html::json($config)) . '">'
             . $demo
+            . $teacherbar
             . '<div class="tarsus-top-dock">' . $help . '<button type="button" class="tarsus-jump-top tarsus-hidden" data-action="jump-top" title="'
             . self::t('jump_top') . '" aria-label="' . self::t('jump_top') . '">' . Html::icon('jump_top') . '</button></div>'
             . '<div class="tarsus-progress tarsus-hidden" data-region="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"'
@@ -56,12 +116,17 @@ final class Views
             . '" aria-label="' . self::t('chat_reply_clear') . '">' . Html::icon('close') . '</button></div>'
             . '<textarea class="tarsus-chat-input" rows="1" maxlength="4000" placeholder="' . self::t('chat_placeholder') . '" aria-label="'
             . self::t('chat_placeholder') . '"></textarea>'
+            . $voice
+            . $live
             . '<div class="tarsus-composer-row">'
             . '<div class="tarsus-composer-left">'
             . '<div class="tarsus-mode-switch__group" role="group" aria-label="' . self::t('mode_switch') . '">' . $buttons . '</div>'
             . '<span class="tarsus-xp-badge tarsus-hidden" data-region="xp-badge"><span data-region="xp-earned">0</span>&nbsp;/&nbsp;'
             . '<span data-region="xp-total">0</span>&nbsp;<span data-region="xp-unit">' . self::t('xp') . '</span></span>'
+            . '<span class="tarsus-grade-chip tarsus-hidden" data-region="grade-chip" title="' . self::t('grade_title') . '"></span>'
             . '</div>'
+            . '<div class="tarsus-composer-right">'
+            . $voicetoggle
             . '<button class="tarsus-btn tarsus-btn--primary tarsus-practice-next tarsus-hidden" type="button" data-action="next">'
             . '<span data-region="practice-label">' . self::t('practice_start') . '</span>'
             . '<span class="tarsus-practice-next__icon">' . Html::icon('send') . '</span>'
@@ -70,7 +135,9 @@ final class Views
             . '<span class="tarsus-spinner tarsus-spinner--light tarsus-hidden" data-region="send-spinner" aria-hidden="true"></span>'
             . '<span>' . self::t('send') . '</span>' . Html::icon('send') . '</button>'
             . '</div>'
+            . '</div>'
             . '</form>'
+            . $drawer
             . '</div>';
     }
 

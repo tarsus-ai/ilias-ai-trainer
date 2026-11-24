@@ -1,10 +1,14 @@
 /**
  * Tarsus for ILIAS - browser side.
  *
- * Two screens share this file: the learner's chat (one interleaved feed
- * of exchange, question and learning-unit cards, three interaction modes)
- * and the teacher's material list (index actions, inclusion switches and
- * the page sync). Both boot from the JSON configuration the server puts
+ * Two screens share this file: the coach (one interleaved feed of
+ * exchange, question and learning-unit cards; four modes - Ask a question,
+ * typed or spoken, Test knowledge, Build knowledge and the Live
+ * interaction; a panel sliding in from the right for the sources of an
+ * answer and, for teachers, the settings, the evaluation and the
+ * learners' history) and the teacher's material list (index actions,
+ * inclusion switches and the page sync). Everything shown comes from what
+ * Tarsus returns; nothing about its behaviour is assumed here. Both boot from the JSON configuration the server puts
  * on their root element. No framework; MathJax is used when the page has
  * it.
  *
@@ -160,19 +164,39 @@
             },
             body: body.toString()
         }).then(function (response) {
-            return response.text().then(function (text) {
-                var data = null;
-                try {
-                    data = JSON.parse(text);
-                } catch (e) {
-                    data = null;
-                }
-                if (!data || typeof data !== 'object') {
-                    // A login page instead of JSON: the session is gone.
-                    throw new Error(strings.session_lost || 'Session expired');
-                }
-                return data;
-            });
+            return readJson(response, strings);
+        });
+    }
+
+    /**
+     * POST a multipart form (a recording) to one of the plugin's endpoints.
+     *
+     * @return {Promise<Object>}
+     */
+    function postForm(url, form, strings) {
+        return fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json'},
+            body: form
+        }).then(function (response) {
+            return readJson(response, strings);
+        });
+    }
+
+    function readJson(response, strings) {
+        return response.text().then(function (text) {
+            var data = null;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                data = null;
+            }
+            if (!data || typeof data !== 'object') {
+                // A login page instead of JSON: the session is gone.
+                throw new Error(strings.session_lost || 'Session expired');
+            }
+            return data;
         });
     }
 
@@ -310,7 +334,14 @@
         step('proc_learn_polish', 'proc_sparkle', 7000, 2.8)
     ];
 
+    var VOICE_FIRST = [
+        step('proc_ask_transcribe', 'proc_atom', 3500, 2.6)
+    ];
+
     function processingSequence(mode, firstRun) {
+        if (mode === 'voice') {
+            return VOICE_FIRST.concat(ASK_STEPS);
+        }
         if (mode === 'test') {
             return (firstRun ? PRACTICE_FIRST : PRACTICE_NEXT).concat(PRACTICE_STEPS);
         }
@@ -337,14 +368,17 @@
             replyTo: null,
             practiceStarted: false,
             learnStarted: false,
-            learnComplete: false,
             feedOffset: 0,
             feedHasMore: false,
             feedLoading: false,
             stacks: {},
             programmaticScroll: false,
-            progress: null
+            progress: null,
+            voiceInput: false,
+            live: null,
+            stats: null
         };
+        this.voice = {state: 'idle', recorder: null, stream: null, chunks: [], blob: null, url: null, timer: null, elapsed: 0, discarding: false};
         this.init();
     }
 
@@ -484,12 +518,13 @@
 
     // --- cards ---------------------------------------------------------
 
-    Chat.prototype.noticeCard = function (variant, title, html, fallbackTitleKey) {
+    Chat.prototype.noticeCard = function (variant, title, html, fallbackTitleKey, id) {
         var image = this.config.images[variant === 'complete' ? 'success' : (variant === 'motivation' ? 'motivation' : 'welcome')];
         var heading = title || (fallbackTitleKey ? this.t(fallbackTitleKey) : '');
         var card = el('div', {
             'class': 'tarsus-card tarsus-card--welcome' + (variant ? ' tarsus-card--' + variant : ''),
-            'data-region': variant === 'complete' ? 'learn-complete' : (variant === 'motivation' ? 'learn-motivation' : 'tarsus-chat-card')
+            'data-region': variant === 'complete' ? 'learn-complete' : (variant === 'motivation' ? 'learn-motivation' : 'tarsus-chat-card'),
+            'data-widget-id': id || null
         }, el('div', {'class': 'tarsus-card__inner tarsus-center'}, [
             el('div', {'class': 'tarsus-welcome-art'}, el('img', {src: image, alt: ''})),
             heading ? el('h3', {'class': 'tarsus-card__title', text: heading}) : null,
@@ -498,27 +533,62 @@
         return card;
     };
 
-    Chat.prototype.exchangeCard = function (question, answerHtml, reply, pageHtml) {
-        var self = this;
+    /**
+     * A question and its answer. meta: id and state of the answer widget
+     * (for its sources and "ask about this"), sources (Tarsus named the
+     * bits it used), voice ({src, duration} of the learner's recording).
+     */
+    Chat.prototype.exchangeCard = function (question, answerHtml, reply, pageHtml, meta) {
+        meta = meta || {};
         var body = el('div', {'class': 'tarsus-card__answer-body', 'data-region': 'card-answer', html: answerHtml || ''});
         if (pageHtml) {
             // AI-driven interaction: the answer is an interactive page.
             body.appendChild(this.frame(pageHtml, question));
         }
-        return el('div', {'class': 'tarsus-card', 'data-region': 'tarsus-chat-card'}, el('div', {'class': 'tarsus-card__inner'}, [
-            reply ? el('div', {'class': 'tarsus-card__reply', 'aria-label': this.t('chat_reply_about', {title: reply}), html: this.icon('reply')},
-                el('span', {text: reply})) : null,
-            el('div', {'class': 'tarsus-card__question'}, [
-                this.avatar(this.config.userAvatar, ''),
-                el('div', {'class': 'tarsus-card__question-text', text: question})
-            ]),
-            el('hr', {'class': 'tarsus-card__divider'}),
-            el('div', {'class': 'tarsus-card__answer'}, [
-                this.avatar(this.config.robotAvatar, this.config.robotName),
-                body
-            ])
-        ]));
+        var actions = el('div', {'class': 'tarsus-card__actions'});
+        if (meta.id && meta.sources && this.config.references) {
+            actions.appendChild(el('button', {type: 'button', 'class': 'tarsus-chip-btn', 'data-action': 'sources',
+                'data-widget-id': meta.id, 'data-state': meta.state || 'ask', html: this.icon('sources')}, el('span', {text: this.t('sources_show')})));
+        }
+        if (meta.id) {
+            var ask = this.askButton();
+            if (ask) {
+                actions.appendChild(ask);
+            }
+        }
+        var voice = null;
+        if (meta.voice && meta.voice.src) {
+            voice = el('div', {'class': 'tarsus-card__voice'}, [
+                el('span', {'class': 'tarsus-card__voice-label', html: this.icon('mic')},
+                    el('span', {text: this.t('voice_question') + (meta.voice.duration ? ' · ' + clock(meta.voice.duration) : '')})),
+                el('audio', {'class': 'tarsus-card__voice-audio', controls: true, preload: 'metadata', src: meta.voice.src}),
+                el('span', {'class': 'tarsus-card__voice-note', text: this.t('voice_transcript_note')})
+            ]);
+        }
+        return el('div', {'class': 'tarsus-card', 'data-region': 'tarsus-chat-card', 'data-kind': 'exchange', 'data-widget-id': meta.id || null},
+            el('div', {'class': 'tarsus-card__inner'}, [
+                reply ? el('div', {'class': 'tarsus-card__reply', 'aria-label': this.t('chat_reply_about', {title: reply}), html: this.icon('reply')},
+                    el('span', {text: reply})) : null,
+                el('div', {'class': 'tarsus-card__question'}, [
+                    this.avatar(this.config.userAvatar, ''),
+                    el('div', {'class': 'tarsus-card__question-main'}, [
+                        voice,
+                        el('div', {'class': 'tarsus-card__question-text', text: question})
+                    ])
+                ]),
+                el('hr', {'class': 'tarsus-card__divider'}),
+                el('div', {'class': 'tarsus-card__answer'}, [
+                    this.avatar(this.config.robotAvatar, this.config.robotName),
+                    el('div', {'class': 'tarsus-card__answer-main'}, [body, actions.childNodes.length ? actions : null])
+                ])
+            ]));
     };
+
+    /** Seconds as m:ss. */
+    function clock(seconds) {
+        seconds = Math.max(0, Math.round(seconds || 0));
+        return Math.floor(seconds / 60) + ':' + ('0' + (seconds % 60)).slice(-2);
+    }
 
     Chat.prototype.avatar = function (src, alt) {
         if (!src) {
@@ -552,18 +622,32 @@
         return html.slice(0, index) + FRAME_REPORTER + html.slice(index);
     }
 
+    // Tarsus's pages report their own height (genericWebWidget:resize);
+    // once a page does, the reporter's figure is ignored for it.
     function sizeFrames(event) {
         var data = event.data;
-        if (!data || data.type !== 'tarsus:height') {
+        if (!data || typeof data !== 'object') {
             return;
         }
-        var frames = document.querySelectorAll('.tarsus-frame__iframe');
+        var own = data.type === 'genericWebWidget:resize';
+        if (!own && data.type !== 'tarsus:height') {
+            return;
+        }
+        var frames = document.querySelectorAll('.tarsus-frame__iframe, .tarsus-live__frame');
         for (var i = 0; i < frames.length; i++) {
-            if (frames[i].contentWindow === event.source) {
-                var height = Math.max(120, Math.min(1600, parseInt(data.height, 10) || 0));
-                frames[i].style.height = height + 'px';
+            if (frames[i].contentWindow !== event.source) {
+                continue;
+            }
+            if (!own && frames[i].getAttribute('data-sized') === 'page') {
                 return;
             }
+            if (own) {
+                frames[i].setAttribute('data-sized', 'page');
+            }
+            var live = frames[i].classList.contains('tarsus-live__frame');
+            var height = Math.max(live ? 420 : 120, Math.min(2400, parseInt(data.height, 10) || 0));
+            frames[i].style.height = height + 'px';
+            return;
         }
     }
     if (!window.__tarsusFrameSizer) {
@@ -700,24 +784,22 @@
             });
             inner.appendChild(vars);
         } else if (table.length) {
+            // A task table under the columns Tarsus named; a '?' cell is
+            // the learner's to fill in.
+            var columns = widget.columns || [];
             var tbody = el('tbody');
-            table.forEach(function (row) {
-                tbody.appendChild(el('tr', {'class': 'tarsus-practice-table__row', 'data-position': row.position}, [
-                    el('td', {'class': 'tarsus-practice-table__position', text: row.position}),
-                    el('td', {'class': 'tarsus-practice-table__cell', 'data-cell': 'rate'}, row.askrate
-                        ? el('input', {type: 'text', 'class': 'tarsus-practice-table__input tarsus-input', 'data-cell': 'rate', autocomplete: 'off'})
-                        : el('span', {'class': 'tarsus-practice-table__value', 'data-cell': 'rate', text: row.rate})),
-                    el('td', {'class': 'tarsus-practice-table__cell', 'data-cell': 'amount'}, row.askamount
-                        ? el('input', {type: 'text', 'class': 'tarsus-practice-table__input tarsus-input', 'data-cell': 'amount', autocomplete: 'off'})
-                        : el('span', {'class': 'tarsus-practice-table__value', 'data-cell': 'amount', text: row.amount}))
-                ]));
+            table.forEach(function (row, r) {
+                tbody.appendChild(el('tr', {'class': 'tarsus-practice-table__row', 'data-row': String(r)}, row.map(function (cell, c) {
+                    return el('td', {'class': 'tarsus-practice-table__cell', 'data-col': String(c)}, cell.ask
+                        ? el('input', {type: 'text', 'class': 'tarsus-practice-table__input tarsus-input', 'data-col': String(c),
+                            autocomplete: 'off', 'aria-label': columns[c] || ''})
+                        : el('span', {'class': 'tarsus-practice-table__value', text: cell.value}));
+                })));
             });
             inner.appendChild(el('div', {'class': 'tarsus-practice-card__table-wrap'}, el('table', {'class': 'tarsus-practice-table', 'data-region': 'table'}, [
-                el('thead', {}, el('tr', {}, [
-                    el('th', {text: this.t('practice_table_position')}),
-                    el('th', {text: this.t('practice_table_rate')}),
-                    el('th', {text: this.t('practice_table_amount')})
-                ])),
+                el('thead', {}, el('tr', {}, columns.map(function (column) {
+                    return el('th', {text: column});
+                }))),
                 tbody
             ])));
         } else {
@@ -846,13 +928,21 @@
                 if (slide.title) {
                     node.appendChild(el('h5', {'class': 'tarsus-learn-slide__title', text: slide.title}));
                 }
-                var body = el('div', {'class': 'tarsus-learn-slide__body tarsus-learn-slide__body--' + (slide.imageposition === 'left' ? 'left' : 'right')});
+                // The picture goes where Tarsus puts it: above the text
+                // ("top") or beside it ("left", "right").
+                var position = ['top', 'left', 'right'].indexOf(slide.imageposition) !== -1 ? slide.imageposition : 'right';
+                var body = el('div', {'class': 'tarsus-learn-slide__body tarsus-learn-slide__body--' + (slide.image ? position : 'text')});
                 if (slide.image) {
                     body.appendChild(el('img', {'class': 'tarsus-learn-slide__image', src: slide.image, alt: '', tabindex: '0', role: 'button',
                         'data-action': 'enlarge', title: self.t('learn_image_enlarge'), 'aria-label': self.t('learn_image_enlarge')}));
                 }
-                body.appendChild(el('div', {'class': 'tarsus-learn-slide__text', html: slide.text || ''}));
+                if (slide.text) {
+                    body.appendChild(el('div', {'class': 'tarsus-learn-slide__text', html: slide.text}));
+                }
                 node.appendChild(body);
+                if (slide.audio) {
+                    node.appendChild(el('audio', {'class': 'tarsus-learn-slide__audio', controls: true, preload: 'none', src: slide.audio}));
+                }
             }
             inner.appendChild(node);
         });
@@ -867,10 +957,10 @@
     /** The cards of one learn item (objectives, stack, motivation, complete, message). */
     Chat.prototype.learnCards = function (item) {
         if (item.kind === 'complete') {
-            return [this.noticeCard('complete', item.title, item.text, 'learn_complete_title')];
+            return [this.noticeCard('complete', item.title, item.text, 'learn_complete_title', item.id)];
         }
         if (item.kind === 'motivation') {
-            return [this.noticeCard('motivation', item.title, item.text, 'learn_motivation_title')];
+            return [this.noticeCard('motivation', item.title, item.text, 'learn_motivation_title', item.id)];
         }
         if (item.kind === 'message') {
             return [this.noticeCard('', item.title, item.text)];
@@ -974,6 +1064,7 @@
 
     /** Freeze an answered question card: mark the pick, show the feedback. */
     Chat.prototype.finalizePracticeCard = function (card, verdict) {
+        var self = this;
         card.classList.add('tarsus-practice-card--answered');
 
         var verdictByVariable = {};
@@ -996,29 +1087,23 @@
             }
         });
 
-        var userRows = {};
-        (verdict.usertable || []).forEach(function (row) {
-            userRows[row.position] = row;
-        });
-        var modelRows = {};
-        (verdict.answertable || []).forEach(function (row) {
-            modelRows[row.position] = row;
-        });
+        // A task table: the learner's cells back in place, every wrong one
+        // marked with the value of Tarsus's model table.
+        var userRows = verdict.usertable || [];
+        var modelRows = verdict.answertable || [];
         card.querySelectorAll('.tarsus-practice-table__row').forEach(function (row) {
-            var position = row.getAttribute('data-position');
+            var r = parseInt(row.getAttribute('data-row'), 10);
             row.querySelectorAll('.tarsus-practice-table__input').forEach(function (input) {
-                var cell = input.getAttribute('data-cell');
-                if (input.value === '' && userRows[position]) {
-                    input.value = userRows[position][cell] || '';
+                var c = parseInt(input.getAttribute('data-col'), 10);
+                if (input.value === '' && userRows[r]) {
+                    input.value = userRows[r][c] || '';
                 }
                 input.disabled = true;
-                var model = modelRows[position];
-                if (!model) {
-                    return;
-                }
-                var mark = cell === 'rate' ? model.rateverdict : model.amountverdict;
-                if (mark < 0) {
-                    input.parentNode.classList.add('tarsus-practice-table__cell--incorrect');
+                var model = modelRows[r] && modelRows[r][c];
+                if (model && model.verdict < 0) {
+                    var cell = input.parentNode;
+                    cell.classList.add('tarsus-practice-table__cell--incorrect');
+                    cell.appendChild(el('span', {'class': 'tarsus-practice-table__model', text: self.t('practice_correct_value', {value: model.value})}));
                 }
             });
         });
@@ -1089,7 +1174,7 @@
             if (item.kind === 'message') {
                 cards = [self.noticeCard('', item.title, item.text)];
             } else if (item.kind === 'exchange') {
-                cards = [self.exchangeCard(item.query, item.answer, '', item.html || '')];
+                cards = [self.exchangeCard(item.query, item.answer, '', item.html || '', {id: item.id, state: item.state, sources: item.sources})];
             } else if (['objectives', 'stack', 'complete', 'motivation'].indexOf(item.kind) !== -1) {
                 cards = self.learnCards(item);
             } else {
@@ -1137,11 +1222,8 @@
         items.forEach(function (item) {
             if (item.kind === 'practice') {
                 self.state.practiceStarted = true;
-            } else if (item.kind === 'objectives' || item.kind === 'stack' || item.kind === 'motivation') {
+            } else if (item.kind === 'objectives' || item.kind === 'stack' || item.kind === 'motivation' || item.kind === 'complete') {
                 self.state.learnStarted = true;
-            } else if (item.kind === 'complete') {
-                self.state.learnStarted = true;
-                self.state.learnComplete = true;
             }
         });
         this.updateNextLabel();
@@ -1263,6 +1345,7 @@
     };
 
     Chat.prototype.renderBadge = function () {
+        this.renderGrade();
         var badge = this.q('[data-region="xp-badge"]');
         if (!badge) {
             return;
@@ -1279,6 +1362,27 @@
         badge.querySelector('[data-region="xp-earned"]').textContent = Math.round(earned * 100) / 100;
         badge.querySelector('[data-region="xp-total"]').textContent = Math.round(total * 100) / 100;
         badge.querySelector('[data-region="xp-unit"]').textContent = this.t(build ? 'learning_units' : 'xp');
+    };
+
+    /**
+     * The result in percent, as ILIAS records it: the experience points'
+     * share while Test knowledge is active, the learning units' otherwise.
+     */
+    Chat.prototype.renderGrade = function () {
+        var chip = this.q('[data-region="grade-chip"]');
+        if (!chip) {
+            return;
+        }
+        var progress = this.state.progress;
+        var units = this.config.gradeBasis === 'units';
+        var earned = progress ? (units ? progress.earnedunits : progress.earnedxp) : 0;
+        var total = progress ? (units ? progress.totalunits : progress.totalxp) : 0;
+        if ((this.state.mode !== 'test' && this.state.mode !== 'build') || !(total > 0)) {
+            show(chip, false);
+            return;
+        }
+        chip.textContent = this.t('grade_chip', {percent: Math.round(Math.max(0, Math.min(1, earned / total)) * 100)});
+        show(chip, true);
     };
 
     Chat.prototype.renderProgressBar = function () {
@@ -1461,8 +1565,12 @@
 
     // --- Start / Next --------------------------------------------------
 
+    /**
+     * Next is never locked here: Tarsus decides what comes (a new step, or
+     * the same widget again with HTTP 409).
+     */
     Chat.prototype.nextLocked = function () {
-        return this.state.mode === 'build' && this.state.learnComplete;
+        return false;
     };
 
     Chat.prototype.setNextBusy = function (busy) {
@@ -1509,13 +1617,20 @@
                 self.alert(result.error || self.t('unexpected_error'));
                 return;
             }
-            self.updateXp(result.progress);
-            if (result.complete) {
-                self.state.learnComplete = true;
+            if (result.progress) {
+                self.updateXp(result.progress);
             }
             var first = null;
             result.items.forEach(function (item) {
                 self.learnCards(item).forEach(function (card) {
+                    // A widget Tarsus sent again (409) that is already on
+                    // the page is shown there instead of a second time.
+                    var shown = result.replay ? self.findShown(card) : null;
+                    if (shown) {
+                        self.flash(shown);
+                        first = first || shown;
+                        return;
+                    }
                     self.attach(card, null, true);
                     first = first || card;
                 });
@@ -1590,15 +1705,15 @@
         if (tableRows.length) {
             var complete = true;
             tableRows.forEach(function (row) {
-                var cells = {position: row.getAttribute('data-position')};
-                ['rate', 'amount'].forEach(function (cell) {
-                    var input = row.querySelector('input[data-cell="' + cell + '"]');
-                    var given = row.querySelector('span[data-cell="' + cell + '"]');
-                    var value = input ? input.value.trim() : (given ? given.textContent : '');
+                var cells = [];
+                row.querySelectorAll('.tarsus-practice-table__cell').forEach(function (cell) {
+                    var input = cell.querySelector('input');
+                    var given = cell.querySelector('.tarsus-practice-table__value');
+                    var value = input ? input.value.trim() : (given ? given.textContent.trim() : '');
                     if (input && value === '') {
                         complete = false;
                     }
-                    cells[cell] = (value || '').trim();
+                    cells.push(value);
                 });
                 table.push(cells);
             });
@@ -1662,6 +1777,13 @@
     // --- modes, reply chip, asking -------------------------------------
 
     Chat.prototype.setMode = function (mode) {
+        if (this.state.mode === 'discuss' && mode !== 'discuss' && this.state.live) {
+            // Leaving the live interaction ends the call.
+            if (!window.confirm(this.t('live_end_confirm'))) {
+                return;
+            }
+            this.endLive();
+        }
         this.state.mode = mode;
         this.qa('.tarsus-mode-switch__btn').forEach(function (btn) {
             var active = btn.getAttribute('data-mode') === mode;
@@ -1669,15 +1791,23 @@
             btn.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
         var ask = mode === 'ask';
+        var live = mode === 'discuss';
+        var spoken = ask && this.state.voiceInput;
         var input = this.q('.tarsus-chat-input');
         var submit = this.q('.tarsus-chat-submit');
         var next = this.q('[data-action="next"]');
         if (input) {
-            show(input, ask);
-            input.disabled = !ask;
+            show(input, ask && !spoken);
+            input.disabled = !ask || spoken;
         }
+        show(this.q('[data-region="voice"]'), spoken);
+        show(this.q('[data-action="voice-toggle"]'), ask && Boolean(this.config.voice));
+        show(this.q('[data-region="live-bar"]'), live);
         show(submit, ask);
-        show(next, !ask);
+        if (submit && ask) {
+            submit.disabled = spoken && this.voice.state !== 'ready';
+        }
+        show(next, !ask && !live);
         var chip = this.q('[data-region="reply-chip"]');
         show(chip, ask && Boolean(this.state.replyTo));
         this.renderBadge();
@@ -1686,7 +1816,7 @@
     };
 
     Chat.prototype.setReply = function (reply) {
-        this.state.replyTo = reply && reply.id ? reply : null;
+        this.state.replyTo = reply && (reply.id || reply.stack) ? reply : null;
         var chip = this.q('[data-region="reply-chip"]');
         if (!chip) {
             return;
@@ -1708,34 +1838,33 @@
         return (space > max / 2 ? cut.slice(0, space) : cut) + '…';
     }
 
+    /**
+     * "Ask about this": a question about a whole learning unit refers to
+     * its stack, one about a question card or an answer to that widget.
+     */
     Chat.prototype.askAbout = function (card) {
-        var id = '';
-        var label = '';
+        var reply = null;
         if (card.matches('[data-region="practice-card"]')) {
-            id = card.getAttribute('data-widget-id') || '';
+            var id = card.getAttribute('data-widget-id') || '';
             var question = card.querySelector('.tarsus-practice-card__question');
-            label = shorten(question ? question.textContent : '', 90);
-        } else {
+            reply = id ? {id: id, title: shorten(question ? question.textContent : '', 90)} : null;
+        } else if (card.matches('[data-region="learn-card"]')) {
+            var stack = card.getAttribute('data-stack-id') || '';
             var slide = card.querySelector('[data-region="slide"]:not(.tarsus-hidden)');
-            if (!slide) {
-                return;
-            }
-            id = slide.getAttribute('data-slide-id') || '';
-            label = slide.getAttribute('data-slide-title') || '';
-            if (label === '') {
-                label = this.t('learn_slide_of', {
-                    current: parseInt(slide.getAttribute('data-index'), 10) + 1,
-                    total: parseInt(card.getAttribute('data-total'), 10) || 1
-                });
-            }
+            var label = slide ? (slide.getAttribute('data-slide-title') || '') : '';
+            reply = stack ? {stack: stack, title: label !== '' ? label : this.t('learn_ask_about_unit')} : null;
+        } else {
+            var widget = card.getAttribute('data-widget-id') || '';
+            var asked = card.querySelector('.tarsus-card__question-text');
+            reply = widget ? {id: widget, title: shorten(asked ? asked.textContent : '', 90)} : null;
         }
-        if (id === '') {
+        if (!reply) {
             return;
         }
         this.setMode('ask');
-        this.setReply({id: id, title: label});
+        this.setReply(reply);
         var input = this.q('.tarsus-chat-input');
-        if (input) {
+        if (input && !this.state.voiceInput) {
             input.focus();
         }
     };
@@ -1743,6 +1872,10 @@
     Chat.prototype.handleSubmit = function (event) {
         var self = this;
         event.preventDefault();
+        if (this.state.voiceInput) {
+            this.voiceSend();
+            return;
+        }
         var input = this.q('.tarsus-chat-input');
         var submit = this.q('.tarsus-chat-submit');
         var spinner = this.q('[data-region="send-spinner"]');
@@ -1769,7 +1902,7 @@
             show(spinner, false);
             input.focus();
         };
-        this.call('ask', {query: query, replyto: reply ? reply.id : ''}).then(function (result) {
+        this.call('ask', {query: query, replyto: reply && reply.id ? reply.id : '', replystack: reply && reply.stack ? reply.stack : ''}).then(function (result) {
             unlock();
             if (result.status !== 'success') {
                 input.value = query;
@@ -1780,7 +1913,8 @@
             (result.messages || []).forEach(function (message) {
                 self.attach(self.noticeCard('', message.title, message.text), null, true);
             });
-            self.attach(self.exchangeCard(query, result.answer, reply ? reply.title : '', result.html || ''), null, true);
+            self.attach(self.exchangeCard(result.question || query, result.answer, reply ? reply.title : '', result.html || '',
+                {id: result.widgetid, state: 'ask', sources: result.sources}), null, true);
             self.setReply(null);
             self.scrollToEnd();
         }).catch(function (error) {
@@ -1794,6 +1928,1122 @@
     Chat.prototype.autosize = function (input) {
         input.style.height = 'auto';
         input.style.height = Math.min(160, Math.max(38, input.scrollHeight)) + 'px';
+    };
+
+    // --- widgets sent again (409) ---------------------------------------
+
+    /** The card already on the page for a widget, unit or farewell, if any. */
+    Chat.prototype.findShown = function (card) {
+        var flow = this.flow();
+        if (!flow) {
+            return null;
+        }
+        var escape = window.CSS && CSS.escape ? CSS.escape : function (value) {
+            return String(value);
+        };
+        var stack = card.getAttribute('data-stack-id');
+        if (stack) {
+            return flow.querySelector('[data-region="learn-card"][data-stack-id="' + escape(stack) + '"]');
+        }
+        var id = card.getAttribute('data-widget-id');
+        if (id) {
+            return flow.querySelector('[data-widget-id="' + escape(id) + '"]');
+        }
+        var question = card.querySelector('[data-region="practice-card"][data-widget-id]');
+        if (question) {
+            var shown = flow.querySelector('[data-region="practice-card"][data-widget-id="' + escape(question.getAttribute('data-widget-id')) + '"]');
+            return shown ? (shown.closest('[data-region="learn-card"]') || shown) : null;
+        }
+        return null;
+    };
+
+    Chat.prototype.flash = function (card) {
+        card.classList.remove('tarsus-card--flash');
+        void card.offsetWidth;
+        card.classList.add('tarsus-card--flash');
+    };
+
+    // --- spoken questions ----------------------------------------------
+    //
+    // Ask a question can be spoken: the recording goes to Tarsus, which
+    // turns it into text and answers it; the text comes back as the
+    // question. Recording, pausing, listening back and discarding happen
+    // in the browser.
+
+    Chat.prototype.voiceSupported = function () {
+        return Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    };
+
+    Chat.prototype.voiceRegion = function () {
+        return this.q('[data-region="voice"]');
+    };
+
+    Chat.prototype.setVoiceInput = function (on) {
+        this.state.voiceInput = Boolean(on) && Boolean(this.config.voice);
+        var toggle = this.q('[data-action="voice-toggle"]');
+        if (toggle) {
+            var key = this.state.voiceInput ? 'voice_to_text' : 'voice_to_voice';
+            toggle.setAttribute('title', this.t(key));
+            toggle.setAttribute('aria-label', this.t(key));
+            toggle.querySelector('[data-region="voice-toggle-label"]').textContent = this.t(key);
+            show(toggle.querySelector('[data-region="voice-toggle-mic"]'), !this.state.voiceInput);
+            show(toggle.querySelector('[data-region="voice-toggle-text"]'), this.state.voiceInput);
+        }
+        if (!this.state.voiceInput) {
+            this.voiceDiscard();
+        } else {
+            this.setVoiceState(this.voice.state);
+        }
+        this.setMode(this.state.mode);
+    };
+
+    Chat.prototype.setVoiceState = function (name) {
+        var region = this.voiceRegion();
+        this.voice.state = name;
+        if (!region) {
+            return;
+        }
+        region.setAttribute('data-state', name);
+        var buttons = {
+            start: ['idle'],
+            pause: ['recording'],
+            resume: ['paused'],
+            stop: ['recording', 'paused'],
+            play: ['ready'],
+            discard: ['recording', 'paused', 'ready']
+        };
+        Object.keys(buttons).forEach(function (button) {
+            show(region.querySelector('[data-action="voice-' + button + '"]'), buttons[button].indexOf(name) !== -1);
+        });
+        var label = {idle: 'voice_start', recording: 'voice_recording', paused: 'voice_paused', ready: 'voice_ready'}[name] || 'voice_start';
+        region.querySelector('[data-region="voice-state"]').textContent = this.t(label);
+        var submit = this.q('.tarsus-chat-submit');
+        if (submit && this.state.voiceInput && this.state.mode === 'ask') {
+            submit.disabled = name !== 'ready';
+        }
+    };
+
+    /** The longest recording: the configured limit, and what the server accepts. */
+    Chat.prototype.voiceLimit = function () {
+        var seconds = this.config.voiceMaxSeconds || 180;
+        if (this.config.voiceMaxBytes > 0) {
+            // Recorded at 32 kbit/s, about 4 KB per second; a tenth is kept
+            // for the rest of the request.
+            seconds = Math.min(seconds, Math.floor(this.config.voiceMaxBytes * 0.9 / 4000));
+        }
+        return Math.max(5, seconds);
+    };
+
+    Chat.prototype.renderVoiceTime = function () {
+        var region = this.voiceRegion();
+        if (region) {
+            region.querySelector('[data-region="voice-time"]').textContent = clock(this.voice.elapsed);
+        }
+    };
+
+    Chat.prototype.voiceStart = function () {
+        var self = this;
+        if (!this.voiceSupported()) {
+            this.alert(this.t('voice_unsupported'));
+            return;
+        }
+        this.alert('');
+        navigator.mediaDevices.getUserMedia({audio: true}).then(function (stream) {
+            var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg'];
+            var type = '';
+            for (var i = 0; i < types.length; i++) {
+                if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(types[i])) {
+                    type = types[i];
+                    break;
+                }
+            }
+            var recorder;
+            try {
+                recorder = new MediaRecorder(stream, type ? {mimeType: type, audioBitsPerSecond: 32000} : {audioBitsPerSecond: 32000});
+            } catch (e) {
+                recorder = new MediaRecorder(stream);
+            }
+            self.voice.stream = stream;
+            self.voice.recorder = recorder;
+            self.voice.chunks = [];
+            self.voice.blob = null;
+            self.voice.elapsed = 0;
+            recorder.addEventListener('dataavailable', function (event) {
+                if (event.data && event.data.size) {
+                    self.voice.chunks.push(event.data);
+                }
+            });
+            recorder.addEventListener('stop', function () {
+                self.voiceRelease();
+                if (self.voice.discarding) {
+                    self.voice.discarding = false;
+                    return;
+                }
+                self.voice.blob = new Blob(self.voice.chunks, {type: recorder.mimeType || type || 'audio/webm'});
+                if (self.voice.url) {
+                    URL.revokeObjectURL(self.voice.url);
+                }
+                self.voice.url = URL.createObjectURL(self.voice.blob);
+                self.voiceRegion().querySelector('[data-region="voice-audio"]').src = self.voice.url;
+                self.setVoiceState('ready');
+            });
+            recorder.start(1000);
+            self.voice.timer = window.setInterval(function () {
+                if (self.voice.state !== 'recording') {
+                    return;
+                }
+                self.voice.elapsed += 1;
+                self.renderVoiceTime();
+                if (self.voice.elapsed >= self.voiceLimit()) {
+                    self.alert(self.t('voice_limit', {seconds: self.voiceLimit()}));
+                    self.voiceStop();
+                }
+            }, 1000);
+            self.renderVoiceTime();
+            self.setVoiceState('recording');
+        }).catch(function (error) {
+            var name = error && error.name;
+            if (name === 'NotAllowedError' || name === 'SecurityError') {
+                self.alert(self.t('mic_denied'));
+            } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+                self.alert(self.t('mic_notfound'));
+            } else {
+                self.alert(self.t('mic_failed'));
+            }
+        });
+    };
+
+    Chat.prototype.voicePause = function () {
+        var recorder = this.voice.recorder;
+        if (recorder && recorder.state === 'recording' && typeof recorder.pause === 'function') {
+            recorder.pause();
+            this.setVoiceState('paused');
+        }
+    };
+
+    Chat.prototype.voiceResume = function () {
+        var recorder = this.voice.recorder;
+        if (recorder && recorder.state === 'paused') {
+            recorder.resume();
+            this.setVoiceState('recording');
+        }
+    };
+
+    Chat.prototype.voiceStop = function () {
+        var recorder = this.voice.recorder;
+        if (recorder && recorder.state !== 'inactive') {
+            recorder.stop();
+        }
+    };
+
+    /** Let go of the microphone and the clock. */
+    Chat.prototype.voiceRelease = function () {
+        if (this.voice.timer) {
+            window.clearInterval(this.voice.timer);
+            this.voice.timer = null;
+        }
+        if (this.voice.stream) {
+            this.voice.stream.getTracks().forEach(function (track) {
+                track.stop();
+            });
+            this.voice.stream = null;
+        }
+    };
+
+    Chat.prototype.voiceDiscard = function () {
+        var recorder = this.voice.recorder;
+        if (recorder && recorder.state !== 'inactive') {
+            this.voice.discarding = true;
+            recorder.stop();
+        }
+        this.voiceRelease();
+        this.voice.recorder = null;
+        this.voice.blob = null;
+        this.voice.chunks = [];
+        this.voice.elapsed = 0;
+        if (this.voice.url) {
+            URL.revokeObjectURL(this.voice.url);
+            this.voice.url = null;
+        }
+        var region = this.voiceRegion();
+        if (region) {
+            var audio = region.querySelector('[data-region="voice-audio"]');
+            audio.pause();
+            audio.removeAttribute('src');
+        }
+        this.renderVoiceTime();
+        this.setVoiceState('idle');
+    };
+
+    Chat.prototype.voicePlay = function () {
+        var audio = this.voiceRegion().querySelector('[data-region="voice-audio"]');
+        if (audio.getAttribute('src')) {
+            if (audio.paused) {
+                audio.currentTime = 0;
+                audio.play().catch(noop);
+            } else {
+                audio.pause();
+            }
+        }
+    };
+
+    Chat.prototype.voiceSend = function () {
+        var self = this;
+        if (!this.voice.blob || this.voice.state !== 'ready') {
+            return;
+        }
+        var blob = this.voice.blob;
+        var duration = this.voice.elapsed;
+        // The answer card plays the recording back, so its address stays.
+        var url = this.voice.url;
+        this.voice.url = null;
+        this.voice.blob = null;
+        var reply = this.state.replyTo;
+        var extension = blob.type.indexOf('mp4') !== -1 ? 'm4a' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
+        var form = new FormData();
+        form.append('payload', JSON.stringify({replyto: reply && reply.id ? reply.id : '', replystack: reply && reply.stack ? reply.stack : ''}));
+        form.append('audio', blob, 'question.' + extension);
+
+        var audio = this.voiceRegion().querySelector('[data-region="voice-audio"]');
+        audio.pause();
+        audio.removeAttribute('src');
+        this.voice.elapsed = 0;
+        this.renderVoiceTime();
+        this.setVoiceState('idle');
+
+        var submit = this.q('.tarsus-chat-submit');
+        var spinner = this.q('[data-region="send-spinner"]');
+        if (submit) {
+            submit.disabled = true;
+        }
+        show(spinner, true);
+        this.alert('');
+        var processing = this.startProcessing('voice', false);
+        var unlock = function () {
+            processing.stop();
+            show(spinner, false);
+            self.setVoiceState(self.voice.state);
+        };
+        postForm(this.config.endpoints.askVoice, form, this.strings).then(function (result) {
+            unlock();
+            if (result.status !== 'success') {
+                self.alert(result.error || self.t('unexpected_error'));
+                return;
+            }
+            (result.messages || []).forEach(function (message) {
+                self.attach(self.noticeCard('', message.title, message.text), null, true);
+            });
+            self.attach(self.exchangeCard(result.question || self.t('voice_question'), result.answer, reply ? reply.title : '', result.html || '',
+                {id: result.widgetid, state: 'ask', sources: result.sources, voice: {src: url, duration: duration}}), null, true);
+            self.setReply(null);
+            self.scrollToEnd();
+        }).catch(function (error) {
+            unlock();
+            self.alert(error.message || self.t('unexpected_error'));
+        });
+    };
+
+    // --- live interaction ----------------------------------------------
+    //
+    // Tarsus sends the whole call as one page (a genericLiveWidget). Its
+    // contract: shown in a frame without sandbox that may use the
+    // microphone - the page is Tarsus's own code; the AI-made slides in it
+    // run in their own sandbox. The page tells when its call has expired.
+
+    Chat.prototype.setLiveLabel = function (key) {
+        var label = this.q('[data-region="live-label"]');
+        if (label) {
+            label.textContent = this.t(key);
+        }
+    };
+
+    Chat.prototype.startLive = function () {
+        var self = this;
+        var button = this.q('[data-action="live-start"]');
+        if (!button || button.disabled) {
+            return;
+        }
+        if (this.state.live) {
+            // "New conversation": the running one ends first.
+            this.endLive(true);
+        }
+        button.disabled = true;
+        show(this.q('[data-region="live-spinner"]'), true);
+        this.alert('');
+        this.call('discuss', {}).then(function (result) {
+            button.disabled = false;
+            show(self.q('[data-region="live-spinner"]'), false);
+            if (result.status !== 'success' || !result.page) {
+                self.alert(result.error || self.t('unexpected_error'));
+                return;
+            }
+            var frame = el('iframe', {'class': 'tarsus-live__frame', allow: 'microphone; autoplay', title: self.t('live_title')});
+            frame.setAttribute('srcdoc', result.page);
+            var card = el('div', {'class': 'tarsus-card tarsus-live', 'data-region': 'live-card'}, [
+                el('div', {'class': 'tarsus-live__notice tarsus-hidden', 'data-region': 'live-notice', role: 'status'}),
+                frame
+            ]);
+            self.state.live = card;
+            self.attach(card, null, true);
+            self.scrollToCard(card);
+            self.setLiveLabel('live_new');
+        }).catch(function (error) {
+            button.disabled = false;
+            show(self.q('[data-region="live-spinner"]'), false);
+            self.alert(error.message || self.t('unexpected_error'));
+        });
+    };
+
+    /** End the call; what the coach answered is saved by Tarsus and read back. */
+    Chat.prototype.endLive = function (keepFeed) {
+        var card = this.state.live;
+        this.state.live = null;
+        if (card && card.parentNode) {
+            card.parentNode.removeChild(card);
+        }
+        this.setLiveLabel('live_start');
+        if (!keepFeed) {
+            this.loadFeed();
+        }
+    };
+
+    Chat.prototype.onLiveMessage = function (event) {
+        var card = this.state.live;
+        var data = event.data;
+        if (!card || !data || typeof data !== 'object') {
+            return;
+        }
+        var frame = card.querySelector('iframe');
+        if (!frame || event.source !== frame.contentWindow) {
+            return;
+        }
+        if (data.type === 'genericLiveWidget:expired') {
+            var notice = card.querySelector('[data-region="live-notice"]');
+            notice.textContent = this.t('live_expired');
+            show(notice, true);
+            this.setLiveLabel('live_new');
+        }
+    };
+
+    // --- the panel sliding in from the right ---------------------------
+
+    Chat.prototype.openDrawer = function (title, wide) {
+        var drawer = this.q('[data-region="drawer"]');
+        if (!drawer) {
+            return el('div');
+        }
+        drawer.querySelector('[data-region="drawer-title"]').textContent = title;
+        var body = drawer.querySelector('[data-region="drawer-body"]');
+        body.innerHTML = '';
+        drawer.classList.toggle('tarsus-drawer--wide', Boolean(wide));
+        this.lastFocus = document.activeElement;
+        drawer.hidden = false;
+        window.requestAnimationFrame(function () {
+            drawer.classList.add('tarsus-drawer--open');
+            drawer.querySelector('.tarsus-drawer__panel').focus();
+        });
+        document.documentElement.classList.add('tarsus-drawer-lock');
+        return body;
+    };
+
+    Chat.prototype.closeDrawer = function () {
+        var drawer = this.q('[data-region="drawer"]');
+        if (!drawer || drawer.hidden) {
+            return;
+        }
+        drawer.classList.remove('tarsus-drawer--open');
+        window.setTimeout(function () {
+            if (!drawer.classList.contains('tarsus-drawer--open')) {
+                drawer.hidden = true;
+            }
+        }, 220);
+        document.documentElement.classList.remove('tarsus-drawer-lock');
+        if (this.lastFocus && typeof this.lastFocus.focus === 'function') {
+            this.lastFocus.focus();
+        }
+    };
+
+    Chat.prototype.drawerLoading = function (body) {
+        body.innerHTML = '';
+        body.appendChild(el('div', {'class': 'tarsus-drawer__loading'}, [
+            el('span', {'class': 'tarsus-spinner', 'aria-hidden': 'true'}),
+            el('span', {text: this.t('loading')})
+        ]));
+    };
+
+    Chat.prototype.drawerError = function (body, message) {
+        body.innerHTML = '';
+        body.appendChild(el('p', {'class': 'tarsus-drawer__error', role: 'alert', text: message || this.t('unexpected_error')}));
+    };
+
+    // --- sources of an answer ------------------------------------------
+
+    var SOURCE_TYPES = ['text', 'table', 'image', 'audio', 'video', 'question', 'form'];
+    var SOURCE_ICONS = {text: 'file', table: 'table', image: 'image', audio: 'audio', video: 'video', question: 'mode_ask', form: 'mode_test'};
+
+    Chat.prototype.openSources = function (widgetid, state) {
+        var self = this;
+        var body = this.openDrawer(this.t('sources_title'));
+        this.drawerLoading(body);
+        this.call('references', {widgetid: widgetid, state: state || 'ask'}).then(function (result) {
+            if (result.status !== 'success') {
+                self.drawerError(body, result.error);
+                return;
+            }
+            body.innerHTML = '';
+            var bits = result.bits || [];
+            if (!bits.length) {
+                body.appendChild(el('p', {'class': 'tarsus-muted', text: self.t('sources_none')}));
+                return;
+            }
+            body.appendChild(el('p', {'class': 'tarsus-drawer__lead', text: self.t('sources_count', {count: bits.length})}));
+            bits.forEach(function (bit) {
+                body.appendChild(self.sourceItem(bit));
+            });
+            typeset(body);
+        }).catch(function (error) {
+            self.drawerError(body, error.message);
+        });
+    };
+
+    /** One source, shown by its type: text, table, picture, transcript of audio or video, question. */
+    Chat.prototype.sourceItem = function (bit) {
+        var type = SOURCE_TYPES.indexOf(bit.type) !== -1 ? bit.type : 'other';
+        var head = el('div', {'class': 'tarsus-source__head'}, [
+            el('span', {'class': 'tarsus-source__type', html: this.icon(SOURCE_ICONS[type] || 'file')}, el('span', {text: this.t('source_type_' + type)})),
+            bit.title ? el('span', {'class': 'tarsus-source__title', text: bit.title}) : null,
+            bit.link ? el('a', {'class': 'tarsus-source__open', href: bit.link, target: '_top', html: this.icon('link')}, el('span', {text: this.t('sources_open')})) : null
+        ]);
+        var content = el('div', {'class': 'tarsus-source__content'});
+        if (type === 'table' && bit.rows && bit.rows.length) {
+            var rows = bit.rows;
+            content.appendChild(el('div', {'class': 'tarsus-source__table-wrap'}, el('table', {'class': 'tarsus-source__table'}, [
+                el('thead', {}, el('tr', {}, rows[0].map(function (cell) {
+                    return el('th', {text: cell});
+                }))),
+                el('tbody', {}, rows.slice(1).map(function (row) {
+                    return el('tr', {}, row.map(function (cell) {
+                        return el('td', {text: cell});
+                    }));
+                }))
+            ])));
+        } else if (type === 'image' && bit.image) {
+            content.appendChild(el('img', {'class': 'tarsus-source__image', src: bit.image, alt: bit.title || '', tabindex: '0', role: 'button',
+                'data-action': 'enlarge', title: this.t('learn_image_enlarge')}));
+        }
+        if ((type === 'audio' || type === 'video') && bit.text) {
+            content.appendChild(el('div', {'class': 'tarsus-source__label', text: this.t('sources_transcript')}));
+        }
+        if (bit.text && type !== 'table') {
+            content.appendChild(el('div', {'class': 'tarsus-source__text', html: bit.text}));
+        }
+        if (bit.subtitle) {
+            content.appendChild(el('div', {'class': 'tarsus-source__subtitle', text: bit.subtitle}));
+        }
+        return el('article', {'class': 'tarsus-source tarsus-source--' + type}, [head, content]);
+    };
+
+    // --- teacher: settings ---------------------------------------------
+
+    Chat.prototype.teacherCall = function (endpoint, payload) {
+        return post(this.config.teacher.endpoints[endpoint], payload, this.strings);
+    };
+
+    Chat.prototype.openSettingsPanel = function () {
+        var self = this;
+        var body = this.openDrawer(this.t('panel_settings'), true);
+        this.drawerLoading(body);
+        this.teacherCall('settings', {}).then(function (result) {
+            if (result.status !== 'success') {
+                self.drawerError(body, result.error);
+                return;
+            }
+            body.innerHTML = '';
+            var form = el('form', {'class': 'tarsus-settings', novalidate: true});
+            (result.sections || []).forEach(function (section) {
+                var box = el('section', {'class': 'tarsus-settings__section'}, [
+                    el('h3', {'class': 'tarsus-settings__title', text: section.title}),
+                    section.help ? el('p', {'class': 'tarsus-settings__help', text: section.help}) : null
+                ]);
+                (section.fields || []).forEach(function (field) {
+                    box.appendChild(self.settingsField(field));
+                });
+                form.appendChild(box);
+            });
+            var status = el('span', {'class': 'tarsus-settings__status', role: 'status'});
+            var save = el('button', {type: 'submit', 'class': 'tarsus-btn tarsus-btn--primary', text: self.t('settings_save')});
+            form.appendChild(el('div', {'class': 'tarsus-settings__footer'}, [
+                save, status,
+                el('a', {'class': 'tarsus-settings__full', href: self.config.teacher.settingsUrl, text: self.t('settings_open_full')})
+            ]));
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                save.disabled = true;
+                status.textContent = self.t('settings_saving');
+                form.querySelectorAll('.tarsus-settings__error').forEach(function (node) {
+                    node.remove();
+                });
+                self.teacherCall('saveSettings', {values: self.settingsValues(form)}).then(function (saved) {
+                    save.disabled = false;
+                    if (saved.status !== 'success') {
+                        status.textContent = saved.error || self.t('form_invalid');
+                        Object.keys(saved.errors || {}).forEach(function (name) {
+                            var field = form.querySelector('[data-field="' + name + '"]');
+                            if (field) {
+                                field.appendChild(el('div', {'class': 'tarsus-settings__error', role: 'alert', text: saved.errors[name]}));
+                            }
+                        });
+                        return;
+                    }
+                    status.textContent = saved.message || self.t('settings_saved');
+                    // Modes and switches change the coach itself.
+                    window.setTimeout(function () {
+                        window.location.reload();
+                    }, 700);
+                }).catch(function (error) {
+                    save.disabled = false;
+                    status.textContent = error.message || self.t('unexpected_error');
+                });
+            });
+            body.appendChild(form);
+        }).catch(function (error) {
+            self.drawerError(body, error.message);
+        });
+    };
+
+    Chat.prototype.settingsField = function (field) {
+        var wrap = el('div', {'class': 'tarsus-settings__field tarsus-settings__field--' + field.type, 'data-field': field.name});
+        var locked = Boolean(field.locked);
+        var label = el('div', {'class': 'tarsus-settings__label', text: field.label});
+        if (field.type === 'checkbox') {
+            wrap.appendChild(el('label', {'class': 'tarsus-settings__check'}, [
+                el('input', {type: 'checkbox', name: field.name, checked: Boolean(field.value), disabled: locked}),
+                el('span', {'class': 'tarsus-settings__label', text: field.label})
+            ]));
+        } else if (field.type === 'radio' || field.type === 'cards') {
+            if (field.type === 'radio') {
+                wrap.appendChild(label);
+            }
+            var group = el('div', {'class': field.type === 'cards' ? 'tarsus-settings__cards' : 'tarsus-settings__radios', role: 'radiogroup',
+                'aria-label': field.label});
+            (field.options || []).forEach(function (option) {
+                group.appendChild(el('label', {'class': field.type === 'cards' ? 'tarsus-settings__card' : 'tarsus-settings__radio'}, [
+                    el('input', {type: 'radio', name: field.name, value: option.value, checked: String(field.value) === String(option.value),
+                        disabled: Boolean(option.locked)}),
+                    el('span', {'class': 'tarsus-settings__option'}, [
+                        el('strong', {text: option.label}),
+                        option.help ? el('span', {text: option.help}) : null,
+                        option.lockedtext ? el('em', {text: option.lockedtext}) : null
+                    ])
+                ]));
+            });
+            wrap.appendChild(group);
+        } else if (field.type === 'select') {
+            wrap.appendChild(label);
+            var select = el('select', {'class': 'tarsus-input', name: field.name, 'aria-label': field.label});
+            (field.options || []).forEach(function (option) {
+                select.appendChild(el('option', {value: option.value, text: option.label, selected: String(field.value) === String(option.value)}));
+            });
+            wrap.appendChild(select);
+        } else if (field.type === 'multi') {
+            wrap.appendChild(label);
+            var values = (field.value || []).map(String);
+            var list = el('div', {'class': 'tarsus-settings__multi'});
+            (field.options || []).forEach(function (option) {
+                list.appendChild(el('label', {'class': 'tarsus-settings__check'}, [
+                    el('input', {type: 'checkbox', value: option.value, checked: values.indexOf(String(option.value)) !== -1}),
+                    el('span', {text: option.label})
+                ]));
+            });
+            wrap.appendChild(list);
+        } else {
+            wrap.appendChild(label);
+            var input = el('input', {'class': 'tarsus-input', name: field.name, type: field.type === 'number' ? 'number' : 'text',
+                value: field.value, min: field.min, max: field.max, maxlength: field.maxlength, 'aria-label': field.label});
+            wrap.appendChild(field.suffix ? el('span', {'class': 'tarsus-settings__suffixed'}, [input, el('span', {text: field.suffix})]) : input);
+        }
+        if (field.help) {
+            wrap.appendChild(el('div', {'class': 'tarsus-settings__help', text: field.help}));
+        }
+        if (locked && field.lockedtext) {
+            wrap.appendChild(el('div', {'class': 'tarsus-settings__locked', text: field.lockedtext}));
+        }
+        return wrap;
+    };
+
+    /** The panel's values; a locked switch sends nothing and keeps its value. */
+    Chat.prototype.settingsValues = function (form) {
+        var values = {};
+        form.querySelectorAll('[data-field]').forEach(function (wrap) {
+            var name = wrap.getAttribute('data-field');
+            if (wrap.classList.contains('tarsus-settings__field--multi')) {
+                values[name] = [];
+                wrap.querySelectorAll('input[type="checkbox"]').forEach(function (box) {
+                    if (box.checked) {
+                        values[name].push(box.value);
+                    }
+                });
+            } else if (wrap.classList.contains('tarsus-settings__field--checkbox')) {
+                var box = wrap.querySelector('input[type="checkbox"]');
+                if (box && !box.disabled) {
+                    values[name] = box.checked;
+                }
+            } else if (wrap.classList.contains('tarsus-settings__field--radio') || wrap.classList.contains('tarsus-settings__field--cards')) {
+                var checked = wrap.querySelector('input[type="radio"]:checked');
+                if (checked) {
+                    values[name] = checked.value;
+                }
+            } else {
+                var input = wrap.querySelector('input, select');
+                if (input) {
+                    values[name] = input.value;
+                }
+            }
+        });
+        return values;
+    };
+
+    // --- teacher: evaluation -------------------------------------------
+
+    var LP_COMPLETED = 2;
+    var LP_IN_PROGRESS = 1;
+
+    Chat.prototype.loadStats = function () {
+        var self = this;
+        return this.teacherCall('stats', {}).then(function (result) {
+            if (result.status === 'success') {
+                self.state.stats = result;
+            }
+            return result;
+        });
+    };
+
+    Chat.prototype.openStatsPanel = function () {
+        var self = this;
+        var body = this.openDrawer(this.t('panel_stats'), true);
+        this.drawerLoading(body);
+        this.loadStats().then(function (result) {
+            if (result.status !== 'success') {
+                self.drawerError(body, result.error);
+                return;
+            }
+            self.renderStats(body, result, '');
+        }).catch(function (error) {
+            self.drawerError(body, error.message);
+        });
+    };
+
+    Chat.prototype.renderStats = function (body, result, group) {
+        var self = this;
+        body.innerHTML = '';
+        var all = result.learners || [];
+        var learners = all.filter(function (learner) {
+            return !group || (learner.groups || []).map(String).indexOf(String(group)) !== -1;
+        });
+
+        var tools = el('div', {'class': 'tarsus-stats__tools'});
+        if ((result.groups || []).length) {
+            var select = el('select', {'class': 'tarsus-input tarsus-stats__group', 'aria-label': this.t('stats_group')});
+            select.appendChild(el('option', {value: '', text: this.t('stats_group_all')}));
+            result.groups.forEach(function (entry) {
+                select.appendChild(el('option', {value: String(entry.id), text: entry.title, selected: String(entry.id) === String(group)}));
+            });
+            select.addEventListener('change', function () {
+                self.renderStats(body, result, select.value);
+            });
+            tools.appendChild(select);
+        }
+        tools.appendChild(el('a', {'class': 'tarsus-btn tarsus-btn--sm tarsus-stats__export', href: this.config.teacher.exportUrl, html: this.icon('download')},
+            el('span', {text: this.t('stats_export')})));
+        body.appendChild(tools);
+        if (result.warning) {
+            body.appendChild(el('p', {'class': 'tarsus-drawer__warning', role: 'status', text: result.warning}));
+        }
+        if (!learners.length) {
+            body.appendChild(el('p', {'class': 'tarsus-muted', text: this.t('stats_none')}));
+            return;
+        }
+
+        var members = learners.filter(function (learner) {
+            return learner.member;
+        });
+        var counted = members.length ? members : learners;
+        var started = counted.filter(function (learner) {
+            return learner.started;
+        });
+        var grades = started.filter(function (learner) {
+            return learner.grade !== null && learner.grade !== undefined;
+        }).map(function (learner) {
+            return learner.grade;
+        });
+        var completed = counted.filter(function (learner) {
+            return learner.status === LP_COMPLETED;
+        }).length;
+        var inprogress = counted.filter(function (learner) {
+            return learner.status === LP_IN_PROGRESS;
+        }).length;
+        var average = function (values) {
+            return values.length ? Math.round(values.reduce(function (a, b) {
+                return a + b;
+            }, 0) / values.length) : null;
+        };
+        var avgGrade = average(grades);
+        var avgProgress = average(started.map(function (learner) {
+            return learner.progress;
+        }));
+
+        body.appendChild(el('div', {'class': 'tarsus-stats__kpis'}, [
+            this.kpi(String(counted.length), this.t('stats_learners')),
+            this.kpi(avgGrade === null ? '–' : avgGrade + ' %', this.t('stats_avg_grade')),
+            this.kpi(completed + ' / ' + counted.length, this.t('stats_completed')),
+            this.kpi(avgProgress === null ? '–' : avgProgress + ' %', this.t('stats_avg_progress'))
+        ]));
+
+        if (result.measurable !== false) {
+            body.appendChild(el('div', {'class': 'tarsus-stats__charts'}, [
+                el('section', {'class': 'tarsus-stats__chart'}, [
+                    el('h3', {text: this.t('stats_distribution')}),
+                    el('p', {'class': 'tarsus-stats__chart-help', text: this.t('stats_distribution_help')}),
+                    this.histogram(grades)
+                ]),
+                el('section', {'class': 'tarsus-stats__chart'}, [
+                    el('h3', {text: this.t('stats_status')}),
+                    el('p', {'class': 'tarsus-stats__chart-help', text: this.t('stats_status_help')}),
+                    this.statusBar(completed, inprogress, Math.max(0, counted.length - completed - inprogress))
+                ])
+            ]));
+        }
+
+        var head = el('tr', {}, [
+            el('th', {text: this.t('stats_col_name')}),
+            el('th', {text: this.t('stats_col_grade')}),
+            el('th', {text: this.t('stats_col_progress')}),
+            el('th', {text: this.t('stats_col_status')}),
+            el('th', {text: this.t('stats_col_build')}),
+            el('th', {text: this.t('stats_col_test')}),
+            el('th', {text: this.t('stats_col_last')}),
+            el('th', {'aria-label': this.t('panel_history')})
+        ]);
+        var rows = learners.map(function (learner) {
+            var status = learner.status === LP_COMPLETED ? 'lp_completed' : (learner.status === LP_IN_PROGRESS ? 'lp_in_progress' : 'lp_not_attempted');
+            return el('tr', {}, [
+                el('td', {'class': 'tarsus-stats__name', text: learner.name}),
+                el('td', {'class': 'tarsus-stats__grade', text: learner.grade === null || learner.grade === undefined ? '–' : Math.round(learner.grade) + ' %'}),
+                el('td', {text: Math.round(learner.progress || 0) + ' %'}),
+                el('td', {}, el('span', {'class': 'tarsus-pill tarsus-pill--' + status, text: self.t(status)})),
+                el('td', {}, self.meter(learner.earnedunits, learner.totalunits, self.t('learning_units'), 'units')),
+                el('td', {}, self.meter(learner.earnedxp, learner.totalxp, self.t('xp'), 'xp')),
+                el('td', {'class': 'tarsus-nowrap', text: learner.lastactivitylabel || '–'}),
+                el('td', {}, el('button', {type: 'button', 'class': 'tarsus-link-btn', 'data-action': 'history-open',
+                    'data-userid': String(learner.userid), 'data-name': learner.name, text: self.t('stats_history')}))
+            ]);
+        });
+        body.appendChild(el('div', {'class': 'tarsus-stats__table-wrap'}, el('table', {'class': 'tarsus-stats__table'}, [
+            el('thead', {}, head),
+            el('tbody', {}, rows)
+        ])));
+    };
+
+    Chat.prototype.kpi = function (value, label) {
+        return el('div', {'class': 'tarsus-stats__kpi'}, [
+            el('div', {'class': 'tarsus-stats__kpi-value', text: value}),
+            el('div', {'class': 'tarsus-stats__kpi-label', text: label})
+        ]);
+    };
+
+    /** A small bar with "earned / total": shown, never used as the score. */
+    Chat.prototype.meter = function (earned, total, unit, kind) {
+        var share = total > 0 ? Math.max(0, Math.min(1, earned / total)) : 0;
+        var round = function (value) {
+            return Math.round((value || 0) * 10) / 10;
+        };
+        return el('span', {'class': 'tarsus-meter tarsus-meter--' + kind}, [
+            el('span', {'class': 'tarsus-meter__track'}, el('span', {'class': 'tarsus-meter__fill', style: 'width:' + Math.round(share * 100) + '%'})),
+            el('span', {'class': 'tarsus-meter__text', text: round(earned) + ' / ' + round(total) + ' ' + unit})
+        ]);
+    };
+
+    var SVG_NS = 'http://www.w3.org/2000/svg';
+
+    function svg(tag, attrs, children) {
+        var node = document.createElementNS(SVG_NS, tag);
+        Object.keys(attrs || {}).forEach(function (key) {
+            node.setAttribute(key, String(attrs[key]));
+        });
+        (children || []).forEach(function (child) {
+            if (child) {
+                node.appendChild(child);
+            }
+        });
+        return node;
+    }
+
+    function svgText(x, y, text, attrs) {
+        var node = svg('text', Object.assign({x: x, y: y}, attrs || {}));
+        node.textContent = text;
+        return node;
+    }
+
+    /** How many learners reached which result, in ten bands of ten percent. */
+    Chat.prototype.histogram = function (grades) {
+        var counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        grades.forEach(function (grade) {
+            counts[Math.min(9, Math.max(0, Math.floor(grade / 10)))]++;
+        });
+        var max = Math.max(1, Math.max.apply(null, counts));
+        var width = 560;
+        var height = 170;
+        var left = 30;
+        var base = 132;
+        var top = 12;
+        var band = (width - left - 8) / 10;
+        var bar = band - 6;
+        var root = svg('svg', {viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'class': 'tarsus-chart', 'aria-label': this.t('stats_distribution')});
+        [0, Math.ceil(max / 2), max].forEach(function (tick) {
+            var y = base - (tick / max) * (base - top);
+            root.appendChild(svg('line', {x1: left, x2: width - 4, y1: y, y2: y, 'class': 'tarsus-chart__grid'}));
+            root.appendChild(svgText(left - 8, y + 4, String(tick), {'class': 'tarsus-chart__axis', 'text-anchor': 'end'}));
+        });
+        counts.forEach(function (count, i) {
+            var x = left + i * band + 3;
+            if (count > 0) {
+                var h = (count / max) * (base - top);
+                var y = base - h;
+                var r = Math.min(4, h);
+                var shape = svg('path', {
+                    d: 'M' + x + ' ' + base + 'V' + (y + r) + 'a' + r + ' ' + r + ' 0 0 1 ' + r + ' -' + r + 'h' + (bar - 2 * r) + 'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + r + 'V' + base + 'z',
+                    'class': 'tarsus-chart__bar'
+                });
+                var title = svg('title');
+                title.textContent = (i * 10) + '–' + ((i + 1) * 10) + ' %: ' + count;
+                shape.appendChild(title);
+                root.appendChild(shape);
+            }
+            root.appendChild(svgText(x + bar / 2, base + 16, (i * 10) + '–' + ((i + 1) * 10), {'class': 'tarsus-chart__axis', 'text-anchor': 'middle'}));
+        });
+        return root;
+    };
+
+    /** Completed, in progress and not started, side by side in one bar. */
+    Chat.prototype.statusBar = function (completed, inprogress, notstarted) {
+        var total = Math.max(1, completed + inprogress + notstarted);
+        var parts = [
+            {count: completed, key: 'lp_completed', cls: 'completed'},
+            {count: inprogress, key: 'lp_in_progress', cls: 'progress'},
+            {count: notstarted, key: 'lp_not_attempted', cls: 'notstarted'}
+        ];
+        var self = this;
+        var bar = el('div', {'class': 'tarsus-status-bar', role: 'img',
+            'aria-label': parts.map(function (part) {
+                return part.count + ' ' + self.t(part.key);
+            }).join(', ')});
+        parts.forEach(function (part) {
+            if (part.count > 0) {
+                bar.appendChild(el('span', {'class': 'tarsus-status-bar__part tarsus-status-bar__part--' + part.cls,
+                    style: 'flex-grow:' + part.count + ';flex-basis:0', title: part.count + ' ' + self.t(part.key)}));
+            }
+        });
+        var legend = el('div', {'class': 'tarsus-status-bar__legend'}, parts.map(function (part) {
+            return el('span', {}, [el('i', {'class': 'tarsus-status-bar__dot tarsus-status-bar__part--' + part.cls}),
+                el('span', {text: part.count + ' ' + self.t(part.key)})]);
+        }));
+        return el('div', {'class': 'tarsus-status'}, [bar, legend]);
+    };
+
+    // --- teacher: history (read only) ----------------------------------
+
+    Chat.prototype.openHistoryPanel = function (userid, name) {
+        var self = this;
+        var body = this.openDrawer(this.t('panel_history'), true);
+        if (userid) {
+            this.renderHistory(body, userid, name || '');
+            return;
+        }
+        // No learner chosen yet: pick one from the evaluation.
+        this.drawerLoading(body);
+        var list = this.state.stats ? Promise.resolve(this.state.stats) : this.loadStats();
+        list.then(function (result) {
+            if (result.status !== 'success') {
+                self.drawerError(body, result.error);
+                return;
+            }
+            body.innerHTML = '';
+            var learners = (result.learners || []).slice().sort(function (a, b) {
+                return (b.started ? 1 : 0) - (a.started ? 1 : 0);
+            });
+            if (!learners.length) {
+                body.appendChild(el('p', {'class': 'tarsus-muted', text: self.t('stats_none')}));
+                return;
+            }
+            var select = el('select', {'class': 'tarsus-input tarsus-history__pick', 'aria-label': self.t('history_pick')});
+            select.appendChild(el('option', {value: '', text: self.t('history_pick')}));
+            learners.forEach(function (learner) {
+                select.appendChild(el('option', {value: String(learner.userid), text: learner.name}));
+            });
+            var target = el('div', {'class': 'tarsus-history__target'});
+            select.addEventListener('change', function () {
+                if (select.value) {
+                    self.renderHistory(target, parseInt(select.value, 10), select.options[select.selectedIndex].text);
+                }
+            });
+            body.appendChild(el('div', {'class': 'tarsus-stats__tools'}, select));
+            body.appendChild(target);
+        }).catch(function (error) {
+            self.drawerError(body, error.message);
+        });
+    };
+
+    Chat.prototype.renderHistory = function (body, userid, name) {
+        var self = this;
+        body.innerHTML = '';
+        var header = el('div', {'class': 'tarsus-history__head'}, [
+            el('h3', {'class': 'tarsus-history__name', text: this.t('history_of', {name: name})}),
+            el('span', {'class': 'tarsus-history__badge', html: this.icon('taxonomy_understanding')}, el('span', {text: this.t('history_readonly')})),
+            this.state.stats ? el('button', {type: 'button', 'class': 'tarsus-link-btn', 'data-action': 'panel', 'data-panel': 'stats',
+                text: this.t('history_back')}) : null
+        ]);
+        var side = el('div', {'class': 'tarsus-history__side'});
+        var feed = el('div', {'class': 'tarsus-history__feed', 'data-region': 'history-feed'});
+        body.appendChild(header);
+        body.appendChild(el('div', {'class': 'tarsus-history'}, [side, feed]));
+
+        // The learner's figures and how they grew.
+        var learner = null;
+        ((this.state.stats && this.state.stats.learners) || []).forEach(function (entry) {
+            if (entry.userid === userid) {
+                learner = entry;
+            }
+        });
+        if (learner) {
+            var status = learner.status === LP_COMPLETED ? 'lp_completed' : (learner.status === LP_IN_PROGRESS ? 'lp_in_progress' : 'lp_not_attempted');
+            side.appendChild(el('div', {'class': 'tarsus-history__figures'}, [
+                el('div', {'class': 'tarsus-history__grade'}, [
+                    el('span', {text: learner.grade === null || learner.grade === undefined ? '–' : Math.round(learner.grade) + ' %'}),
+                    el('span', {'class': 'tarsus-pill tarsus-pill--' + status, text: this.t(status)})
+                ]),
+                el('div', {'class': 'tarsus-history__row'}, [el('span', {text: this.t('stats_col_progress')}), el('span', {text: Math.round(learner.progress || 0) + ' %'})]),
+                el('div', {'class': 'tarsus-history__row'}, [el('span', {text: this.t('stats_col_build')}), this.meter(learner.earnedunits, learner.totalunits, this.t('learning_units'), 'units')]),
+                el('div', {'class': 'tarsus-history__row'}, [el('span', {text: this.t('stats_col_test')}), this.meter(learner.earnedxp, learner.totalxp, this.t('xp'), 'xp')]),
+                el('div', {'class': 'tarsus-history__row'}, [el('span', {text: this.t('stats_col_last')}), el('span', {text: learner.lastactivitylabel || '–'})])
+            ]));
+        }
+        var growth = el('section', {'class': 'tarsus-history__growth'}, [el('h4', {text: this.t('history_growth')})]);
+        side.appendChild(growth);
+        this.teacherCall('analytics', {userid: userid}).then(function (result) {
+            if (result.status !== 'success') {
+                growth.appendChild(el('p', {'class': 'tarsus-muted tarsus-small', text: result.error || self.t('unexpected_error')}));
+                return;
+            }
+            growth.appendChild(self.growthChart(result));
+        }).catch(noop);
+
+        var offset = 0;
+        var more = el('button', {type: 'button', 'class': 'tarsus-btn tarsus-btn--sm tarsus-history__more tarsus-hidden', text: this.t('history_more')});
+        var load = function () {
+            more.disabled = true;
+            var loading = el('div', {'class': 'tarsus-drawer__loading'}, [el('span', {'class': 'tarsus-spinner'}), el('span', {text: self.t('loading')})]);
+            feed.insertBefore(loading, feed.firstChild);
+            self.teacherCall('history', {userid: userid, offset: offset}).then(function (result) {
+                loading.remove();
+                more.disabled = false;
+                if (result.status !== 'success') {
+                    feed.insertBefore(el('p', {'class': 'tarsus-drawer__error', text: result.error || self.t('unexpected_error')}), feed.firstChild);
+                    return;
+                }
+                var items = result.items || [];
+                if (!items.length && offset === 0) {
+                    feed.appendChild(el('p', {'class': 'tarsus-muted', text: self.t('history_empty')}));
+                }
+                // Older pages go on top, as in the coach.
+                var anchor = more.nextSibling;
+                self.buildFeedCards(items).forEach(function (entry) {
+                    feed.insertBefore(entry.card, anchor);
+                    self.settleFeedCard(entry);
+                    self.readOnly(entry.card);
+                });
+                offset += self.config.pageSize;
+                show(more, Boolean(result.hasmore) && items.length > 0);
+            }).catch(function (error) {
+                loading.remove();
+                more.disabled = false;
+                feed.insertBefore(el('p', {'class': 'tarsus-drawer__error', text: error.message || self.t('unexpected_error')}), feed.firstChild);
+            });
+        };
+        more.addEventListener('click', load);
+        feed.appendChild(more);
+        load();
+    };
+
+    /** Nothing in the history can be answered, asked about or generated. */
+    Chat.prototype.readOnly = function (card) {
+        card.classList.add('tarsus-card--readonly');
+        card.querySelectorAll('input, textarea, select').forEach(function (input) {
+            input.disabled = true;
+        });
+        card.querySelectorAll('.tarsus-practice-check, [data-action="ask-about"], [data-action="sources"], [data-action="audio-toggle"]').forEach(function (button) {
+            button.remove();
+        });
+    };
+
+    /** XP and learning units reached over time, in percent of all, on one axis. */
+    Chat.prototype.growthChart = function (data) {
+        var series = [
+            {points: data.xp || [], cls: 'xp', label: this.t('history_xp')},
+            {points: data.units || [], cls: 'units', label: this.t('history_units')}
+        ];
+        var start = data.start || 0;
+        var end = data.end || 1;
+        var width = 360;
+        var height = 210;
+        var left = 44;
+        var right = 14;
+        var top = 14;
+        var base = 176;
+        var x = function (t) {
+            return left + (Math.max(start, Math.min(end, t)) - start) / Math.max(1, end - start) * (width - left - right);
+        };
+        var y = function (v) {
+            return base - (Math.max(0, Math.min(100, v)) / 100) * (base - top);
+        };
+        var root = svg('svg', {viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'class': 'tarsus-chart', 'aria-label': this.t('history_growth')});
+        [0, 50, 100].forEach(function (tick) {
+            root.appendChild(svg('line', {x1: left, x2: width - right, y1: y(tick), y2: y(tick), 'class': 'tarsus-chart__grid'}));
+            root.appendChild(svgText(left - 8, y(tick) + 4, tick + ' %', {'class': 'tarsus-chart__axis', 'text-anchor': 'end'}));
+        });
+        var day = function (t) {
+            var date = new Date(t * 1000);
+            return date.getDate() + '.' + (date.getMonth() + 1) + '.';
+        };
+        root.appendChild(svgText(left, height - 8, day(start), {'class': 'tarsus-chart__axis'}));
+        root.appendChild(svgText(width - right, height - 8, day(end), {'class': 'tarsus-chart__axis', 'text-anchor': 'end'}));
+        var drawn = false;
+        series.forEach(function (entry) {
+            var points = entry.points.filter(function (point) {
+                return point.x <= end;
+            });
+            if (!points.length) {
+                return;
+            }
+            drawn = true;
+            // A step line: a value holds until it changes, and the last one
+            // holds until today.
+            var d = '';
+            points.forEach(function (point, i) {
+                d += (i === 0 ? 'M' : 'H' + x(point.x) + 'V') + (i === 0 ? x(point.x) + ' ' + y(point.y) : y(point.y));
+            });
+            d += 'H' + x(end);
+            root.appendChild(svg('path', {d: d, 'class': 'tarsus-chart__line tarsus-chart__line--' + entry.cls}));
+            var last = points[points.length - 1];
+            var dot = svg('circle', {cx: x(end), cy: y(last.y), r: 4, 'class': 'tarsus-chart__dot tarsus-chart__line--' + entry.cls});
+            var title = svg('title');
+            title.textContent = entry.label + ': ' + Math.round(last.y) + ' %';
+            dot.appendChild(title);
+            root.appendChild(dot);
+        });
+        var legend = el('div', {'class': 'tarsus-chart__legend'}, series.map(function (entry) {
+            return el('span', {}, [el('i', {'class': 'tarsus-chart__key tarsus-chart__line--' + entry.cls}), el('span', {text: entry.label + ' ' + (entry.points.length ? Math.round(entry.points[entry.points.length - 1].y) + ' %' : '–')})]);
+        }));
+        return el('div', {'class': 'tarsus-growth'}, drawn ? [legend, root] : [el('p', {'class': 'tarsus-muted tarsus-small', text: this.t('history_empty')})]);
     };
 
     // --- init ----------------------------------------------------------
@@ -1842,6 +3092,49 @@
             if (!(target instanceof Element)) {
                 return;
             }
+            var action = target.closest('[data-action]');
+            var name = action && self.root.contains(action) ? action.getAttribute('data-action') : '';
+            if (name === 'drawer-close') {
+                self.closeDrawer();
+                return;
+            }
+            if (name === 'sources') {
+                self.openSources(action.getAttribute('data-widget-id'), action.getAttribute('data-state'));
+                return;
+            }
+            if (name === 'panel' && self.config.teacher) {
+                var panel = action.getAttribute('data-panel');
+                if (panel === 'settings') {
+                    self.openSettingsPanel();
+                } else if (panel === 'stats') {
+                    self.openStatsPanel();
+                } else if (panel === 'history') {
+                    self.openHistoryPanel(0, '');
+                }
+                return;
+            }
+            if (name === 'history-open' && self.config.teacher) {
+                self.openHistoryPanel(parseInt(action.getAttribute('data-userid'), 10), action.getAttribute('data-name') || '');
+                return;
+            }
+            if (name === 'live-start') {
+                self.startLive();
+                return;
+            }
+            if (name === 'voice-toggle') {
+                self.setVoiceInput(!self.state.voiceInput);
+                return;
+            }
+            if (name.indexOf('voice-') === 0) {
+                var voice = {
+                    'voice-start': 'voiceStart', 'voice-pause': 'voicePause', 'voice-resume': 'voiceResume',
+                    'voice-stop': 'voiceStop', 'voice-play': 'voicePlay', 'voice-discard': 'voiceDiscard'
+                }[name];
+                if (voice) {
+                    self[voice]();
+                }
+                return;
+            }
             var check = target.closest('.tarsus-practice-check');
             if (check && self.root.contains(check)) {
                 var card = check.closest('[data-region="practice-card"]');
@@ -1881,7 +3174,7 @@
             }
             var ask = target.closest('[data-action="ask-about"]');
             if (ask && self.root.contains(ask)) {
-                var askcard = ask.closest('[data-region="practice-card"], [data-region="learn-card"]');
+                var askcard = ask.closest('[data-region="practice-card"], [data-region="learn-card"], [data-kind="exchange"]');
                 if (askcard) {
                     self.askAbout(askcard);
                 }
@@ -1902,6 +3195,20 @@
                 event.preventDefault();
                 self.openLightbox(event.target.getAttribute('src'));
             }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                var lightbox = document.querySelector('dialog.tarsus-lightbox[open]');
+                if (!lightbox) {
+                    self.closeDrawer();
+                }
+            }
+        });
+        window.addEventListener('message', function (event) {
+            self.onLiveMessage(event);
+        });
+        window.addEventListener('pagehide', function () {
+            self.voiceRelease();
         });
 
         this.measureChrome();

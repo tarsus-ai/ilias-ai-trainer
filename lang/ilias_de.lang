@@ -93,7 +93,7 @@ status_error#:#Fehler
 // Lernende
 col_learner#:#Lernende/r
 col_progress#:#Fortschritt
-col_score#:#Bewertung
+col_score#:#Ergebnis (%)
 col_lp_status#:#Lernfortschritt
 col_last_activity#:#Letzte Aktivität
 avg_progress#:#Ø Fortschritt
@@ -505,3 +505,128 @@ col_lastactivity#:#Letzte Aktivität
 learners_readonly#:#Weder Wissen testen noch Wissen aufbauen ist hier aktiv (ausgeschaltet oder nicht im Plan enthalten), daher hat dieses Objekt weder Punktzahl noch Lernfortschritt: es ist eine reine Nachschlage-Aktivität.
 col_participation#:#Teilnahme
 participated#:#Teilgenommen
+// Version 2: Live-Interaktion, Spracheingabe, Quellen, Auswertung, Verlauf, Denkaufwand
+mode_discuss#:#Live-Interaktion
+discussenabled#:#Live-Interaktion aktivieren
+discussenabled_help#:#Live mit dem KI-Trainer über ein Thema sprechen und die Inhalte im Gespräch vertiefen. Wenn ausgeschaltet, wird dieser Modus für Lernende ausgeblendet.
+voiceinput#:#Spracheingabe
+voiceinput_help#:#Bei „Frage stellen“ können Lernende ihre Frage sprechen. Tarsus wandelt die Aufnahme in Text um und beantwortet sie.
+referencesenabled#:#Referenzen anzeigen
+referencesenabled_help#:#Teilnehmer haben die Möglichkeit, die Referenzen zur Frage anzuschauen.
+visualaccessibility#:#Barrierefreie Inhalte
+visualaccessibility_help#:#Bilder und andere visuelle Inhalte des KI-Trainers kommen mit einer Beschreibung.
+thinkinglevel#:#Denkaufwand
+thinkinglevel_help#:#Wie gründlich der KI-Trainer nachdenkt. Wird bei jeder Anfrage an Tarsus mitgeschickt; was er kostet, zeigt die Nutzung von Tarsus.
+thinking_fast#:#Schnell
+thinking_fast_help#:#Antwortet sofort, mit knapper Prüfung.
+thinking_slow#:#Langsam
+thinking_slow_help#:#Nimmt sich etwas mehr Zeit für jede Antwort.
+thinking_deep#:#Tief
+thinking_deep_help#:#Denkt jede Antwort gründlich durch, bei längerer Antwortzeit.
+thinking_intense#:#Intensiv
+thinking_intense_help#:#Höchste Antwortqualität, bei der längsten Antwortzeit.
+plan_feature_locked#:#Im aktuellen Plan ({plan}) nicht enthalten.
+settings_lp#:#Lernfortschritt
+error_completion#:#Bitte eine Zahl von 0 bis 100 eingeben.
+teacher_tools#:#Werkzeuge für Lehrende
+panel_settings#:#Einstellungen
+panel_stats#:#Auswertung
+panel_history#:#Verlauf
+panel_close#:#Schließen
+loading#:#Wird geladen …
+settings_save#:#Speichern
+settings_saving#:#Wird gespeichert …
+settings_saved#:#Gespeichert. Der KI-Trainer wird neu geladen.
+settings_open_full#:#Alle Einstellungen in ILIAS
+form_invalid#:#Bitte prüfen Sie die markierten Angaben.
+grade_chip#:#Ergebnis {percent} %
+grade_title#:#Ihr Ergebnis in Prozent: Erfahrungspunkte (oder Lerneinheiten) von Tarsus im Verhältnis zu allen.
+practice_correct_value#:#Richtig: {value}
+learn_ask_about_unit#:#Diese Lerneinheit
+voice_to_voice#:#Zur Spracheingabe wechseln
+voice_to_text#:#Zur Texteingabe wechseln
+voice_start#:#Aufnahme starten
+voice_stop#:#Aufnahme beenden
+voice_pause#:#Aufnahme pausieren
+voice_resume#:#Aufnahme fortsetzen
+voice_discard#:#Aufnahme verwerfen
+voice_play#:#Audio abspielen
+voice_recording#:#Aufnahme läuft
+voice_paused#:#Aufnahme pausiert
+voice_ready#:#Aufnahme bereit zum Senden
+voice_question#:#Sprachfrage
+voice_transcribing#:#Ihre Aufnahme wird in Text umgewandelt
+voice_transcript_note#:#Text aus Ihrer Aufnahme
+voice_limit#:#Eine Aufnahme dauert höchstens {seconds} Sekunden.
+voice_unsupported#:#Dieser Browser kann keine Aufnahmen machen. Bitte schreiben Sie Ihre Frage.
+voice_unavailable#:#Die Spracheingabe ist hier nicht eingeschaltet.
+mic_denied#:#Kein Zugriff auf das Mikrofon. Bitte erlauben Sie ihn in Ihrem Browser.
+mic_notfound#:#Es wurde kein Mikrofon gefunden.
+mic_failed#:#Die Aufnahme konnte nicht gestartet werden. Bitte prüfen Sie den Zugriff auf das Mikrofon.
+proc_ask_transcribe#:#Ihre Aufnahme wird in Text umgewandelt
+live_start#:#Gespräch starten
+live_new#:#Neues Gespräch
+live_starting#:#Das Gespräch wird vorbereitet …
+live_intro#:#Sprechen Sie einfach mit dem KI-Trainer. Die Folien erscheinen oben, die Antworten bleiben im Verlauf.
+live_expired#:#Diese Live-Interaktion ist abgelaufen. Mit „Neues Gespräch“ starten Sie eine neue.
+live_end_confirm#:#Das laufende Gespräch wird beendet. Fortfahren?
+live_title#:#Live-Interaktion mit dem KI-Trainer
+sources_show#:#Quellen anschauen
+sources_title#:#Referenzen
+sources_count#:#{count} Quellen zu dieser Antwort
+sources_none#:#Zu dieser Antwort gibt es keine Quellen.
+sources_open#:#In ILIAS öffnen
+sources_transcript#:#Abschrift
+source_type_text#:#Text
+source_type_table#:#Tabelle
+source_type_image#:#Bild
+source_type_audio#:#Audio
+source_type_video#:#Video
+source_type_question#:#Frage
+source_type_form#:#Formular
+source_type_other#:#Quelle
+references_disabled#:#Die Quellen sind in diesem Objekt ausgeschaltet.
+stats_learners#:#Teilnehmende
+stats_count_learners#:#{count} Teilnehmende
+stats_avg_grade#:#durchschnittliches Ergebnis
+stats_completed#:#abgeschlossen laut ILIAS-Lernfortschritt
+stats_avg_progress#:#durchschnittlicher Fortschritt
+stats_distribution#:#Verteilung der Ergebnisse
+stats_distribution_help#:#Teilnehmende je Ergebnisbereich in Prozent
+stats_status#:#Lernstand
+stats_status_help#:#laut ILIAS-Lernfortschritt
+stats_col_name#:#Teilnehmer
+stats_col_grade#:#Ergebnis
+stats_col_progress#:#Fortschritt
+stats_col_status#:#Lernfortschritt
+stats_col_build#:#Wissen aufbauen
+stats_col_test#:#Wissen testen
+stats_col_last#:#Letzte Aktivität
+stats_history#:#Verlauf ›
+stats_group#:#Gruppe
+stats_group_all#:#Alle Teilnehmenden
+stats_export#:#Export CSV
+stats_none#:#Noch keine Teilnehmenden.
+history_of#:#Verlauf von {name}
+history_readonly#:#nur lesen
+history_pick#:#Person auswählen
+history_growth#:#Entwicklung, letzte 30 Tage
+history_xp#:#XP erreicht
+history_units#:#LE erreicht
+history_empty#:#Noch kein Verlauf.
+history_more#:#Ältere laden
+history_back#:#Zurück zur Auswertung
+err_connection#:#Tarsus ist gerade nicht erreichbar. Bitte versuchen Sie es gleich noch einmal.
+err_access#:#Der KI-Trainer ist nicht richtig mit Tarsus verbunden. Bitte melden Sie das Ihrer Lehrkraft oder dem Support.
+err_notindexed#:#Die Kursmaterialien werden noch vorbereitet. Bitte versuchen Sie es etwas später noch einmal.
+err_audio_nospeech#:#In der Aufnahme war keine Sprache zu hören. Bitte sprechen Sie Ihre Frage noch einmal.
+err_audio_format#:#Die Aufnahme konnte nicht gelesen werden. Bitte nehmen Sie Ihre Frage noch einmal auf.
+err_audio_transcribe#:#Die Aufnahme konnte gerade nicht in Text umgewandelt werden. Bitte versuchen Sie es gleich noch einmal.
+err_live_unavailable#:#Die Live-Interaktion ist gerade nicht verfügbar.
+err_voice#:#Die eingestellte Stimme ist bei Tarsus nicht bekannt. Bitte melden Sie das dem Support.
+err_stack#:#Diese Lerneinheit ist nicht mehr verfügbar.
+err_evaluate#:#Die Antwort konnte gerade nicht bewertet werden. Bitte versuchen Sie es noch einmal.
+err_toolarge#:#Die Aufnahme ist zu groß. Bitte fassen Sie sich kürzer.
+err_busy#:#Tarsus ist gerade ausgelastet. Bitte versuchen Sie es gleich noch einmal.
+err_server#:#Bei Tarsus ist ein Fehler aufgetreten. Bitte versuchen Sie es gleich noch einmal.
+err_request#:#Tarsus konnte diese Anfrage nicht bearbeiten.

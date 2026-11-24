@@ -4,8 +4,8 @@ namespace TarsusIlias\Client;
 
 use TarsusIlias\Index\Status;
 use TarsusIlias\Material\BitType;
+use TarsusIlias\Output\Media;
 use TarsusIlias\Support\Ilias;
-use TarsusIlias\Support\Interactions;
 
 /**
  * Real Tarsus brain HTTP client.
@@ -19,12 +19,14 @@ use TarsusIlias\Support\Interactions;
  * asynchronously, so track only ever confirms receipt and the batch check
  * drives the state machine afterwards.
  *
- * The 'credits' figure of every result is the number of AI interactions
- * the call counts for under the partner agreement ({@see Interactions});
- * the API itself returns no cost per call.
+ * What a call costs is not estimated here: Tarsus records it in the
+ * brain's usage, which is the only figure the plugin shows and limits by.
  *
- * All transport and protocol failures surface as TransportException so the
- * guardrails pipeline and the retry budget stay in control.
+ * Widgets are read by their type, as Tarsus sends them; a page is taken
+ * from data.code of a genericWebWidget or genericLiveWidget and nowhere
+ * else. All transport and protocol failures surface as TransportException
+ * so the guardrails pipeline stays in control; HTTP 409 (a widget sent
+ * again in Build knowledge) surfaces as ReplayException.
  *
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
@@ -33,6 +35,21 @@ class HttpClient implements ClientInterface
 {
     /** Common prefix of every brain endpoint. */
     private const API_PREFIX = '/api/v1/brain/';
+
+    /** An AI-made HTML page (ai-driven interaction); the page is in data.code. */
+    public const WEB_WIDGET = 'genericWebWidget';
+
+    /** The live interaction (state discuss); its page is in data.code. */
+    public const LIVE_WIDGET = 'genericLiveWidget';
+
+    /** Learn-mode widgets that carry a message, the learning objectives or the farewell. */
+    private const LEARN_MESSAGE_TYPES = [
+        'learningObjectivesWidget', 'courseCompleteWidget', 'successWidget', 'skipContentWidget', 'motivationWidget',
+    ];
+
+    /** Thinking levels Tarsus accepts (1 fastest .. 4 most thorough) and its default. */
+    public const THINKING_LEVELS = [1, 2, 3, 4];
+    public const THINKING_LEVEL_DEFAULT = 4;
 
     /** Seconds allowed for a plain JSON call. */
     private const TIMEOUT = 60;
@@ -82,13 +99,10 @@ class HttpClient implements ClientInterface
             throw new TransportException(0, 'brain did not acknowledge receipt of the resource');
         }
 
-        // Ingestion is asynchronous: receipt is not indexation. Indexing
-        // counts one interaction per request, media one per started two
-        // hours.
+        // Ingestion is asynchronous: receipt is not indexation.
         return [
             'status' => Status::PENDING_CONFIRMATION,
             'bitref' => '',
-            'credits' => Interactions::forIndexing((string) ($resource['type'] ?? BitType::TEXT), (int) ($resource['duration'] ?? 0)),
         ];
     }
 
@@ -122,44 +136,9 @@ class HttpClient implements ClientInterface
             if (!is_array($widget)) {
                 continue;
             }
-            $learn = self::learnItem($widget);
-            if ($learn !== null) {
-                $items[] = $learn;
-                continue;
-            }
-            $bit = (array) ($widget['bit'] ?? []);
-            $type = (string) ($bit['type'] ?? '');
-            $data = (array) ($bit['data'] ?? []);
-
-            if (in_array($type, self::QUESTION_WIDGET_TYPES, true)) {
-                $items[] = self::questionItem($widget, $type, $data);
-                continue;
-            }
-
-            $page = self::htmlOf($bit, $data);
-            $question = self::str($data['question'] ?? '');
-            if ($page !== '' && $question !== '') {
-                $items[] = ['kind' => 'exchange', 'query' => $question, 'answer' => '', 'html' => $page];
-                continue;
-            }
-            if ($page !== '') {
-                $items[] = self::pageStack($widget, $bit, $data, $page);
-                continue;
-            }
-
-            $answer = self::str($data['answer'] ?? '');
-            if ($answer !== '') {
-                $items[] = [
-                    'kind' => 'exchange',
-                    'query' => $question,
-                    'answer' => $answer,
-                ];
-                continue;
-            }
-
-            $text = self::str($bit['text'] ?? '');
-            if ($text !== '') {
-                $items[] = ['kind' => 'message', 'title' => self::str($bit['title'] ?? ''), 'text' => $text];
+            $item = self::feedItem($widget);
+            if ($item !== null) {
+                $items[] = $item;
             }
         }
 
@@ -177,7 +156,6 @@ class HttpClient implements ClientInterface
             'items' => $items,
             'rawcount' => $rawcount,
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), []),
-            'credits' => 0,
         ];
     }
 
@@ -198,6 +176,7 @@ class HttpClient implements ClientInterface
             'state' => 'learn',
             'voice' => (string) ($params['voice'] ?? 'Daniel'),
             'stack_id' => (string) ($params['stackid'] ?? ''),
+            'visual_accessibility' => !empty($params['visualaccessibility']) ? 'true' : 'false',
         ], false, self::UPLOAD_TIMEOUT);
 
         $data = (array) ($body['activity']['audio']['data'] ?? []);
@@ -211,7 +190,8 @@ class HttpClient implements ClientInterface
             'audio' => preg_match('~^[A-Za-z0-9+/=\s]+$~', $bytes) ? $bytes : '',
             'mimetype' => $mimetype,
             'voice' => self::str($data['assistant']['alias'] ?? ($params['voice'] ?? '')),
-            'credits' => Interactions::forAudioExplainer(),
+            // What is spoken, word for word.
+            'text' => self::str($body['activity']['audio']['text'] ?? ''),
         ];
     }
 
@@ -330,13 +310,15 @@ class HttpClient implements ClientInterface
             'end_timestamp' => (string) max($start, $end),
         ]);
 
+        // The brain's own figure, kept as it is: a credit can be a fraction
+        // (thinking level 3 costs 1.57).
         $items = [];
-        $total = 0;
+        $total = 0.0;
         foreach ((array) ($body['awareness']['usage'] ?? []) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
-            $credits = (int) round((float) ($entry['aiCredits'] ?? 0));
+            $credits = is_numeric($entry['aiCredits'] ?? null) ? round((float) $entry['aiCredits'], 2) : 0.0;
             $total += $credits;
             $items[] = [
                 'key' => self::str($entry['key'] ?? ''),
@@ -346,7 +328,7 @@ class HttpClient implements ClientInterface
             ];
         }
 
-        return ['total' => $total, 'items' => $items, 'credits' => 0];
+        return ['total' => round($total, 2), 'items' => $items];
     }
 
     public function listVoices(): array
@@ -377,9 +359,10 @@ class HttpClient implements ClientInterface
     private function generationFields(array $params, string $state): array
     {
         // context_type is a constant, default_robot stays true, input is
-        // always text. full_brain_access must be an explicit 'false': that
-        // is what makes resource_ids the retrieval boundary; 'true' searches
-        // the whole shared brain regardless of scope.
+        // text unless a recording is sent. full_brain_access must be an
+        // explicit 'false': that is what makes resource_ids the retrieval
+        // boundary; 'true' searches the whole shared brain regardless of
+        // scope.
         return [
             'brain_id' => $this->brain(),
             'context_id' => (string) ($params['contextid'] ?? ''),
@@ -405,8 +388,24 @@ class HttpClient implements ClientInterface
             // trainer-driven: text and pictures; ai-driven: the brain may
             // answer with interactive HTML pages (plan permitting).
             'interaction_type' => self::interactionType($params),
+            // 1 (fastest) .. 4 (most thorough); Tarsus charges by it.
+            'thinking_level' => (string) self::thinkingLevel($params),
+            // The same content for a learner who sees the screen and one
+            // who hears it.
+            'visual_accessibility' => !empty($params['visualaccessibility']) ? 'true' : 'false',
             'resource_ids' => json_encode(array_values($params['resourceids'] ?? [])),
         ];
+    }
+
+    /**
+     * The thinking level to send: one of 1-4, Tarsus's default otherwise.
+     *
+     * @param array<string, mixed> $params
+     */
+    public static function thinkingLevel(array $params): int
+    {
+        $level = (int) ($params['thinkinglevel'] ?? self::THINKING_LEVEL_DEFAULT);
+        return in_array($level, self::THINKING_LEVELS, true) ? $level : self::THINKING_LEVEL_DEFAULT;
     }
 
     private static function interactionType(array $params): string
@@ -416,50 +415,83 @@ class HttpClient implements ClientInterface
     }
 
     /**
-     * The interactive HTML page a widget carries, '' when it carries none.
-     *
-     * With ai-driven interaction the brain answers with HTML pages (HTML,
-     * CSS and script: animations, simulations, small tools). The field
-     * that holds the page is not fixed yet, so a few names are accepted,
-     * and a text or answer that is itself a document counts too. Plain
-     * Markdown with the odd inline tag is not a page.
+     * The page of a genericWebWidget or genericLiveWidget: data.code, the
+     * whole HTML page with its pictures. Answers Tarsus saved before it
+     * sent data.code fall back to data.answer. Other widgets carry no
+     * page - their data.code is something else (a diagram's source, an
+     * image id).
      *
      * @param array<string, mixed> $bit
-     * @param array<string, mixed> $data
      */
-    private static function htmlOf(array $bit, array $data): string
+    private static function pageOf(array $bit): string
     {
-        foreach (['html', 'htmlContent', 'html_content', 'htmlPage', 'page', 'interactiveContent', 'interactive_content'] as $key) {
-            foreach ([$data, $bit] as $source) {
-                $value = $source[$key] ?? null;
-                if (is_string($value) && trim($value) !== '' && self::looksLikePage($value)) {
-                    return $value;
-                }
-            }
+        $type = (string) ($bit['type'] ?? '');
+        if ($type !== self::WEB_WIDGET && $type !== self::LIVE_WIDGET) {
+            return '';
         }
-        $type = strtolower((string) ($bit['type'] ?? ''));
-        $pagelike = strpos($type, 'html') !== false || strpos($type, 'interactive') !== false || strpos($type, 'animation') !== false;
-        foreach (['answer', 'text', 'content'] as $key) {
-            foreach ([$data, $bit] as $source) {
-                $value = $source[$key] ?? null;
-                if (is_string($value) && trim($value) !== '' && ($pagelike || self::looksLikePage($value))) {
-                    return $value;
-                }
-            }
+        $data = (array) ($bit['data'] ?? []);
+        $page = self::str($data['code'] ?? '');
+        if (trim($page) === '' && $type === self::WEB_WIDGET) {
+            $page = self::str($data['answer'] ?? '');
         }
-        return '';
+        return trim($page) === '' ? '' : $page;
     }
 
     /**
-     * Whether a string is an HTML page rather than Markdown.
+     * One saved widget as an item for the browser, read by its type; null
+     * for what the feed does not show.
+     *
+     * @param array<string, mixed> $widget
+     * @return array<string, mixed>|null
      */
-    public static function looksLikePage(string $value): bool
+    private static function feedItem(array $widget): ?array
     {
-        $head = ltrim(substr($value, 0, 200));
-        if (stripos($head, '<!doctype') === 0 || stripos($head, '<html') === 0) {
-            return true;
+        if (isset($widget['stackedWidgets']) && is_array($widget['stackedWidgets'])) {
+            return self::learnItem($widget);
         }
-        return (bool) preg_match('~<(script|style|svg|canvas|input|button|form|select|textarea|video|iframe|body|head)\b~i', $value);
+        $bit = (array) ($widget['bit'] ?? []);
+        $type = (string) ($bit['type'] ?? '');
+        $data = (array) ($bit['data'] ?? []);
+        if (in_array($type, self::QUESTION_WIDGET_TYPES, true)) {
+            return self::questionItem($widget, $type, $data);
+        }
+        if (in_array($type, self::LEARN_MESSAGE_TYPES, true)) {
+            return self::learnItem($widget);
+        }
+        $page = self::pageOf($bit);
+        if ($page !== '' && self::str($widget['state'] ?? '') === 'learn') {
+            // A learning page outside its stack: a one-page unit.
+            return self::pageStack($widget, $bit, $data, $page);
+        }
+        if ($page !== '' || $type === 'answerWidget' || isset($data['answer'])) {
+            return self::exchangeItem($widget, $bit, $data, $page);
+        }
+        $text = self::str($bit['text'] ?? '');
+        return $text === '' ? null : ['kind' => 'message', 'title' => self::str($bit['title'] ?? ''), 'text' => $text];
+    }
+
+    /**
+     * A question and its answer (Ask a question, or an answer given during
+     * a live interaction). The question is the learner's text - for a
+     * spoken question the text Tarsus made of the recording.
+     *
+     * @param array<string, mixed> $widget
+     * @param array<string, mixed> $bit
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function exchangeItem(array $widget, array $bit, array $data, string $page): array
+    {
+        return [
+            'kind' => 'exchange',
+            'id' => self::str($widget['_id'] ?? ''),
+            'state' => self::str($widget['state'] ?? ''),
+            'query' => self::str($data['question'] ?? ($bit['text'] ?? '')),
+            'answer' => $page === '' ? self::str($data['answer'] ?? '') : '',
+            'html' => $page,
+            // Sources exist when the answer names the bits it came from.
+            'sources' => is_array($data['bitIds'] ?? null) && $data['bitIds'] !== [],
+        ];
     }
 
     public function generateWidgets(array $params): array
@@ -473,39 +505,58 @@ class HttpClient implements ClientInterface
             // An unset domain is omitted rather than sent empty.
             $fields['industry'] = $industry;
         }
-        $replyto = trim((string) ($params['replytowidget'] ?? ''));
-        if ($replyto !== '') {
-            // "Ask about this": anchor the question on this widget rather
-            // than on the conversation's tail.
-            $fields['reply_to_widget'] = $replyto;
+        // "Ask about this": the question refers to one learning unit (its
+        // stack) or to one card or answer (its widget). Tarsus narrows the
+        // conversation it answers from to that; both together would narrow
+        // it to their intersection, so one is sent.
+        $replystack = trim((string) ($params['replytostack'] ?? ''));
+        $replywidget = trim((string) ($params['replytowidget'] ?? ''));
+        if ($replystack !== '') {
+            $fields['reply_to_stack'] = $replystack;
+        } elseif ($replywidget !== '') {
+            $fields['reply_to_widget'] = $replywidget;
         }
 
-        $body = $this->send('POST', '/api/t0/activity/generate/next/widgets', $fields);
+        // A spoken question: the recording travels as audio_content and
+        // Tarsus turns it into text before answering.
+        $audiofile = (string) ($params['audiofile'] ?? '');
+        if ($audiofile !== '') {
+            $fields['input_modality'] = 'audio';
+            $fields['query'] = '';
+            $fields['audio_content'] = new \CURLFile(
+                $audiofile,
+                (string) ($params['audiomimetype'] ?? 'application/octet-stream'),
+                (string) ($params['audioname'] ?? 'question.webm')
+            );
+        }
 
-        // An answerWidget carries the answer in bit.data.answer (its
-        // bit.text merely echoes the question); the informational widgets -
-        // the welcome on a conversation's first call, and whatever Tarsus
-        // adds later - carry their message in bit.text with no data.answer.
-        // Collect both rather than matching widget types by name, so new
-        // informational widgets surface instead of vanishing.
+        $body = $this->send('POST', '/api/t0/activity/generate/next/widgets', $fields, $audiofile !== '');
+
+        // The answer is an answerWidget (data.answer, Markdown) or, with
+        // ai-driven interaction, a genericWebWidget (its page in data.code).
+        // Other widgets - the welcome on a conversation's first call - carry
+        // a message in bit.text.
         $answer = '';
         $html = '';
+        $question = '';
+        $widgetid = '';
+        $sources = false;
         $messages = [];
         foreach ((array) ($body['activity']['widgets'] ?? []) as $widget) {
             if (!is_array($widget)) {
                 continue;
             }
             $bit = (array) ($widget['bit'] ?? []);
+            $type = (string) ($bit['type'] ?? '');
             $data = (array) ($bit['data'] ?? []);
-            $page = self::htmlOf($bit, $data);
-            if ($page !== '') {
-                // AI-driven interaction: the answer is an interactive page.
-                $html = $page;
-                continue;
-            }
-            $answertext = self::str($data['answer'] ?? '');
-            if ($answertext !== '') {
-                $answer = $answertext;
+            $page = self::pageOf($bit);
+            if ($page !== '' || $type === 'answerWidget' || isset($data['answer'])) {
+                $item = self::exchangeItem($widget, $bit, $data, $page);
+                $html = $item['html'];
+                $answer = $item['answer'];
+                $question = $item['query'];
+                $widgetid = $item['id'];
+                $sources = $item['sources'];
                 continue;
             }
             $text = self::str($bit['text'] ?? '');
@@ -518,11 +569,200 @@ class HttpClient implements ClientInterface
         return [
             'answer' => $answer,
             'html' => $html,
+            'question' => $question,
+            'widgetid' => $widgetid,
+            'sources' => $sources,
             'messages' => $messages,
-            // The response carries no cost figure; the agreement counts one
-            // interaction per answered question (input is always text here).
-            'credits' => Interactions::forGenerate(),
+            'progress' => self::extractProgress((array) ($body['activity'] ?? []), []),
         ];
+    }
+
+    /**
+     * Start a live interaction (state discuss): Tarsus answers with one
+     * genericLiveWidget whose page, in data.code, holds the whole call.
+     * The widget is not saved by Tarsus; what the coach answers during the
+     * call is, and shows in the feed afterwards.
+     *
+     * @param array<string, mixed> $params
+     * @return array{page: string, progress: array<string, float>}
+     */
+    public function startDiscuss(array $params): array
+    {
+        $fields = $this->generationFields($params, 'discuss') + ['query' => ''];
+        $industry = trim((string) ($params['industry'] ?? ''));
+        if ($industry !== '') {
+            $fields['industry'] = $industry;
+        }
+        $voice = trim((string) ($params['voice'] ?? ''));
+        if ($voice !== '') {
+            $fields['voice'] = $voice;
+        }
+        foreach (['primarycolor' => 'primary_color', 'secondarycolor' => 'secondary_color', 'robotlogo' => 'robot_logo'] as $key => $field) {
+            $value = trim((string) ($params[$key] ?? ''));
+            if ($value !== '') {
+                $fields[$field] = $value;
+            }
+        }
+
+        $body = $this->send('POST', '/api/t0/activity/generate/next/widgets', $fields);
+
+        $page = '';
+        foreach ((array) ($body['activity']['widgets'] ?? []) as $widget) {
+            if (is_array($widget)) {
+                $page = self::pageOf((array) ($widget['bit'] ?? []));
+                if ($page !== '') {
+                    break;
+                }
+            }
+        }
+        if ($page === '') {
+            throw new TransportException(502, 'the live interaction came without its page');
+        }
+        return ['page' => $page, 'progress' => self::extractProgress((array) ($body['activity'] ?? []), [])];
+    }
+
+    /**
+     * The bits an answer was made from (its sources), in the order they
+     * stand in their material. Tarsus returns at most 32.
+     *
+     * @param array<string, mixed> $params contextid, userid, state, widgetid
+     * @return array<int, array<string, mixed>>
+     */
+    public function getReferences(array $params): array
+    {
+        $body = $this->send('POST', '/api/t0/activity/retrieve/widget/references', [
+            'brain_id' => $this->brain(),
+            'context_id' => (string) ($params['contextid'] ?? ''),
+            'context_type' => 'tarsus_activity',
+            'user_id' => (string) ($params['userid'] ?? ''),
+            'state' => (string) ($params['state'] ?? 'ask'),
+            'widget_id' => (string) ($params['widgetid'] ?? ''),
+        ]);
+
+        $bits = [];
+        foreach ((array) ($body['access']['bits'] ?? []) as $bit) {
+            if (is_array($bit)) {
+                $bits[] = self::referenceItem($bit);
+            }
+        }
+        usort($bits, static fn(array $a, array $b): int => $a['position'] <=> $b['position']);
+        return $bits;
+    }
+
+    /**
+     * One source bit as the browser shows it: its type, its source and the
+     * content that type carries (text; a table's rows, the first being the
+     * header; a picture; the transcript of audio and video).
+     *
+     * @param array<string, mixed> $bit
+     * @return array<string, mixed>
+     */
+    private static function referenceItem(array $bit): array
+    {
+        // A bit is either flat or a vector-store point with the bit in its payload.
+        if (isset($bit['payload']) && is_array($bit['payload'])) {
+            $bit = $bit['payload'] + ['id' => $bit['id'] ?? ''];
+        }
+        $metadata = (array) ($bit['metadata'] ?? []);
+        $data = $bit['data'] ?? null;
+        $type = strtolower(self::str($bit['type'] ?? 'text'));
+        $text = self::str($bit['text'] ?? '');
+        $rows = [];
+        $image = '';
+        if ($type === 'table' && is_array($data)) {
+            foreach ($data as $row) {
+                $cells = is_array($row) ? ($row['data'] ?? $row) : null;
+                if (is_array($cells)) {
+                    $rows[] = array_values(array_map([self::class, 'str'], $cells));
+                }
+            }
+        } elseif ($type === 'image' && is_array($data)) {
+            $image = Media::imageFromBase64(self::str($data['content'] ?? ''), self::str($data['extension'] ?? ''));
+            if ($image === '') {
+                $image = Media::image(self::str($bit['url'] ?? ''));
+            }
+            if (trim($text) === '@BLANK') {
+                // Tarsus marks a picture without a description this way.
+                $text = '';
+            }
+        } elseif ($type === 'question' && is_array($data)) {
+            $question = self::str($data['question'] ?? '');
+            $answer = $data['answer'] ?? '';
+            if ($question !== '') {
+                $text = $question . (is_bool($answer) ? '' : (self::str($answer) !== '' ? "\n\n" . self::str($answer) : ''));
+            }
+        }
+        return [
+            'id' => self::str($bit['id'] ?? ''),
+            'type' => $type,
+            'title' => self::str($bit['title'] ?? ''),
+            'subtitle' => self::str($bit['subtitle'] ?? ''),
+            'text' => $text,
+            'rows' => $rows,
+            'image' => $image,
+            'sourceid' => self::str($metadata['sourceId'] ?? ''),
+            'assetid' => self::str($metadata['assetId'] ?? ''),
+            'sourcetype' => self::str($metadata['sourceType'] ?? ''),
+            'link' => self::str($metadata['sourceShopURL'] ?? ''),
+            'position' => is_numeric($metadata['bitPositionInSource'] ?? null) ? (float) $metadata['bitPositionInSource'] : 0.0,
+        ];
+    }
+
+    /**
+     * Every learner's figures in one context, as Tarsus last stored them.
+     *
+     * @param string[] $userids Pseudonymised user ids.
+     * @return array<string, array<string, float>> User id => figures.
+     */
+    public function getContextStatistics(string $contextid, array $userids): array
+    {
+        $result = [];
+        foreach (array_chunk(array_values(array_unique(array_filter(array_map('strval', $userids), 'strlen'))), 200) as $chunk) {
+            $parameters = [];
+            foreach ($chunk as $userid) {
+                $parameters[] = ['context_id' => $contextid, 'context_type' => 'tarsus_activity', 'state' => 'learn', 'user_id' => $userid];
+            }
+            $body = $this->send('POST', '/api/t0/activity/retrieve/context/statistics', [
+                'brain_id' => $this->brain(),
+                'statistics_parameters' => (string) json_encode($parameters),
+            ]);
+            foreach ((array) ($body['activity']['statistics'] ?? []) as $entry) {
+                if (!is_array($entry) || self::str($entry['userId'] ?? '') === '') {
+                    continue;
+                }
+                $result[self::str($entry['userId'])] = self::extractProgress($entry, []);
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * How a learner's experience points and learning units grew: points
+     * {x: Unix seconds, y: percent}, oldest first.
+     *
+     * @return array{xp: array<int, array{x: int, y: float}>, units: array<int, array{x: int, y: float}>}
+     */
+    public function getUserAnalytics(string $contextid, string $userid, int $start, int $end): array
+    {
+        $body = $this->send('POST', '/api/t0/activity/retrieve/user/analytics', [
+            'brain_id' => $this->brain(),
+            'context_id' => $contextid,
+            'context_type' => 'tarsus_activity',
+            'user_id' => $userid,
+            'start_timestamp' => (string) max(0, $start),
+            'end_timestamp' => (string) max($start, $end),
+        ]);
+        $analytics = (array) ($body['activity']['analytics'] ?? []);
+        $points = static function ($series): array {
+            $out = [];
+            foreach ((array) $series as $point) {
+                if (is_array($point) && is_numeric($point['x'] ?? null) && is_numeric($point['y'] ?? null)) {
+                    $out[] = ['x' => (int) $point['x'], 'y' => round(max(0.0, min(100.0, (float) $point['y'])), 2)];
+                }
+            }
+            return $out;
+        };
+        return ['xp' => $points($analytics['experiencePoints'] ?? []), 'units' => $points($analytics['learningUnits'] ?? [])];
     }
 
     public function generatePracticeWidget(array $params): array
@@ -548,8 +788,8 @@ class HttpClient implements ClientInterface
             // When no question of the requested types can be built from the
             // material, the brain answers 500 with this message rather than
             // an empty list. That is "no question", not a transport failure.
-            if ($e->httpstatus === 500 && stripos($e->body, 'UNABLE TO CREATE WIDGETS') !== false) {
-                return ['widgets' => [], 'progress' => self::extractProgress([], []), 'credits' => 0];
+            if ($e->httpstatus === 500 && $e->says('UNABLE TO CREATE WIDGETS')) {
+                return ['widgets' => [], 'progress' => self::extractProgress([], [])];
             }
             throw $e;
         }
@@ -575,14 +815,15 @@ class HttpClient implements ClientInterface
             foreach ((array) ($data['choices'] ?? []) as $choice) {
                 $choices[] = self::choiceText(is_array($choice) ? ($choice['choice'] ?? '') : $choice);
             }
+            $columns = self::tableColumns((array) ($data['questionTable'] ?? []));
             $widgets[] = [
                 'id' => self::str($candidate['_id'] ?? ''),
                 'type' => $type,
                 'question' => self::str($data['question'] ?? ($bit['text'] ?? '')),
                 'choices' => $choices,
                 'variables' => self::variablesOf($data),
-                'table' => self::questionTable($data),
-                'columns' => self::tableColumns((array) ($data['questionTable'] ?? [])),
+                'table' => self::questionTable($data, $columns),
+                'columns' => $columns,
                 'taxonomylevel' => self::str($data['taxonomyLevel'] ?? ''),
                 'difficultylevel' => (int) ($data['difficultyLevel'] ?? 0),
             ];
@@ -592,7 +833,6 @@ class HttpClient implements ClientInterface
         return [
             'widgets' => $widgets,
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), $widgetdata),
-            'credits' => Interactions::forGenerate(),
         ];
     }
 
@@ -615,13 +855,20 @@ class HttpClient implements ClientInterface
             $fields['industry'] = $industry;
         }
 
+        $replay = false;
         try {
             $body = $this->send('POST', '/api/t0/activity/generate/next/widgets', $fields);
         } catch (TransportException $e) {
-            if ($e->httpstatus === 500 && stripos($e->body, 'UNABLE TO CREATE WIDGETS') !== false) {
-                return ['items' => [], 'progress' => self::extractProgress([], []), 'credits' => 0];
+            if ($e->httpstatus === 500 && $e->says('UNABLE TO CREATE WIDGETS')) {
+                return ['items' => [], 'progress' => self::extractProgress([], []), 'replay' => false];
             }
             throw $e;
+        } catch (ReplayException $e) {
+            // HTTP 409: Tarsus sends a widget again - the course-complete
+            // card once the path is finished, or the learn question still
+            // waiting for an answer. Shown like any other; nothing charged.
+            $replay = true;
+            $body = ['activity' => ['widgets' => [$e->widget]]];
         }
 
         $items = [];
@@ -645,8 +892,9 @@ class HttpClient implements ClientInterface
 
         return [
             'items' => $items,
-            'progress' => self::extractProgress((array) ($body['activity'] ?? []), []),
-            'credits' => Interactions::forGenerate(),
+            // A widget sent again (409) carries no figures.
+            'progress' => $replay ? [] : self::extractProgress((array) ($body['activity'] ?? []), []),
+            'replay' => $replay,
         ];
     }
 
@@ -669,6 +917,7 @@ class HttpClient implements ClientInterface
         $evaluation = (array) ($data['evaluation'] ?? []);
         $answered = !empty($evaluation['evaluated']);
         $score = (float) ($evaluation['score'] ?? 0);
+        $columns = self::tableColumns((array) ($data['questionTable'] ?? []));
 
         return [
             'kind' => 'practice',
@@ -677,20 +926,21 @@ class HttpClient implements ClientInterface
             'question' => self::str($data['question'] ?? ($bit['text'] ?? '')),
             'choices' => $choices,
             'variables' => self::variablesOf($data),
-            'table' => self::questionTable($data),
-            'columns' => self::tableColumns((array) ($data['questionTable'] ?? [])),
+            'table' => self::questionTable($data, $columns),
+            'columns' => $columns,
             'taxonomylevel' => self::str($data['taxonomyLevel'] ?? ''),
             'difficultylevel' => (int) ($data['difficultyLevel'] ?? 0),
             'answered' => $answered,
             'score' => $answered ? $score : null,
-            'correct' => $answered ? ($score >= 50) : null,
+            // Tarsus marks out of 100; only full marks count as right.
+            'correct' => $answered ? ($score >= 100) : null,
             'feedback' => $answered ? self::str($evaluation['feedback'] ?? '') : '',
             'useranswer' => $answered ? self::choiceText($evaluation['userAnswer'] ?? '') : '',
             'useranswers' => $answered ? self::variableAnswers($evaluation['userVariables'] ?? []) : [],
             'answer' => $answered ? self::choiceText($evaluation['answer'] ?? ($data['answer'] ?? '')) : '',
             'answers' => $answered ? self::variableVerdicts($data) : [],
-            'usertable' => $answered ? self::tableRows($evaluation['userTable'] ?? []) : [],
-            'answertable' => $answered ? self::tableVerdicts($data) : [],
+            'usertable' => $answered ? self::tableValues($evaluation['userTable'] ?? [], $columns) : [],
+            'answertable' => $answered ? self::tableVerdicts($data, $columns) : [],
         ];
     }
 
@@ -706,57 +956,9 @@ class HttpClient implements ClientInterface
         if (isset($widget['stackedWidgets']) && is_array($widget['stackedWidgets'])) {
             $slides = [];
             foreach ($widget['stackedWidgets'] as $slide) {
-                if (!is_array($slide)) {
-                    continue;
+                if (is_array($slide) && ($shaped = self::slideOf($slide)) !== null) {
+                    $slides[] = $shaped;
                 }
-                $bit = (array) ($slide['bit'] ?? []);
-                $data = (array) ($bit['data'] ?? []);
-                $type = (string) ($bit['type'] ?? '');
-                if (in_array($type, self::QUESTION_WIDGET_TYPES, true)) {
-                    // The unit's check question (usually the last slide).
-                    // Answering it with state 'learn' earns learning units.
-                    $slides[] = [
-                        'id' => self::str($slide['_id'] ?? ''),
-                        'kind' => 'question',
-                        'title' => '',
-                        'text' => '',
-                        'image' => '',
-                        'imageposition' => 'right',
-                        'question' => self::questionItem($slide, $type, $data),
-                    ];
-                    continue;
-                }
-                $page = self::htmlOf($bit, $data);
-                if ($page !== '') {
-                    // An interactive slide (ai-driven interaction).
-                    $slides[] = [
-                        'id' => self::str($slide['_id'] ?? ''),
-                        'kind' => 'html',
-                        'taxonomylevel' => self::str($data['taxonomyLevel'] ?? ''),
-                        'title' => self::str($data['title'] ?? ($bit['title'] ?? '')),
-                        'text' => '',
-                        'html' => $page,
-                        'image' => '',
-                        'imageposition' => 'right',
-                    ];
-                    continue;
-                }
-                $text = self::str($data['text'] ?? ($bit['text'] ?? ''));
-                $title = self::str($data['title'] ?? ($bit['title'] ?? ''));
-                if ($text === '' && $title === '') {
-                    continue;
-                }
-                $image = (array) ($data['image'] ?? []);
-                $position = strtolower(self::str($image['imagePosition'] ?? ($data['imagePosition'] ?? 'right')));
-                $slides[] = [
-                    'id' => self::str($slide['_id'] ?? ''),
-                    'kind' => 'text',
-                    'taxonomylevel' => self::str($data['taxonomyLevel'] ?? ''),
-                    'title' => $title,
-                    'text' => $text,
-                    'image' => self::imageSource(self::str($image['imageBytes'] ?? ($image['url'] ?? ($image['imageUrl'] ?? '')))),
-                    'imageposition' => $position === 'left' ? 'left' : 'right',
-                ];
             }
             return [
                 'kind' => 'stack',
@@ -768,12 +970,10 @@ class HttpClient implements ClientInterface
         $bit = (array) ($widget['bit'] ?? []);
         $type = (string) ($bit['type'] ?? '');
         $data = (array) ($bit['data'] ?? []);
-        if (!in_array($type, self::QUESTION_WIDGET_TYPES, true) && !isset($data['answer'])) {
-            $page = self::htmlOf($bit, $data);
-            if ($page !== '') {
-                // A page outside a stack shows as a one-slide unit.
-                return self::pageStack($widget, $bit, $data, $page);
-            }
+        $page = self::pageOf($bit);
+        if ($page !== '') {
+            // A page outside a stack shows as a one-page unit.
+            return self::pageStack($widget, $bit, $data, $page);
         }
         if ($type === 'courseCompleteWidget' || $type === 'successWidget') {
             // The brain's farewell once every objective is done.
@@ -794,7 +994,6 @@ class HttpClient implements ClientInterface
             ];
         }
         if ($type === 'learningObjectivesWidget') {
-            $data = (array) ($bit['data'] ?? []);
             $objectives = [];
             foreach ((array) ($data['learningObjectives'] ?? []) as $objective) {
                 if (!is_array($objective)) {
@@ -815,8 +1014,103 @@ class HttpClient implements ClientInterface
                 'objectives' => $objectives,
             ];
         }
+        if (in_array($type, self::QUESTION_WIDGET_TYPES, true)) {
+            // A learn question on its own (Tarsus sends it again while it
+            // waits for an answer): a one-card unit.
+            $slide = self::slideOf($widget);
+            return [
+                'kind' => 'stack',
+                'id' => self::str($widget['stackId'] ?? ($widget['_id'] ?? '')),
+                'slides' => $slide === null ? [] : [$slide],
+            ];
+        }
 
         return null;
+    }
+
+    /**
+     * One card of a learning unit, by its widget type: a question, an
+     * AI-made page, or a card with text, picture (a diagram, a picture
+     * from the material, a GIF) and narration.
+     *
+     * @param array<string, mixed> $slide
+     * @return array<string, mixed>|null
+     */
+    private static function slideOf(array $slide): ?array
+    {
+        $bit = (array) ($slide['bit'] ?? []);
+        $data = (array) ($bit['data'] ?? []);
+        $type = (string) ($bit['type'] ?? '');
+        $id = self::str($slide['_id'] ?? '');
+        $level = self::str($data['taxonomyLevel'] ?? '');
+        $title = self::str($data['title'] ?? ($bit['title'] ?? ''));
+
+        if (in_array($type, self::QUESTION_WIDGET_TYPES, true)) {
+            // The unit's check question. Answering it with state 'learn'
+            // earns learning units.
+            return [
+                'id' => $id,
+                'kind' => 'question',
+                'title' => '',
+                'text' => '',
+                'image' => '',
+                'imageposition' => 'right',
+                'audio' => '',
+                'question' => self::questionItem($slide, $type, $data),
+            ];
+        }
+        $page = self::pageOf($bit);
+        if ($page !== '') {
+            return [
+                'id' => $id,
+                'kind' => 'html',
+                'taxonomylevel' => $level,
+                'title' => $title,
+                'text' => '',
+                'html' => $page,
+                'image' => '',
+                'imageposition' => 'right',
+                'audio' => '',
+            ];
+        }
+        $text = self::str($data['text'] ?? ($bit['text'] ?? ''));
+        [$image, $position] = self::imageOf($data);
+        $audio = Media::audio(self::str($data['audioBytes'] ?? ''), self::str($data['mimeType'] ?? ''));
+        if ($text === '' && $title === '' && $image === '' && $audio === '') {
+            return null;
+        }
+        return [
+            'id' => $id,
+            'kind' => 'text',
+            'taxonomylevel' => $level,
+            'title' => $title,
+            'text' => $text,
+            'image' => $image,
+            'imageposition' => $position,
+            'audio' => $audio,
+        ];
+    }
+
+    /**
+     * The picture of a card and where it goes: Tarsus sends it in
+     * data.image.imageBytes (a data URI, or a link for a GIF; empty when
+     * no GIF was found) and its place in data.image.imagePosition: "top"
+     * above the text, "left" or "right" beside it.
+     *
+     * @param array<string, mixed> $data
+     * @return array{0: string, 1: string}
+     */
+    private static function imageOf(array $data): array
+    {
+        $image = $data['image'] ?? null;
+        if (!is_array($image)) {
+            return ['', 'right'];
+        }
+        $position = strtolower(trim(self::str($image['imagePosition'] ?? ($data['imagePosition'] ?? ''))));
+        return [
+            Media::image(self::str($image['imageBytes'] ?? '')),
+            in_array($position, ['top', 'left', 'right'], true) ? $position : 'right',
+        ];
     }
 
     /**
@@ -842,23 +1136,9 @@ class HttpClient implements ClientInterface
                 'html' => $page,
                 'image' => '',
                 'imageposition' => 'right',
+                'audio' => '',
             ]],
         ];
-    }
-
-    /**
-     * Accept an illustration as a base64 image data URI (generated
-     * flowcharts) or an https image URL (animated GIFs).
-     */
-    private static function imageSource(string $value): string
-    {
-        if (preg_match('~^data:image/(svg\+xml|png|jpeg|gif|webp);base64,[A-Za-z0-9+/=\s]+$~', $value)) {
-            return (string) preg_replace('/\s+/', '', $value);
-        }
-        if (preg_match('~^https://[^\s"\'<>]+$~', $value)) {
-            return $value;
-        }
-        return '';
     }
 
     public function evaluatePracticeAnswer(array $params): array
@@ -907,20 +1187,21 @@ class HttpClient implements ClientInterface
                 self::variableAnswers($params['useranswers'])
             ));
         } elseif (!empty($params['usertable'])) {
-            // A spreadsheet calculation is answered as the whole table, the
-            // given cells echoed and the '?' cells filled. The column names
-            // are localised by the brain per user language, so the names
-            // the question came with travel back with the answer.
+            // A spreadsheet calculation (and an accounting task, which comes
+            // as one) is answered as the whole table: the given cells echoed,
+            // the '?' cells filled, under the column names the question came
+            // with - Tarsus names them per language and per task.
             $columns = array_values(array_map('strval', (array) ($params['columns'] ?? [])));
-            if (count($columns) !== 3) {
-                $columns = ['Position', 'Satz', 'Betrag'];
+            $rows = [];
+            foreach ((array) $params['usertable'] as $row) {
+                $cells = array_values(array_map([self::class, 'str'], (array) $row));
+                $object = [];
+                foreach ($columns as $i => $column) {
+                    $object[$column] = $cells[$i] ?? '';
+                }
+                $rows[] = (object) $object;
             }
-            $fields['user_answers'] = json_encode(array_map(
-                static fn(array $row): array => [
-                    $columns[0] => $row['position'], $columns[1] => $row['rate'], $columns[2] => $row['amount'],
-                ],
-                self::tableRows($params['usertable'])
-            ));
+            $fields['user_answers'] = json_encode($rows);
         }
 
         $body = $this->send('POST', $paths[$type], $fields);
@@ -956,11 +1237,13 @@ class HttpClient implements ClientInterface
         $answer = self::str($data['answer'] ?? '');
         $score = null;
         if (!empty($evaluation['evaluated'])) {
+            // Tarsus marks out of 100; only full marks count as right.
             $score = (float) ($evaluation['score'] ?? 0);
-            $correct = $score >= 50;
+            $correct = $score >= 100;
             $feedback = self::str($evaluation['feedback'] ?? $feedback);
             $answer = self::str($evaluation['answer'] ?? $answer);
         }
+        $columns = self::tableColumns((array) ($data['questionTable'] ?? ($evaluation['questionTable'] ?? [])));
 
         return [
             'correct' => $correct,
@@ -969,116 +1252,95 @@ class HttpClient implements ClientInterface
             'answer' => self::choiceText($answer),
             'choices' => $choices,
             'answers' => self::variableVerdicts($data),
-            'usertable' => self::tableRows($evaluation['userTable'] ?? []),
-            'answertable' => self::tableVerdicts($data),
+            'usertable' => self::tableValues($evaluation['userTable'] ?? [], $columns),
+            'answertable' => self::tableVerdicts($data, $columns),
             'progress' => self::extractProgress((array) ($body['activity'] ?? []), $data),
-            // Single choice and true/false are corrected without the AI.
-            'credits' => Interactions::forEvaluation($type),
         ];
     }
 
     /**
-     * The question table of a spreadsheet calculation, '?' marking the
-     * cells to answer.
-     *
-     * @param array<string, mixed> $data
-     * @return array<int, array{position: string, rate: string, amount: string, askrate: bool, askamount: bool}>
-     */
-    private static function questionTable(array $data): array
-    {
-        $rows = [];
-        foreach (self::tableRows($data['questionTable'] ?? []) as $row) {
-            $row['askrate'] = $row['rate'] === '?';
-            $row['askamount'] = $row['amount'] === '?';
-            $rows[] = $row;
-        }
-        return $rows;
-    }
-
-    /**
-     * The column names of an API costing table: position, rate, amount.
-     * The brain localises them per user language; known names are matched,
-     * anything else falls back to column order.
+     * The column names of a task table, in Tarsus's order. Tarsus names
+     * them per language and per task (a costing task: position, rate,
+     * amount; an accounting task: its own columns); the hidden
+     * clarification of the model rows is not a column.
      *
      * @param array<int|string, mixed> $rows
      * @return string[]
      */
     private static function tableColumns(array $rows): array
     {
-        $first = null;
         foreach ($rows as $row) {
             if (is_array($row)) {
-                $first = $row;
-                break;
+                return array_values(array_map('strval', array_filter(
+                    array_keys($row),
+                    static fn($key): bool => strcasecmp((string) $key, 'clarification') !== 0
+                )));
             }
         }
-        if ($first === null) {
-            return ['Position', 'Satz', 'Betrag'];
-        }
-        $keys = array_values(array_filter(
-            array_keys($first),
-            static fn($key) => strcasecmp((string) $key, 'clarification') !== 0
-        ));
-        $pick = static function (string $pattern, int $index) use ($keys): string {
-            foreach ($keys as $key) {
-                if (preg_match($pattern, (string) $key)) {
-                    return (string) $key;
-                }
-            }
-            return (string) ($keys[$index] ?? '');
-        };
-        return [
-            $pick('/^position$/i', 0),
-            $pick('/^(rate|satz|prozentsatz|taux|tasa|tasso)$/i', 1),
-            $pick('/^(amount|betrag|montant|importe|importo)$/i', 2),
-        ];
+        return [];
     }
 
     /**
-     * Normalise costing table rows from either side of the wire.
+     * The question table of a task: rows of cells under the columns, a
+     * '?' cell being one the learner fills in.
      *
-     * @param mixed $entries
-     * @return array<int, array{position: string, rate: string, amount: string}>
+     * @param array<string, mixed> $data
+     * @param string[] $columns
+     * @return array<int, array<int, array{value: string, ask: bool}>>
      */
-    private static function tableRows($entries): array
+    private static function questionTable(array $data, array $columns): array
     {
-        $entries = array_values(array_filter((array) $entries, 'is_array'));
-        [$poskey, $ratekey, $amountkey] = self::tableColumns($entries);
         $rows = [];
-        foreach ($entries as $entry) {
-            $position = trim(self::str($entry['position'] ?? ($entry[$poskey] ?? '')));
-            if ($position === '') {
-                continue;
-            }
-            $rows[] = [
-                'position' => $position,
-                'rate' => trim(self::str($entry['rate'] ?? ($entry[$ratekey] ?? ''))),
-                'amount' => trim(self::str($entry['amount'] ?? ($entry[$amountkey] ?? ''))),
-            ];
+        foreach (self::tableValues($data['questionTable'] ?? [], $columns) as $values) {
+            $rows[] = array_map(static fn(string $value): array => ['value' => $value, 'ask' => trim($value) === '?'], $values);
         }
         return $rows;
     }
 
     /**
-     * The model table of a spreadsheet calculation with per-cell verdicts:
-     * evaluationMask holds one row per table row, 1 for a correct cell, -1
-     * for a wrong one, 0 for a given one.
+     * Table rows as lists of cell values under the given columns.
+     *
+     * @param mixed $entries
+     * @param string[] $columns
+     * @return array<int, string[]>
+     */
+    private static function tableValues($entries, array $columns): array
+    {
+        $rows = [];
+        foreach ((array) $entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $values = [];
+            foreach ($columns as $column) {
+                $values[] = trim(self::str($entry[$column] ?? ''));
+            }
+            $rows[] = $values;
+        }
+        return $rows;
+    }
+
+    /**
+     * The model table with a verdict per cell: evaluationMask has one row
+     * per table row, 1 for a right cell, -1 for a wrong one, 0 for a given
+     * one.
      *
      * @param array<string, mixed> $data
-     * @return array<int, array<string, mixed>>
+     * @param string[] $columns
+     * @return array<int, array<int, array{value: string, verdict: int}>>
      */
-    private static function tableVerdicts(array $data): array
+    private static function tableVerdicts(array $data, array $columns): array
     {
         $evaluation = (array) ($data['evaluation'] ?? []);
         $mask = array_values(array_filter((array) ($evaluation['evaluationMask'] ?? []), 'is_array'));
-        $modelrows = (array) ($evaluation['answerTable'] ?? ($data['answerTable'] ?? []));
-        [, $ratekey, $amountkey] = self::tableColumns($mask !== [] ? $mask : $modelrows);
         $rows = [];
-        foreach (self::tableRows($modelrows) as $i => $row) {
-            $cell = $mask[$i] ?? [];
-            $row['rateverdict'] = max(-1, min(1, (int) ($cell[$ratekey] ?? 0)));
-            $row['amountverdict'] = max(-1, min(1, (int) ($cell[$amountkey] ?? 0)));
-            $rows[] = $row;
+        foreach (self::tableValues($evaluation['answerTable'] ?? ($data['answerTable'] ?? []), $columns) as $i => $values) {
+            $cells = [];
+            foreach ($values as $j => $value) {
+                $verdict = $mask[$i][$columns[$j]] ?? 0;
+                $cells[] = ['value' => $value, 'verdict' => max(-1, min(1, (int) $verdict))];
+            }
+            $rows[] = $cells;
         }
         return $rows;
     }
@@ -1467,6 +1729,15 @@ class HttpClient implements ClientInterface
         if ($errno !== 0 || $response === false) {
             // Never echo the request: it carries the API key.
             throw new TransportException(0, 'connection failed calling ' . $path);
+        }
+
+        if ($httpcode === 409) {
+            // Build knowledge sends a widget again instead of a new one.
+            $decoded = json_decode((string) $response, true);
+            $widget = is_array($decoded) ? ($decoded['replay']['widget'] ?? null) : null;
+            if (is_array($widget)) {
+                throw new ReplayException($widget);
+            }
         }
 
         if ($httpcode < 200 || $httpcode >= 300) {

@@ -100,25 +100,68 @@ final class Shaper
     }
 
     /**
+     * The question table of a task: rows of cells, a cell to fill in
+     * marked 'ask'.
+     *
      * @param array<int, mixed> $rows
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array<int, array{value: string, ask: bool}>>
      */
-    public static function table(array $rows): array
+    public static function cells(array $rows): array
     {
         $out = [];
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
             }
-            $out[] = [
-                'position' => (string) ($row['position'] ?? ''),
-                'rate' => (string) ($row['rate'] ?? ''),
-                'amount' => (string) ($row['amount'] ?? ''),
-                'askrate' => !empty($row['askrate']),
-                'askamount' => !empty($row['askamount']),
-                'rateverdict' => (int) ($row['rateverdict'] ?? 0),
-                'amountverdict' => (int) ($row['amountverdict'] ?? 0),
-            ];
+            $cells = [];
+            foreach ($row as $cell) {
+                $cells[] = is_array($cell)
+                    ? ['value' => (string) ($cell['value'] ?? ''), 'ask' => !empty($cell['ask'])]
+                    : ['value' => (string) $cell, 'ask' => false];
+            }
+            $out[] = $cells;
+        }
+        return $out;
+    }
+
+    /**
+     * Table rows as lists of cell values (the learner's filled-in table).
+     *
+     * @param array<int, mixed> $rows
+     * @return array<int, string[]>
+     */
+    public static function values(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = array_values(array_map(static fn($cell): string => is_array($cell) ? (string) ($cell['value'] ?? '') : (string) $cell, $row));
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * The model table with a verdict per cell: 1 right, -1 wrong, 0 given.
+     *
+     * @param array<int, mixed> $rows
+     * @return array<int, array<int, array{value: string, verdict: int}>>
+     */
+    public static function verdicts(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $cells = [];
+            foreach ($row as $cell) {
+                $cells[] = [
+                    'value' => (string) (is_array($cell) ? ($cell['value'] ?? '') : $cell),
+                    'verdict' => max(-1, min(1, (int) (is_array($cell) ? ($cell['verdict'] ?? 0) : 0))),
+                ];
+            }
+            $out[] = $cells;
         }
         return $out;
     }
@@ -154,7 +197,7 @@ final class Shaper
             'difficulty' => self::difficulty((int) ($widget['difficultylevel'] ?? 0)),
             'difficultylevel' => (int) ($widget['difficultylevel'] ?? 0),
             'variables' => array_values(array_map('strval', (array) ($widget['variables'] ?? []))),
-            'table' => self::table((array) ($widget['table'] ?? [])),
+            'table' => self::cells((array) ($widget['table'] ?? [])),
             'columns' => array_values(array_map('strval', (array) ($widget['columns'] ?? []))),
         ];
     }
@@ -177,8 +220,8 @@ final class Shaper
             'useranswer' => (string) ($item['useranswer'] ?? ''),
             'useranswers' => self::answers((array) ($item['useranswers'] ?? [])),
             'answers' => self::answers((array) ($item['answers'] ?? [])),
-            'usertable' => self::table((array) ($item['usertable'] ?? [])),
-            'answertable' => self::table((array) ($item['answertable'] ?? [])),
+            'usertable' => self::values((array) ($item['usertable'] ?? [])),
+            'answertable' => self::verdicts((array) ($item['answertable'] ?? [])),
         ];
     }
 
@@ -239,8 +282,10 @@ final class Shaper
                 'title' => (string) ($slide['title'] ?? ''),
                 'text' => $ispage ? '' : Markdown::render((string) ($slide['text'] ?? '')),
                 'html' => $ispage ? (string) $slide['html'] : '',
-                'image' => $ispage ? '' : self::image((string) ($slide['image'] ?? '')),
-                'imageposition' => ($slide['imageposition'] ?? 'right') === 'left' ? 'left' : 'right',
+                'image' => $ispage ? '' : Media::image((string) ($slide['image'] ?? '')),
+                'imageposition' => in_array($slide['imageposition'] ?? '', ['top', 'left', 'right'], true) ? (string) $slide['imageposition'] : 'right',
+                // Narration of the card (a data URI checked by the client).
+                'audio' => $ispage ? '' : (strncmp((string) ($slide['audio'] ?? ''), 'data:audio/', 11) === 0 ? (string) $slide['audio'] : ''),
             ];
             if ($isquestion) {
                 $out['question'] = self::practiceItem($slide['question']);
@@ -273,9 +318,12 @@ final class Shaper
             case 'exchange':
                 return [
                     'kind' => 'exchange',
+                    'id' => (string) ($item['id'] ?? ''),
+                    'state' => (string) ($item['state'] ?? ''),
                     'query' => (string) ($item['query'] ?? ''),
                     'answer' => Markdown::render((string) ($item['answer'] ?? '')),
                     'html' => (string) ($item['html'] ?? ''),
+                    'sources' => !empty($item['sources']),
                 ];
             case 'practice':
                 return self::practiceItem($item);
@@ -303,19 +351,5 @@ final class Shaper
             'learnprogress' => (float) ($progress['learnprogress'] ?? 0),
             'progress' => (float) ($progress['progress'] ?? 0),
         ];
-    }
-
-    /**
-     * Only image data URIs and https URLs reach an <img>.
-     */
-    private static function image(string $value): string
-    {
-        if (preg_match('~^data:image/(svg\+xml|png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$~', $value)) {
-            return $value;
-        }
-        if (preg_match('~^https://[^\s"\'<>]+$~', $value)) {
-            return $value;
-        }
-        return '';
     }
 }
