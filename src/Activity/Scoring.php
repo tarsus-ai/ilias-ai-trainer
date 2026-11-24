@@ -228,9 +228,36 @@ final class Scoring
     {
         try {
             \ilLPStatusWrapper::_updateStatus($objid, $userid);
+            self::writeZeroPercentage($objid, $userid);
         } catch (\Throwable $e) {
             Ilias::log('could not update the learning progress: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * ILIAS stores a learning progress percentage only when it is above 0,
+     * so a result that fell back to 0 - a reset chat, a connection to
+     * another brain - would keep its old value. The 0 is then written
+     * explicitly, with the status ILIAS just determined.
+     */
+    private static function writeZeroPercentage(int $objid, int $userid): void
+    {
+        if (!method_exists(\ilLPStatus::class, '_lookupPercentage') || !method_exists(\ilLPStatus::class, 'writeStatus')) {
+            return;
+        }
+        $stored = \ilLPStatus::_lookupPercentage($objid, $userid);
+        if ($stored === null || (int) $stored === 0) {
+            return;
+        }
+        $grade = self::grade(Settings::load($objid), self::row($objid, $userid));
+        if ($grade !== null && (int) round($grade) !== 0) {
+            return;
+        }
+        $status = \ilLPStatus::_lookupStatus($objid, $userid, false);
+        if ($status === null) {
+            return;
+        }
+        \ilLPStatus::writeStatus($objid, $userid, (int) $status, 0, true);
     }
 
     /**

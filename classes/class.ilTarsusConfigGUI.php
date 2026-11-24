@@ -315,6 +315,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $this->configure($form);
             return;
         }
+        $target = Config::target();
         Config::set('base_url', $url);
 
         $apikey = trim((string) $form->getInput('api_key'));
@@ -354,8 +355,31 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             }
         }
 
+        $this->retargetIfMoved($target);
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('settings_saved'), true);
         $this->ctrl->redirect($this, 'configure');
+    }
+
+    /**
+     * After the connection moved to another brain (demo mode switched,
+     * another server, brain ID or license key): what the previous brain
+     * held is sent to the new one, and the admin is told. Saving never
+     * fails over it.
+     */
+    private function retargetIfMoved(string $before): void
+    {
+        if (Config::target() === $before) {
+            return;
+        }
+        try {
+            $count = (new Reconciler())->retarget();
+        } catch (Throwable $e) {
+            Ilias::log('retarget after a connection change: ' . $e->getMessage(), 'error');
+            return;
+        }
+        if ($count > 0) {
+            $this->tpl->setOnScreenMessage('info', $this->txt('retarget_notice', ['count' => $count]), true);
+        }
     }
 
     /**
@@ -783,7 +807,9 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             }
         }
         if ($ok) {
+            $target = Config::target();
             Config::set('brain_id', $brainid);
+            $this->retargetIfMoved($target);
             $this->tpl->setOnScreenMessage('success', $this->txt('brain_activated', ['brain' => Html::e($brainid)]), true);
         } else {
             $this->tpl->setOnScreenMessage('failure', $this->txt('brain_activate_failed'), true);

@@ -135,10 +135,45 @@ class Reconciler
                 // content-changed status so the teacher sees Re-index.
                 $this->indexer->reindexResource($resourceid);
                 $summary['failed']++;
+                Ilias::log('re-sending ' . $resourceid . ' failed: ' . $e->getMessage());
             }
         }
 
         return $summary;
+    }
+
+    /**
+     * The connection now leads to another brain: demo mode switched off or
+     * on, another server, another brain ID or license key. What the index
+     * map records was true of the previous brain only - material "indexed"
+     * in the demo never reached any brain. Everything the previous brain
+     * held or was confirming is therefore marked to be sent again; the cron
+     * job and the teacher's Re-index send it as they send changed content,
+     * untracking first, so nothing is doubled. Deletions still outstanding,
+     * failed rows and material never indexed keep their state.
+     *
+     * @return int How many resources will be sent to the new brain.
+     */
+    public function retarget(): int
+    {
+        // Read every affected row first: a row changed below would otherwise
+        // be met again under its new status.
+        $rows = [];
+        foreach ([Status::INDEXED, Status::PENDING_CONFIRMATION, Status::PENDING_REINDEX] as $status) {
+            foreach ($this->repo->getByStatus($status) as $row) {
+                $rows[$row->resourceid] = $row;
+            }
+        }
+        foreach ($rows as $row) {
+            if ($row->status !== Status::PENDING_REINDEX) {
+                $this->repo->setStatus($row->resourceid, Status::PENDING_REINDEX);
+            }
+        }
+        $count = count($rows);
+        if ($count > 0) {
+            Ilias::log('connection moved to another brain: ' . $count . ' resource(s) marked to be sent again');
+        }
+        return $count;
     }
 
     /**

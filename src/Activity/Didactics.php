@@ -57,8 +57,8 @@ final class Didactics
 
     public const LEARN_TEMPO_DEFAULT = 1.0;
 
-    /** @var string[] Interaction modes, in switcher order (discuss: Live interaction). */
-    public const MODES = ['build', 'test', 'ask', 'discuss'];
+    /** @var string[] Interaction modes, in switcher order as in Tarsus (discuss: Live interaction). */
+    public const MODES = ['build', 'test', 'discuss', 'ask'];
 
     public const METHOD_MICROLEARNING = 'micro-learning';
 

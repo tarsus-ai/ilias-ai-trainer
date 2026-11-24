@@ -974,6 +974,24 @@
     color: var(--tz-muted);
 }
 
+/* The top line of an answer: what it replies to on the left, its
+   sources at the top right. */
+.tarsus-chat-box .tarsus-card__top {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.tarsus-chat-box .tarsus-card__top .tarsus-card__reply {
+    margin-bottom: 0;
+}
+
+.tarsus-chat-box .tarsus-card__top [data-action="sources"] {
+    margin-left: auto;
+}
+
 /* The welcome card: a gradient frame around a white body. */
 .tarsus-chat-box .tarsus-card--welcome {
     border: 0;
@@ -2091,10 +2109,17 @@
     --tz-drawer-wide: min(76rem, 94vw);
 }
 
-/* As much of the screen as there is: cards use the whole column. */
-.tarsus-chat-box .tarsus-card,
-.tarsus-demo-note {
-    max-width: none;
+/* Widgets as in Tarsus: a centred column, not the whole width. Answers,
+   questions and notices read best at about 780 px; a learning stack and
+   the live call get more room for their slides. The composer below keeps
+   the whole width. */
+.tarsus-chat-box .tarsus-card {
+    max-width: 48.75rem;
+}
+
+.tarsus-chat-box .tarsus-learn-card,
+.tarsus-chat-box .tarsus-live {
+    max-width: 62.5rem;
 }
 
 .tarsus-chat-box .tarsus-card--flash {

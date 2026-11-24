@@ -535,8 +535,10 @@
 
     /**
      * A question and its answer. meta: id and state of the answer widget
-     * (for its sources and "ask about this"), sources (Tarsus named the
-     * bits it used), voice ({src, duration} of the learner's recording).
+     * (for its sources), sources (Tarsus named the bits it used), voice
+     * ({src, duration} of the learner's recording). The sources sit at the
+     * top right of the answer; "ask about this" belongs to learning stacks
+     * and quiz questions only.
      */
     Chat.prototype.exchangeCard = function (question, answerHtml, reply, pageHtml, meta) {
         meta = meta || {};
@@ -545,17 +547,13 @@
             // AI-driven interaction: the answer is an interactive page.
             body.appendChild(this.frame(pageHtml, question));
         }
-        var actions = el('div', {'class': 'tarsus-card__actions'});
-        if (meta.id && meta.sources && this.config.references) {
-            actions.appendChild(el('button', {type: 'button', 'class': 'tarsus-chip-btn', 'data-action': 'sources',
-                'data-widget-id': meta.id, 'data-state': meta.state || 'ask', html: this.icon('sources')}, el('span', {text: this.t('sources_show')})));
-        }
-        if (meta.id) {
-            var ask = this.askButton();
-            if (ask) {
-                actions.appendChild(ask);
-            }
-        }
+        var sources = meta.id && meta.sources && this.config.references
+            ? el('button', {type: 'button', 'class': 'tarsus-chip-btn', 'data-action': 'sources',
+                'data-widget-id': meta.id, 'data-state': meta.state || 'ask', html: this.icon('sources')}, el('span', {text: this.t('sources_show')}))
+            : null;
+        var replied = reply ? el('div', {'class': 'tarsus-card__reply', 'aria-label': this.t('chat_reply_about', {title: reply}), html: this.icon('reply')},
+            el('span', {text: reply})) : null;
+        var top = sources || replied ? el('div', {'class': 'tarsus-card__top'}, [replied, sources]) : null;
         var voice = null;
         if (meta.voice && meta.voice.src) {
             voice = el('div', {'class': 'tarsus-card__voice'}, [
@@ -567,8 +565,7 @@
         }
         return el('div', {'class': 'tarsus-card', 'data-region': 'tarsus-chat-card', 'data-kind': 'exchange', 'data-widget-id': meta.id || null},
             el('div', {'class': 'tarsus-card__inner'}, [
-                reply ? el('div', {'class': 'tarsus-card__reply', 'aria-label': this.t('chat_reply_about', {title: reply}), html: this.icon('reply')},
-                    el('span', {text: reply})) : null,
+                top,
                 el('div', {'class': 'tarsus-card__question'}, [
                     this.avatar(this.config.userAvatar, ''),
                     el('div', {'class': 'tarsus-card__question-main'}, [
@@ -579,7 +576,7 @@
                 el('hr', {'class': 'tarsus-card__divider'}),
                 el('div', {'class': 'tarsus-card__answer'}, [
                     this.avatar(this.config.robotAvatar, this.config.robotName),
-                    el('div', {'class': 'tarsus-card__answer-main'}, [body, actions.childNodes.length ? actions : null])
+                    el('div', {'class': 'tarsus-card__answer-main'}, [body])
                 ])
             ]));
     };
@@ -1778,8 +1775,9 @@
 
     Chat.prototype.setMode = function (mode) {
         if (this.state.mode === 'discuss' && mode !== 'discuss' && this.state.live) {
-            // Leaving the live interaction ends the call.
-            if (!window.confirm(this.t('live_end_confirm'))) {
+            // Leaving the live interaction ends the call; a call the
+            // learner already hung up needs no question.
+            if (this.state.live.getAttribute('data-call') !== 'ended' && !window.confirm(this.t('live_end_confirm'))) {
                 return;
             }
             this.endLive();
@@ -2317,10 +2315,17 @@
         if (!frame || event.source !== frame.contentWindow) {
             return;
         }
+        if (data.type === 'genericLiveWidget:state') {
+            // The call page reports its state: Connecting, Connected, and
+            // Disconnected (hung up, or ended by the coach) or None (failed).
+            var ended = data.state === 'Disconnected' || data.state === 'None';
+            card.setAttribute('data-call', ended ? 'ended' : 'running');
+        }
         if (data.type === 'genericLiveWidget:expired') {
             var notice = card.querySelector('[data-region="live-notice"]');
             notice.textContent = this.t('live_expired');
             show(notice, true);
+            card.setAttribute('data-call', 'ended');
             this.setLiveLabel('live_new');
         }
     };

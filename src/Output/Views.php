@@ -267,12 +267,17 @@ final class Views
     /**
      * A horizontal usage bar: used against limit, coloured by severity.
      */
-    public static function usageBar(int $used, int $limit, string $level): string
+    public static function usageBar(float $used, int $limit, string $level): string
     {
         $percent = $limit > 0 ? min(100, $used / $limit * 100) : 0;
+        // The brain's figure, written the way the user's language writes numbers.
         $label = $limit > 0
-            ? self::t('usage_bar_label', ['used' => number_format($used), 'limit' => number_format($limit), 'percent' => number_format($percent, 0)])
-            : self::t('usage_bar_nolimit', ['used' => number_format($used)]);
+            ? self::t('usage_bar_label', [
+                'used' => \TarsusIlias\Support\Budget::format($used),
+                'limit' => \TarsusIlias\Support\Budget::format((float) $limit),
+                'percent' => number_format($percent, 0),
+            ])
+            : self::t('usage_bar_nolimit', ['used' => \TarsusIlias\Support\Budget::format($used)]);
         return '<div class="tarsus-usage tarsus-usage--' . Html::e($level) . '" role="img" aria-label="' . $label . '">'
             . '<div class="tarsus-usage__track"><span class="tarsus-usage__fill" style="width:' . number_format($percent, 1, '.', '') . '%"></span>'
             . '<i class="tarsus-usage__mark" style="left:50%"></i><i class="tarsus-usage__mark" style="left:75%"></i><i class="tarsus-usage__mark" style="left:90%"></i></div>'
@@ -293,7 +298,7 @@ final class Views
         $html = '<div class="tarsus-panel tarsus-panel--plan">'
             . '<div class="tarsus-plan-head"><div><div class="tarsus-eyebrow">' . self::t('plan_current') . '</div>'
             . '<div class="tarsus-headline">' . Html::e($data['plan']) . '</div></div>'
-            . '<div class="tarsus-plan-head__usage">' . self::usageBar((int) round((float) $data['used']), (int) $data['limit'], (string) $data['level']) . '</div></div>'
+            . '<div class="tarsus-plan-head__usage">' . self::usageBar((float) $data['used'], (int) $data['limit'], (string) $data['level']) . '</div></div>'
             . '<div class="tarsus-table-wrap"><table class="tarsus-table"><tbody>' . $rows . '</tbody></table></div>';
         if ($data['items'] !== []) {
             $html .= '<details class="tarsus-details"><summary>' . self::t('usage_breakdown') . '</summary>'

@@ -335,6 +335,7 @@ brain_deleted#:#Deleted
 brain_inuse#:#In use
 brain_activate#:#Activate
 brain_activated#:#This installation now uses brain "{brain}".
+retarget_notice#:#The connection now leads to another brain. The materials indexed before ({count}) are being sent there again: automatically by the cron job, or right away with “Re-index” on a course’s material page.
 brain_activate_failed#:#That brain cannot be activated: it is unknown to this API key or no longer active.
 brain_none_found#:#The API key returned no brains. Check the base URL and API key, or ask Tarsus to activate the key.
 brain_none_selected#:#No brain is selected yet. Indexing and chat stay blocked until you activate one.
