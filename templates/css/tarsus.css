@@ -1055,46 +1055,272 @@
     box-shadow: 0 10px 28px rgba(100, 120, 30, 0.1);
 }
 
-/* Rendered Markdown inside a card. */
-.tarsus-app .tarsus-card__answer-body ul,
-.tarsus-app .tarsus-card__answer-body ol,
-.tarsus-app .tarsus-learn-slide__text ul,
-.tarsus-app .tarsus-learn-slide__text ol {
-    padding-left: 1.25rem;
-    margin-bottom: 0.5rem;
+/* Tarsus's texts: Markdown rendered like in the Tarsus app (React-Markdown
+   with KaTeX), styled the same in every theme. */
+.tarsus-app .tarsus-md {
+    line-height: 1.6;
+    overflow-wrap: break-word;
+    -webkit-hyphens: manual;
+    hyphens: manual;
+}
+
+.tarsus-app .tarsus-md > :first-child {
+    margin-top: 0;
+}
+
+.tarsus-app .tarsus-md > :last-child {
+    margin-bottom: 0;
+}
+
+.tarsus-app .tarsus-md p {
+    margin: 0 0 0.75em;
+}
+
+.tarsus-app .tarsus-md h1,
+.tarsus-app .tarsus-md h2,
+.tarsus-app .tarsus-md h3,
+.tarsus-app .tarsus-md h4,
+.tarsus-app .tarsus-md h5,
+.tarsus-app .tarsus-md h6 {
+    margin: 1.1em 0 0.5em;
+    padding: 0;
+    color: inherit;
+    font-family: inherit;
+    font-weight: 700;
+    line-height: 1.3;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.tarsus-app .tarsus-md h1 {
+    font-size: 1.35em;
+}
+
+.tarsus-app .tarsus-md h2 {
+    font-size: 1.2em;
+}
+
+.tarsus-app .tarsus-md h3 {
+    font-size: 1.08em;
+}
+
+.tarsus-app .tarsus-md h4,
+.tarsus-app .tarsus-md h5,
+.tarsus-app .tarsus-md h6 {
+    font-size: 1em;
+}
+
+.tarsus-app .tarsus-md ul,
+.tarsus-app .tarsus-md ol {
+    margin: 0 0 0.75em;
+    padding: 0;
+    padding-inline-start: 1.5em;
+}
+
+.tarsus-app .tarsus-md ul {
+    list-style: disc;
+}
+
+.tarsus-app .tarsus-md ol {
+    list-style: decimal;
+}
+
+.tarsus-app .tarsus-md ul ul {
+    list-style: circle;
+}
+
+.tarsus-app .tarsus-md li {
+    margin: 0.25em 0;
+    padding: 0;
+}
+
+.tarsus-app .tarsus-md li > p {
+    margin: 0 0 0.35em;
+}
+
+.tarsus-app .tarsus-md li > ul,
+.tarsus-app .tarsus-md li > ol {
+    margin: 0.25em 0 0;
+}
+
+.tarsus-app .tarsus-md li::marker {
+    color: var(--tz-accent);
+}
+
+/* GitHub task lists: the box takes the place of the bullet. */
+.tarsus-app .tarsus-md .contains-task-list {
+    list-style: none;
+    padding-inline-start: 0.25em;
+}
+
+.tarsus-app .tarsus-md .task-list-item input {
+    margin: 0;
+    margin-inline-end: 0.5em;
+    vertical-align: middle;
+}
+
+.tarsus-app .tarsus-md a {
+    color: var(--tz-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.tarsus-app .tarsus-md strong {
+    font-weight: 700;
+}
+
+.tarsus-app .tarsus-md blockquote {
+    margin: 0 0 0.75em;
+    padding: 0.2em 0;
+    padding-inline-start: 1em;
+    border: 0;
+    border-inline-start: 3px solid var(--tz-line-strong);
+    color: var(--tz-muted);
+    font-size: 1em;
+}
+
+.tarsus-app .tarsus-md hr {
+    height: 0;
+    margin: 1.25em 0;
+    border: 0;
+    border-top: 1px solid var(--tz-line-strong);
+    opacity: 1;
+}
+
+.tarsus-app .tarsus-md img {
+    max-width: 100%;
+    height: auto;
+}
+
+.tarsus-app .tarsus-md code {
+    padding: 0.1em 0.35em;
+    border: 1px solid var(--tz-line);
+    border-radius: 0.35em;
+    background: var(--tz-soft);
+    color: inherit;
+    font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.9em;
+    word-break: break-word;
+}
+
+.tarsus-app .tarsus-md pre {
+    margin: 0 0 0.75em;
+    padding: 0.85em 1em;
+    overflow-x: auto;
+    border: 0;
+    border-radius: 0.6em;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 0.88em;
+    line-height: 1.55;
+}
+
+.tarsus-app .tarsus-md pre code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    white-space: pre;
+    word-break: normal;
+}
+
+/* Tables, as in the Tarsus app: rules between the rows, a stronger one
+   under the header; they scroll sideways on narrow screens. Themes style
+   plain tables with long selectors (Moodle draws a grid on them), so these
+   rules name their classes twice to stay in charge. */
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap {
+    margin: 0 0 0.75em;
+    overflow-x: auto;
+}
+
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap table {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-collapse: collapse;
+    background: transparent;
+    font-size: 0.95em;
+}
+
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap thead,
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap tbody,
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap tfoot,
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap tr {
+    border: 0;
+    background: transparent;
+}
+
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap th,
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap td {
+    padding: 0.5em 0.75em;
+    border: 0;
+    border-bottom: 1px solid var(--tz-line-table);
+    background: transparent;
+    text-align: start;
+    vertical-align: top;
+}
+
+.tarsus-app.tarsus-app .tarsus-md.tarsus-md .tarsus-table-wrap th {
+    border-bottom: 2px solid var(--tz-line-strong);
+    color: var(--tz-muted);
+    font-weight: 600;
+}
+
+/* Formulas (KaTeX): a wide one scrolls instead of overflowing the card. */
+.tarsus-app .tarsus-md .katex-display {
+    margin: 0.75em 0;
+    padding: 2px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.tarsus-app .tarsus-md .katex-error {
+    white-space: pre-wrap;
+}
+
+/* Footnotes. */
+.tarsus-app .tarsus-md .footnotes {
+    margin-top: 1em;
+    padding-top: 0.5em;
+    border-top: 1px solid var(--tz-line);
+    color: var(--tz-muted);
+    font-size: 0.88em;
+}
+
+.tarsus-app .tarsus-md .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* An answer option reads inline; a richer one keeps its blocks tight. */
+.tarsus-app .tarsus-md--inline {
+    display: inline;
+}
+
+.tarsus-app .tarsus-md--inline > p,
+.tarsus-app .tarsus-md--inline > ul,
+.tarsus-app .tarsus-md--inline > ol {
+    margin-bottom: 0.25em;
+}
+
+.tarsus-app .tarsus-practice-choice__label.tarsus-md--inline {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .tarsus-app .tarsus-table-wrap table {
     width: 100%;
     margin-bottom: 0.5rem;
     border-collapse: collapse;
-}
-
-.tarsus-app .tarsus-card__answer-body th,
-.tarsus-app .tarsus-card__answer-body td,
-.tarsus-app .tarsus-learn-slide__text th,
-.tarsus-app .tarsus-learn-slide__text td,
-.tarsus-app .tarsus-practice-card__feedback th,
-.tarsus-app .tarsus-practice-card__feedback td {
-    border: 1px solid var(--tz-line-table);
-    padding: 0.25rem 0.5rem;
-}
-
-.tarsus-app .tarsus-card code {
-    word-break: break-word;
-}
-
-.tarsus-app .tarsus-card pre {
-    overflow-x: auto;
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    background: var(--tz-soft);
-}
-
-.tarsus-app .tarsus-math--display {
-    display: block;
-    text-align: center;
-    margin: 0.5rem 0;
 }
 
 /* Practice question cards (Test knowledge). */

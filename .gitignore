@@ -11,3 +11,6 @@ Thumbs.db
 
 # Test tooling
 .phpunit.result.cache
+
+# The Markdown renderer's build tools (build/markdown)
+node_modules/

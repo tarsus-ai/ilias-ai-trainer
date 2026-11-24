@@ -411,6 +411,8 @@ src/                       namespace TarsusIlias
   Support/                 configuration, package (Plan), budget, help links, ILIAS glue
 sql/dbupdate.php           database steps
 templates/                 CSS, JavaScript, images and the demo mode's pages
+  js/vendor/, vendor/katex/  the bundled Markdown renderer and KaTeX's stylesheet and fonts
+build/markdown/            the renderer's sources: React-Markdown's pipeline with KaTeX (npm ci && npm run build)
 lang/                      ilias_en.lang, ilias_de.lang
 tests/                     PHPUnit tests (not in the release zip)
 docs/screenshots/          the screenshots in this README
@@ -420,6 +422,7 @@ docs/screenshots/          the screenshots in this README
 - **Unit tests** cover the package rules, the pricing of the month and the credentials every call carries (API key with brain ID, or with license key). They need the interfaces of an ILIAS checkout (PHPUnit 10 or 11 ships with ILIAS 10 and 11): `ILIAS_ROOT=/path/to/ilias php /path/to/ilias/vendor/composer/vendor/bin/phpunit -c phpunit.xml`.
 - Version 2.0.0 was tested end to end with Playwright in ILIAS 10.13 against a live Tarsus brain: clean install from the release zip, all four modes, spoken questions, sources, AI-driven pages, the live call, the teacher panels, re-sending edited material, reset, the learning progress and the usage figures.
 - Version 2.0.1 ran the same walk-through in demo mode on ILIAS 9.25 (PHP 8.1 and 8.2), 10.13 (PHP 8.3), 11.6 (PHP 8.4) and the 12.0 beta (PHP 8.4 and 8.5) – update from 2.0.0, the four modes, sources, the teacher panels and reset – with every PHP message from the plugin's files recorded, deprecation notices included: none.
+- Version 2.1.0 renders Tarsus's texts with React-Markdown's pipeline and KaTeX. The renderer was compared with React-Markdown itself (identical output for 36 sample texts: formulas, tables, lists, links, HTML, footnotes), and the demo walk-through plus a check of tables, formulas, KaTeX's fonts, answer options with formulas and unsafe input ran on ILIAS 9.25, 10.13, 11.6 and the 12.0 beta, updated from 2.0.1 with **Update** in the plugin list.
 - A version bump needs `composer du` before ILIAS offers **Update** in the plugin list.
 - **Releases** are published by the [Release workflow](.github/workflows/release.yml): bump `$version` in `plugin.php`, add the version's section to `CHANGELOG.md` and push to `main` – the workflow tags the commit, builds `Tarsus-ilias-plugin-<version>.zip` with `git archive` (repository-only files such as `docs/` are left out) and creates the GitHub release with the changelog section as notes.
 
