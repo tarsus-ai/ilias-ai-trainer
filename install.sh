@@ -65,17 +65,20 @@ OWNER_OF="$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$SLOT")")")")")
 OWNER="$(stat -c '%U' "$OWNER_OF")"
 GROUP="$(stat -c '%G' "$OWNER_OF")"
 
+# Where composer keeps ILIAS' libraries (ILIAS 9: libs/composer/vendor,
+# ILIAS 10 and newer: vendor/composer/vendor), as ILIAS' composer.json says.
+VENDOR="$(php -r '$j = json_decode((string) @file_get_contents($argv[1]), true); echo $j["config"]["vendor-dir"] ?? "vendor";' "$ILIAS/composer.json")"
+VENDOR="$ILIAS/${VENDOR#./}"
+[ -d "$VENDOR" ] || VENDOR="$ILIAS/vendor"
+
 # Composer has to run with a PHP version this ILIAS accepts. A server may
-# have several, and sudo would fall back to the default one. ILIAS 10 and
-# newer ship their own check for it; ILIAS 9 has none and takes the default.
+# have several, and sudo would fall back to the default one. ILIAS ships its
+# own check for it.
 PHP_BIN="$(command -v php)"
 CHECK=""
-for f in "$ILIAS/vendor/composer/vendor/composer/platform_check.php" "$ILIAS/vendor/composer/platform_check.php"; do
-    if [ -f "$f" ]; then
-        CHECK="$f"
-        break
-    fi
-done
+if [ -f "$VENDOR/composer/platform_check.php" ]; then
+    CHECK="$VENDOR/composer/platform_check.php"
+fi
 fits() { "$1" -r 'require $argv[1];' "$CHECK" >/dev/null 2>&1; }
 if [ -n "$CHECK" ] && ! fits "$PHP_BIN"; then
     NEED="$("$PHP_BIN" -r 'require $argv[1];' "$CHECK" 2>&1 | grep -F 'require a PHP version' | head -n 1 || true)"
@@ -143,7 +146,7 @@ if head -n 1 "$COMPOSER_FILE" | grep -qF php; then
 else
     COMPOSER=("$COMPOSER_FILE")
 fi
-VENDOR_OWNER="$(stat -c '%U' "$ILIAS/vendor" 2>/dev/null || echo root)"
+VENDOR_OWNER="$(stat -c '%U' "$VENDOR" 2>/dev/null || echo root)"
 cd "$ILIAS"
 if [ "$VENDOR_OWNER" = "root" ]; then
     RUN=(env COMPOSER_ALLOW_SUPERUSER=1)
