@@ -141,11 +141,11 @@ else
     fail "Composer was not found. Please ask whoever installed ILIAS to run 'composer du' in $ILIAS."
 fi
 # Composer itself is a PHP program: start it with the PHP chosen above.
-if head -n 1 "$COMPOSER_FILE" | grep -qF php; then
-    COMPOSER=("$PHP_BIN" "$COMPOSER_FILE")
-else
-    COMPOSER=("$COMPOSER_FILE")
-fi
+FIRST_LINE="$(head -n 1 "$COMPOSER_FILE" 2>/dev/null || true)"
+case "$FIRST_LINE" in
+    *php*) COMPOSER=("$PHP_BIN" "$COMPOSER_FILE") ;;
+    *) COMPOSER=("$COMPOSER_FILE") ;;
+esac
 VENDOR_OWNER="$(stat -c '%U' "$VENDOR" 2>/dev/null || echo root)"
 cd "$ILIAS"
 if [ "$VENDOR_OWNER" = "root" ]; then
