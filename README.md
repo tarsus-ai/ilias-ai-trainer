@@ -101,7 +101,7 @@ The buttons above the coach open panels that slide in from the right, as in Tars
 | Materials |
 |:--:|
 | ![Materials tab](docs/screenshots/install/09_materials.png) |
-| Index files, web links, content pages, wikis, ILIAS learning modules and glossaries into the brain and decide per object which of them the coach may use. Edited material is sent again by itself (see [Installation, step 6](#step-6--make-sure-the-cron-job-runs)). |
+| Index files, web links, content pages, wikis, ILIAS learning modules and glossaries into the brain and decide per object which of them the coach may use. Edited material is sent again by itself (see [Keep material up to date automatically](#keep-material-up-to-date-automatically)). |
 
 ### For administrators
 
@@ -158,179 +158,169 @@ Until a brain is configured the plugin runs in **demo mode** with simulated answ
 - ILIAS **9**, **10** or **11**, with the PHP version your ILIAS release requires and the `curl` extension ILIAS needs anyway. Version 2.0.0 was tested end to end on ILIAS 10.13 against a live Tarsus brain; earlier versions on 9.24, 10.12 and 11.5.
 - Your ILIAS must be able to open HTTPS connections to the Tarsus server (ILIAS' own proxy settings are used).
 - ILIAS must be reached over **https://** for spoken questions and the live interaction: browsers allow the microphone only on secure pages.
-- ILIAS' cron job (see [step 6](#step-6--make-sure-the-cron-job-runs)).
+- ILIAS' cron job (see [Keep material up to date automatically](#keep-material-up-to-date-automatically)).
 
 ## Installation
 
-This guide assumes no prior knowledge. Follow the steps in order; each one says exactly what to click or type. It takes about 20 minutes.
+You do not need to know ILIAS. Follow the pictures: the **red boxes** show where to click, the **numbers** show the order. It takes about 15 minutes.
 
-**Before you start, you need:**
+**You need three things:**
 
-1. **An ILIAS administrator account.** You can log in to ILIAS and you see *Administration* in the menu on the left.
-2. **Your ILIAS version.** It is at the very bottom of every ILIAS page, e.g. *powered by ILIAS (v10.13 …)* means ILIAS 10.
-3. **A login to the server ILIAS runs on** (a "terminal" or "SSH" login). Don't have one? Ask the person or company that runs your ILIAS to do steps 2 and 3 for you – send them this page. Everything after that happens in your web browser.
-4. **The e-mail from Tarsus** with the base URL, the API key and the brain ID. Don't have it yet? You can still install now – the plugin then runs in demo mode – and enter the values later ([Getting access](#getting-access)).
+1. **The e-mail from Tarsus** with three details: the *base URL*, the *API key* and the *brain ID*. Not there yet? Install anyway – the coach then shows sample answers until you enter them ([Getting access](#getting-access)).
+2. **An ILIAS login with administrator rights.** After logging in you see *Administration* in the dark bar on the left.
+3. **Someone who can type one command on the server** that ILIAS runs on – usually your IT department or the company that hosts your ILIAS. Send them [part 1](#part-1--put-the-plugin-on-the-server); it takes them two minutes.
 
-The plugin's buttons and the ILIAS menus are named below in English, with the German name in brackets.
+Is your ILIAS in German? Everything is in the same place; the German names are given in *(brackets)*.
 
-### Step 1 – Download the plugin
+### Part 1 – Put the plugin on the server
 
-1. Open the [latest release](https://github.com/tarsus-ai/ilias-ai-trainer/releases/latest).
-2. Under **Assets**, click **Tarsus-ilias-plugin-2.0.0.zip** (the number may be higher). Your browser saves the file.
-
-You only need this file if your server cannot download it itself – step 2 normally does that for you.
-
-### Step 2 – Put the plugin on the server
-
-Open the terminal of your server. Copy one box at a time, paste it into the terminal and press **Enter**. If you are asked for a password, type the password of your server login (you will not see it while typing) and press **Enter**.
-
-**a) Go to the ILIAS folder.** On most servers it is `/var/www/ilias`:
+*For whoever looks after the ILIAS server.* Open the server's terminal, copy this one line, paste it and press **Enter**:
 
 ```bash
-cd /var/www/ilias
+curl -fsSL https://raw.githubusercontent.com/tarsus-ai/ilias-ai-trainer/main/install.sh | sudo bash
 ```
 
-Not sure where ILIAS is? This prints a line ending in `/ilias.ini.php`; your ILIAS folder is that line without `/ilias.ini.php`. Use it instead of `/var/www/ilias` everywhere below.
+If it asks for a password, type the password of your server login (nothing appears while you type) and press **Enter**. The command finds ILIAS by itself, downloads the newest Tarsus plugin, puts it into the right folder and tells ILIAS about it. When it says **Done**, part 1 is finished:
+
+![What the terminal shows](docs/screenshots/guide/a01_terminal.png)
+
+The yellow lines only appear when the server has no cron job for ILIAS yet – see [Keep material up to date automatically](#keep-material-up-to-date-automatically).
+
+<details>
+<summary><b>It says "ILIAS was not found"? Or you prefer to do it by hand?</b></summary>
+
+**ILIAS was not found:** add your ILIAS folder – the folder that contains the file `ilias.ini.php` – at the end of the command, for example:
 
 ```bash
-sudo find / -name ilias.ini.php -not -path "/proc/*" 2>/dev/null
+curl -fsSL https://raw.githubusercontent.com/tarsus-ai/ilias-ai-trainer/main/install.sh | sudo bash -s /var/www/ilias
 ```
 
-**b) Go to the plugin folder** (it is created if it does not exist yet).
+**By hand:** the [installer](install.sh) does exactly these steps (ILIAS 10 and 11; in ILIAS 9 the paths have no `public/`):
 
-ILIAS 10 or 11:
+1. Download `Tarsus-ilias-plugin-<version>.zip` from the [latest release](https://github.com/tarsus-ai/ilias-ai-trainer/releases/latest).
+2. Unzip it into `public/Customizing/global/plugins/Services/Repository/RepositoryObject/` inside the ILIAS folder (create the folders if they do not exist yet). The zip contains the folder `Tarsus`.
+3. Give the `Tarsus` folder to the user that owns ILIAS' files, for example `sudo chown -R www-data:www-data Tarsus`.
+4. In the ILIAS folder, run `composer du` as the user that owns ILIAS' `vendor` folder, for example `sudo -u www-data composer du`.
 
-```bash
-sudo mkdir -p public/Customizing/global/plugins/Services/Repository/RepositoryObject && cd public/Customizing/global/plugins/Services/Repository/RepositoryObject
-```
+</details>
 
-ILIAS 9:
+### Part 2 – Switch it on in ILIAS
 
-```bash
-sudo mkdir -p Customizing/global/plugins/Services/Repository/RepositoryObject && cd Customizing/global/plugins/Services/Repository/RepositoryObject
-```
+Everything from here happens in your web browser.
 
-**c) Download and unpack the plugin:**
+**1.** Open your ILIAS and log in with the administrator account: user name (1), password (2), **Login** (3).
 
-```bash
-sudo wget https://github.com/tarsus-ai/ilias-ai-trainer/releases/download/v2.0.0/Tarsus-ilias-plugin-2.0.0.zip
-```
+![Log in](docs/screenshots/guide/b01_login.png)
 
-```bash
-sudo unzip Tarsus-ilias-plugin-2.0.0.zip && sudo rm Tarsus-ilias-plugin-2.0.0.zip
-```
+**2.** In the dark bar on the left, click **Administration** (1), then **Extending ILIAS** (2) *(ILIAS erweitern)*.
 
-This creates a folder called `Tarsus`. If the terminal says `unzip: command not found`, run `sudo apt install unzip` and try again. If your server cannot download from the internet, copy the zip from step 1 into this folder with a file transfer program (for example [FileZilla](https://filezilla-project.org/) or [WinSCP](https://winscp.net/)) and run only the `unzip` box.
+![Administration, then Extending ILIAS](docs/screenshots/guide/b02_admin.png)
 
-**d) Hand the folder to the web server:**
+**3.** Click **Plugins** (3).
 
-```bash
-sudo chown -R www-data:www-data Tarsus
-```
+![Plugins](docs/screenshots/guide/b03_plugins_link.png)
 
-On Red Hat, CentOS, Rocky or Alma Linux the web server user is called `apache` instead: `sudo chown -R apache:apache Tarsus`.
+**4.** You see **Tarsus** in the list. Click the small arrow at the right of its row (1), then **Install** (2) *(Installieren)*.
 
-### Step 3 – Let ILIAS find the plugin
+![Install](docs/screenshots/guide/b04_install.png)
 
-```bash
-cd /var/www/ilias && sudo -u www-data composer du
-```
+**5.** Click the small arrow again (1), then **Activate** (2) *(Aktivieren)*.
 
-Wait until it ends with *Generated optimized autoload files* (about a minute). If it says *Permission denied*, run `sudo composer du` instead and type `yes` when it asks whether to continue as root.
+![Activate](docs/screenshots/guide/b05_activate.png)
 
-### Step 4 – Install and activate
+**6.** Click the small arrow once more (1), then **Configure** (2) *(Konfigurieren)*.
 
-1. Log in to ILIAS as administrator.
-2. Open **Administration › Extending ILIAS › Plugins** (*Administration › ILIAS erweitern › Plugins*).
-3. Find the row **Tarsus**, click the small arrow button at its right end and choose **Install** (*Installieren*).
+![Configure](docs/screenshots/guide/b06_configure.png)
 
-   ![The plugin list with the Install action](docs/screenshots/install/01_install.png)
+**7.** Copy the three details from the Tarsus e-mail into the boxes – exactly, without spaces at the start or the end: **Base URL** (1) *(Basis-URL)*, **API key** (2) *(API-Schlüssel)* and **Brain ID** (3) *(Brain-ID)*.
 
-4. Click the arrow button again and choose **Activate** (*Aktivieren*).
+![The three details from the e-mail](docs/screenshots/guide/b07_connection.png)
 
-   ![The plugin list with the Activate action](docs/screenshots/install/02_activate.png)
+> You are an existing Tarsus customer and got a *license key*? Put it into **License key**, just below, and leave the brain ID empty.
 
-### Step 5 – Connect to Tarsus
+**8.** Scroll down a little and remove the tick at **Mock mode (demo)** (4) *(Mock-Modus (Demo))*. While it is ticked, the coach only shows sample answers.
 
-1. Click the arrow button once more and choose **Configure** (*Konfigurieren*).
-2. Copy from the Tarsus e-mail into the form – exactly, without spaces at the start or end:
-   - **Base URL** (*Basis-URL*): the address of the Tarsus server.
-   - **API key** (*API-Schlüssel*).
-   - **Brain ID** (*Brain-ID*). Existing Tarsus customers who got a **License key** enter it in that field instead and leave the brain ID empty.
+![Remove the tick at Mock mode](docs/screenshots/guide/b08_demo_off_save.png)
 
-   ![The connection settings](docs/screenshots/install/03_configure.png)
+**9.** Scroll back up and click **Save** (5) *(Speichern)*.
 
-3. Scroll down and **untick** **Mock mode (demo)** (*Mock-Modus (Demo)*). Only while it is ticked does the plugin answer with samples instead of Tarsus.
-4. Click **Save** (*Speichern*) at the top right.
-5. Click the tab **Plan & credits** (*Plan & Credits*), choose the package from your contract, check the figures and click **Save** (*Speichern*).
+![Save](docs/screenshots/guide/b08b_save.png)
 
-   ![Choosing the package](docs/screenshots/install/04_plan.png)
+**10.** Click **Plan & credits** (1) *(Plan & Credits)*, choose the package of your Tarsus contract (2) and click **Save** (3).
 
-6. Click the tab **Status** and then **Test connection** (*Verbindung testen*). A green message *The brain answered …* means everything works. A red message? See [If something does not work](#if-something-does-not-work).
+![Choose the package](docs/screenshots/guide/b09_plan.png)
 
-   ![A successful connection test](docs/screenshots/install/05_test_connection.png)
+**11.** Click **Status** (1), then **Test connection** (2) *(Verbindung testen)*. A green message (3) means: Tarsus is connected. A red message? See [If something does not work](#if-something-does-not-work).
 
-### Step 6 – Make sure the cron job runs
+![Test the connection](docs/screenshots/guide/b10_test_connection.png)
 
-The plugin has a background job that runs every 15 minutes. It removes material from the brain that was deleted in ILIAS, sends material again that was changed (for example a new version of a file, a page that was edited, a web link with a new address), confirms new material and fetches the month's AI credits. It switches itself on.
+The plugin is ready. Now give a course its coach.
 
-1. Open **Administration › System Settings and Maintenance › General Settings** (*Administration › Systemeinstellungen und Wartung › Allgemeine Einstellungen*) and click the tab **Cron Jobs** (*Cron-Jobs*).
-2. Find **Tarsus: synchronise the brain**. It should say *Every 15 minutes* and *Active*.
+**12.** Open the course in which learners should use the coach (click **Repository** in the dark bar on the left to find it) and click **Add New Object** (1) *(Neues Objekt hinzufügen; in ILIAS 9: Add New Item)*.
 
-   ![The Tarsus cron job](docs/screenshots/install/10_cron.png)
+![Add New Object](docs/screenshots/guide/b11_add_new_object.png)
 
-ILIAS only runs its cron jobs when the server starts them. Most servers already do this for ILIAS. To check, look at the Tarsus row again after half an hour: the date in the column for the last run should be recent. If it stays empty, run this once in the terminal (ILIAS 10 or 11). Replace `root` with the login of an ILIAS administrator and `default` with your client ID – the name of the folder in `/var/www/ilias/public/data`:
+**13.** Click **Other** (2) *(Weitere)*, then **Tarsus** (3).
+
+![Other, then Tarsus](docs/screenshots/guide/b12_other_tarsus.png)
+
+**14.** Type a name, for example *Learning coach* (1), and click **Add Tarsus** (2) *(Tarsus hinzufügen)*.
+
+![Name, then Add Tarsus](docs/screenshots/guide/b13_title.png)
+
+**15.** Click **Settings** (1) *(Einstellungen)*, tick **Online** (2) and click **Save** (3). Learners cannot see the coach until you do this.
+
+![Switch it online](docs/screenshots/guide/b14_online.png)
+
+**16.** Click **Materials** (1) *(Materialien)*. You see the files, links and pages of the course. Click **Index** (2) *(Indexieren)* next to each one the coach should learn from.
+
+![Index the material](docs/screenshots/guide/b15_index.png)
+
+**17.** Tarsus now reads the material; this takes a few minutes. Click **Sync this page with the brain** (3) *(Diese Seite mit dem Brain abgleichen)* now and then, until the status says **Indexed** (4) *(Indexiert)*. Then click **Include all indexed on this page** (5) *(Alle Indexierten dieser Seite einbeziehen)*.
+
+![Include the material](docs/screenshots/guide/b16_include.png)
+
+**Done!** Your learners now find the coach in the course and can ask their first question:
+
+![What learners see](docs/screenshots/guide/b17_done.png)
+
+Teachers additionally see the buttons **Settings**, **Evaluation** and **History** above the coach.
+
+### Keep material up to date automatically
+
+*For your IT.* The plugin has a background job, **Tarsus: synchronise the brain**, that runs every 15 minutes. When a teacher uploads a new version of a file, edits a page or changes a link, it removes the old version from Tarsus and sends the new one; material deleted in ILIAS is removed from Tarsus too. The job switches itself on, but ILIAS only runs such jobs when the server starts them – most ILIAS servers already do.
+
+To check, open **Administration › System Settings and Maintenance › General Settings** *(Systemeinstellungen und Wartung › Allgemeine Einstellungen)* and the tab **Cron Jobs** *(Cron-Jobs)*. Half an hour after the installation, the Tarsus row should show a recent time:
+
+![The Tarsus job among ILIAS' cron jobs](docs/screenshots/install/10_cron.png)
+
+If it stays empty, set up ILIAS' cron job once on the server. Replace `root` with the login of an ILIAS administrator and `default` with your client ID – the name of the folder in `/var/www/ilias/public/data` (ILIAS 9: `/var/www/ilias/data`):
 
 ```bash
 echo '*/15 * * * * www-data /usr/bin/php /var/www/ilias/cli/cron.php run-jobs root default' | sudo tee /etc/cron.d/ilias
 ```
 
-ILIAS 9: use `cron/cron.php` instead of `cli/cron.php`; the client ID is the name of the folder in `/var/www/ilias/data`.
-
-### Step 7 – Add the coach to a course
-
-1. Open a course or group and click **Add New Object** (*Neues Objekt hinzufügen*; ILIAS 9: *Add New Item*). Click **Other** (*Weitere*) and then **Tarsus**.
-
-   ![Adding a Tarsus object](docs/screenshots/install/06_add_tarsus.png)
-
-2. Type a title, for example *Learning coach*, and click **Add Tarsus** (*Tarsus hinzufügen*).
-
-   ![Creating the object](docs/screenshots/install/07_create.png)
-
-3. On the tab **Settings** (*Einstellungen*), tick **Online** and click **Save** (*Speichern*). New objects are offline until you do this.
-
-   ![Switching the object online](docs/screenshots/install/08_online.png)
-
-4. Click the tab **Materials** (*Materialien*). It lists the files, web links, content pages, wikis, learning modules and glossaries of the course. Click **Index** (*Indexieren*) next to each one the coach should use. Tarsus reads it, which takes a few minutes; click **Sync this page with the brain** (*Diese Seite mit dem Brain abgleichen*) to see the status change to **Indexed** (*Indexiert*). Then click **Include all indexed on this page** (*Alle Indexierten dieser Seite einbeziehen*).
-
-   ![The Materials tab with an indexed and included file](docs/screenshots/install/09_materials.png)
-
-**Done.** Learners now find the coach in the course. Open it yourself to see what they see; the buttons **Settings**, **Evaluation** and **History** above the coach are only shown to teachers.
+In ILIAS 9 the file is `cron/cron.php` instead of `cli/cron.php`. Without the job, changed material is sent again when a teacher opens the *Materials* tab, or with **Re-index** *(Neu indexieren)* there.
 
 ## Updating
 
-1. In the terminal, go to the plugin folder from [step 2 b](#step-2--put-the-plugin-on-the-server) and move the old version out of the way (not into another folder inside ILIAS):
+1. Run the command from [part 1](#part-1--put-the-plugin-on-the-server) again. It keeps the version you have in `/tmp` and puts the newest one in its place.
+2. In ILIAS, open **Administration › Extending ILIAS › Plugins**, click the small arrow next to **Tarsus** and choose **Update** *(Aktualisieren)*. Click the arrow again and choose **Refresh Languages** *(Sprachen neu laden)*.
 
-   ```bash
-   sudo mv Tarsus /tmp/Tarsus-old
-   ```
-
-2. Download and unpack the new version and hand it to the web server: step 2 c and 2 d, with the new version number.
-3. Step 3: `composer du`.
-4. In **Administration › Extending ILIAS › Plugins** click the arrow button of **Tarsus**, choose **Update** (*Aktualisieren*), then **Refresh Languages** (*Sprachen neu laden*).
-
-Database updates run during the update; settings, material indexes and learner figures are kept. The [changelog](CHANGELOG.md) lists what changed in each version.
+Your settings, the indexed material and the learners' figures are kept. The [changelog](CHANGELOG.md) lists what changed in each version.
 
 ## If something does not work
 
 | What you see | What to do |
 |---|---|
-| Tarsus is not in the plugin list | Check that the folder is called exactly `Tarsus` and is in the plugin folder of step 2 b, then repeat step 3. |
+| Tarsus is not in the plugin list | Run the command from [part 1](#part-1--put-the-plugin-on-the-server) again and check that it ends with **Done**. If it shows a red ✘, the line says what is missing. |
 | *Test connection* says the API key or brain is not accepted | Copy the API key and brain ID again from the e-mail, without spaces, and save. If it persists, ask Tarsus whether the key is activated. |
 | *Test connection* says Tarsus cannot be reached | Your server may not reach the internet. Ask your IT to allow HTTPS connections from the ILIAS server to the Tarsus address; if ILIAS uses a proxy, enter it in ILIAS' proxy settings. |
-| Learners read *The course materials are still being prepared* | Nothing is indexed and included yet, or Tarsus is still reading it. Check the *Materials* tab (step 7.4) and wait a few minutes. |
+| Learners read *The course materials are still being prepared* | Nothing is indexed and included yet, or Tarsus is still reading it. Check the *Materials* tab ([part 2, steps 16 and 17](#part-2--switch-it-on-in-ilias)) and wait a few minutes. |
 | The microphone button is missing or does nothing | Use ILIAS over `https://`, and allow the microphone when the browser asks. Spoken questions and the live interaction can also be switched off in the teacher's *Settings*. |
-| The coach still uses an old version of a file or page | The cron job sends changed material again within 15 minutes (step 6). To do it at once, click **Re-index** (*Neu indexieren*) on the *Materials* tab. A web link is read once: if only the page behind the same address changes, click **Re-index**. |
+| The coach still uses an old version of a file or page | The background job sends changed material again within 15 minutes ([Keep material up to date automatically](#keep-material-up-to-date-automatically)). To do it at once, click **Re-index** (*Neu indexieren*) on the *Materials* tab. A web link is read once: if only the page behind the same address changes, click **Re-index**. |
+| The command says *GitHub could not be reached* | The server cannot reach the internet. Download the zip on another computer and copy it to the server – see *by hand* under [part 1](#part-1--put-the-plugin-on-the-server). |
+| The command says *Composer was not found* | Composer is the tool ILIAS was installed with. Ask whoever installed ILIAS to run `composer du` in the ILIAS folder. |
 | A red message about the monthly limit | The month's AI credits reached the limit set on *Plan & credits*. Raise the limit there, or wait for the next month. |
 
 The plugin writes the details of every failed call to the ILIAS log (never the API key).
