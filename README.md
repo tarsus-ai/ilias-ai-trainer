@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/tarsus-ai/ilias-ai-trainer/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/tarsus-ai/ilias-ai-trainer?label=release&color=1f4e79"></a>
-  <img alt="ILIAS 9, 10 and 11" src="https://img.shields.io/badge/ILIAS-9%20%7C%2010%20%7C%2011-1f4e79">
+  <img alt="ILIAS 9, 10, 11 and 12" src="https://img.shields.io/badge/ILIAS-9%20%7C%2010%20%7C%2011%20%7C%2012-1f4e79">
   <img alt="Languages" src="https://img.shields.io/badge/UI-English%20%7C%20Deutsch-555">
   <a href="LICENSE"><img alt="Licence GPL-3.0-or-later" src="https://img.shields.io/badge/licence-GPL--3.0--or--later-2e7d32"></a>
 </p>
@@ -155,7 +155,8 @@ Until a brain is configured the plugin runs in **demo mode** with simulated answ
 
 ## Requirements
 
-- ILIAS **9**, **10** or **11**, with the PHP version your ILIAS release requires and the `curl` extension ILIAS needs anyway. Version 2.0.0 was tested end to end on ILIAS 10.13 against a live Tarsus brain; earlier versions on 9.24, 10.12 and 11.5.
+- ILIAS **9**, **10**, **11** or **12**, with the PHP version your ILIAS release requires (ILIAS 9: PHP 8.1 or 8.2 · ILIAS 10: 8.2 or 8.3 · ILIAS 11: 8.3 or 8.4 · ILIAS 12: 8.4 or 8.5) and the `curl` extension ILIAS needs anyway.
+- Tested: version 2.0.1 on ILIAS 9.25 (PHP 8.1 and 8.2), 10.13 (PHP 8.3), 11.6 (PHP 8.4) and the 12.0 beta (PHP 8.4 and 8.5), each connected to a live Tarsus brain; version 2.0.0 went through every feature with a live brain on ILIAS 10.13.
 - Your ILIAS must be able to open HTTPS connections to the Tarsus server (ILIAS' own proxy settings are used).
 - ILIAS must be reached over **https://** for spoken questions and the live interaction: browsers allow the microphone only on secure pages.
 - ILIAS' cron job (see [Keep material up to date automatically](#keep-material-up-to-date-automatically)).
@@ -195,12 +196,12 @@ The yellow lines only appear when the server has no cron job for ILIAS yet – s
 curl -fsSL https://raw.githubusercontent.com/tarsus-ai/ilias-ai-trainer/main/install.sh | sudo bash -s /var/www/ilias
 ```
 
-**By hand:** the [installer](install.sh) does exactly these steps (ILIAS 10 and 11; in ILIAS 9 the paths have no `public/`):
+**By hand:** the [installer](install.sh) does exactly these steps (ILIAS 10, 11 and 12; in ILIAS 9 the paths have no `public/`):
 
 1. Download `Tarsus-ilias-plugin-<version>.zip` from the [latest release](https://github.com/tarsus-ai/ilias-ai-trainer/releases/latest).
 2. Unzip it into `public/Customizing/global/plugins/Services/Repository/RepositoryObject/` inside the ILIAS folder (create the folders if they do not exist yet). The zip contains the folder `Tarsus`.
 3. Give the `Tarsus` folder to the user that owns ILIAS' files, for example `sudo chown -R www-data:www-data Tarsus`.
-4. In the ILIAS folder, run `composer du` as the user that owns ILIAS' `vendor` folder, for example `sudo -u www-data composer du`.
+4. In the ILIAS folder, run `composer du` as the user that owns ILIAS' `vendor` folder, for example `sudo -u www-data composer du`. On a server with several PHP versions, start composer with the one your ILIAS uses, for example `sudo -u www-data php8.4 "$(command -v composer)" du`.
 
 </details>
 
@@ -321,6 +322,7 @@ Your settings, the indexed material and the learners' figures are kept. The [cha
 | The coach still uses an old version of a file or page | The background job sends changed material again within 15 minutes ([Keep material up to date automatically](#keep-material-up-to-date-automatically)). To do it at once, click **Re-index** (*Neu indexieren*) on the *Materials* tab. A web link is read once: if only the page behind the same address changes, click **Re-index**. |
 | The command says *GitHub could not be reached* | The server cannot reach the internet. Download the zip on another computer and copy it to the server – see *by hand* under [part 1](#part-1--put-the-plugin-on-the-server). |
 | The command says *Composer was not found* | Composer is the tool ILIAS was installed with. Ask whoever installed ILIAS to run `composer du` in the ILIAS folder. |
+| The command says *No PHP on this server fits this ILIAS* | Your ILIAS needs another PHP version than the ones the installer found; the line says which. Follow the steps *by hand* under [part 1](#part-1--put-the-plugin-on-the-server), with the PHP your ILIAS uses. |
 | A red message about the monthly limit | The month's AI credits reached the limit set on *Plan & credits*. Raise the limit there, or wait for the next month. |
 
 The plugin writes the details of every failed call to the ILIAS log (never the API key).
@@ -417,6 +419,7 @@ docs/screenshots/          the screenshots in this README
 - **Demo mode** (default after installation) makes the whole interface usable without a brain: the demo client answers with fixed samples for every call, including interactive pages, a demo live page and sources. All demo brain names start with `mock-`.
 - **Unit tests** cover the package rules, the pricing of the month and the credentials every call carries (API key with brain ID, or with license key). They need the interfaces of an ILIAS checkout (PHPUnit 10 or 11 ships with ILIAS 10 and 11): `ILIAS_ROOT=/path/to/ilias php /path/to/ilias/vendor/composer/vendor/bin/phpunit -c phpunit.xml`.
 - Version 2.0.0 was tested end to end with Playwright in ILIAS 10.13 against a live Tarsus brain: clean install from the release zip, all four modes, spoken questions, sources, AI-driven pages, the live call, the teacher panels, re-sending edited material, reset, the learning progress and the usage figures.
+- Version 2.0.1 ran the same walk-through in demo mode on ILIAS 9.25 (PHP 8.1 and 8.2), 10.13 (PHP 8.3), 11.6 (PHP 8.4) and the 12.0 beta (PHP 8.4 and 8.5) – update from 2.0.0, the four modes, sources, the teacher panels and reset – with every PHP message from the plugin's files recorded, deprecation notices included: none.
 - A version bump needs `composer du` before ILIAS offers **Update** in the plugin list.
 - **Releases** are published by the [Release workflow](.github/workflows/release.yml): bump `$version` in `plugin.php`, add the version's section to `CHANGELOG.md` and push to `main` – the workflow tags the commit, builds `Tarsus-ilias-plugin-<version>.zip` with `git archive` (repository-only files such as `docs/` are left out) and creates the GitHub release with the changelog section as notes.
 

@@ -415,8 +415,8 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
                 ob_start();
                 imagepng($target, null, 8);
                 $png = (string) ob_get_clean();
-                imagedestroy($target);
-                imagedestroy($image);
+                // No imagedestroy(): it does nothing since PHP 8.0 and is
+                // deprecated in PHP 8.5; the images are freed on return.
                 if ($png !== '') {
                     return 'data:image/png;base64,' . base64_encode($png);
                 }

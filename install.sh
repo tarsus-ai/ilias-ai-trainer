@@ -65,6 +65,32 @@ OWNER_OF="$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$SLOT")")")")")
 OWNER="$(stat -c '%U' "$OWNER_OF")"
 GROUP="$(stat -c '%G' "$OWNER_OF")"
 
+# Composer has to run with a PHP version this ILIAS accepts. A server may
+# have several, and sudo would fall back to the default one. ILIAS 10 and
+# newer ship their own check for it; ILIAS 9 has none and takes the default.
+PHP_BIN="$(command -v php)"
+CHECK=""
+for f in "$ILIAS/vendor/composer/vendor/composer/platform_check.php" "$ILIAS/vendor/composer/platform_check.php"; do
+    if [ -f "$f" ]; then
+        CHECK="$f"
+        break
+    fi
+done
+fits() { "$1" -r 'require $argv[1];' "$CHECK" >/dev/null 2>&1; }
+if [ -n "$CHECK" ] && ! fits "$PHP_BIN"; then
+    NEED="$("$PHP_BIN" -r 'require $argv[1];' "$CHECK" 2>&1 | grep -F 'require a PHP version' | head -n 1 || true)"
+    PHP_BIN=""
+    for cand in php8.1 php8.2 php8.3 php8.4 php8.5 php8.6 /opt/plesk/php/8.*/bin/php /opt/cpanel/ea-php8*/root/usr/bin/php; do
+        bin="$(command -v "$cand" 2>/dev/null || true)"
+        if [ -n "$bin" ] && fits "$bin"; then
+            PHP_BIN="$bin"
+            break
+        fi
+    done
+    [ -n "$PHP_BIN" ] || fail "No PHP on this server fits this ILIAS. $NEED"
+    ok "Using $("$PHP_BIN" -r 'echo "PHP " . PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;') ($PHP_BIN), the PHP this ILIAS needs"
+fi
+
 # --------------------------------------------------------------- 2. Download
 say "Step 2 of 4: downloading the latest Tarsus plugin"
 TMP="$(mktemp -d)"
@@ -105,11 +131,17 @@ ok "The plugin is in $SLOT/Tarsus"
 # --------------------------------------------------------------- 4. Composer
 say "Step 4 of 4: letting ILIAS find the plugin (about a minute)"
 if command -v composer >/dev/null 2>&1; then
-    COMPOSER=("$(command -v composer)")
+    COMPOSER_FILE="$(command -v composer)"
 elif [ -f "$ILIAS/composer.phar" ]; then
-    COMPOSER=(php "$ILIAS/composer.phar")
+    COMPOSER_FILE="$ILIAS/composer.phar"
 else
     fail "Composer was not found. Please ask whoever installed ILIAS to run 'composer du' in $ILIAS."
+fi
+# Composer itself is a PHP program: start it with the PHP chosen above.
+if head -n 1 "$COMPOSER_FILE" | grep -qF php; then
+    COMPOSER=("$PHP_BIN" "$COMPOSER_FILE")
+else
+    COMPOSER=("$COMPOSER_FILE")
 fi
 VENDOR_OWNER="$(stat -c '%U' "$ILIAS/vendor" 2>/dev/null || echo root)"
 cd "$ILIAS"
