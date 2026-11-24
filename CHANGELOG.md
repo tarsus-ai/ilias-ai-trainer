@@ -3,6 +3,26 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [2.1.0] – 2026-11-24
+
+Tarsus's texts look the way they do in the Tarsus app, and the coach works with screen readers and the keyboard alone.
+
+### Added
+
+- **Screen readers and keyboard** (WCAG 2.2 AA): a skip link to the input field; the coach is a named region with a heading on every card; answers, mode changes, slides, verdicts and results are read out; a new question, the verdict after **Check** and a new learning step get the keyboard focus; side panels, pictures and enlarged pages are dialogs that keep the focus and give it back; right and wrong are words and a ✓ or ✗, not only a colour; **Check** with nothing chosen says what is missing. See the README's *Accessibility* section.
+
+### Changed
+
+- **Text and formulas like in Tarsus**: answers, learning units, questions, answer options, feedback and sources are rendered in the browser with the pipeline the Tarsus app uses – React-Markdown's CommonMark parser with GitHub tables, task lists, strikethrough and footnotes, and formulas with KaTeX 0.16.47 (chemistry with mhchem). Tables, lists, code and formulas look the same in every ILIAS skin.
+- Formulas no longer depend on ILIAS's MathJax set-up: KaTeX and its fonts ship with the plugin, so nothing is loaded from other servers.
+- Answer options of questions can contain formulas, as in Tarsus.
+- The input field stays focused (read-only) while Tarsus answers, instead of being switched off.
+- Red action buttons (e.g. *Remove* on the material list) use a darker red that is readable on white.
+
+### Security
+
+- Same rules as React-Markdown: HTML inside a text is shown as text, and links with any protocol but http(s), mailto, irc(s) or xmpp are removed. Links open in a new tab.
+
 ## [2.0.1] – 2026-11-24
 
 Runs on more ILIAS and PHP versions.

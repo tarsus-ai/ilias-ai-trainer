@@ -27,7 +27,6 @@ use TarsusIlias\Index\Status;
 use TarsusIlias\Material\Resolver;
 use TarsusIlias\Output\Html;
 use TarsusIlias\Output\Icons;
-use TarsusIlias\Output\MathSupport;
 use TarsusIlias\Output\Presenter;
 use TarsusIlias\Output\Views;
 use TarsusIlias\Service\LearnerApi;
@@ -62,6 +61,8 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
 
     /** @var string[] Interface texts of the coach. */
     private const CHAT_STRINGS = [
+        'a11y_you_asked', 'a11y_question', 'a11y_learning_unit', 'a11y_working', 'a11y_answered', 'a11y_correct', 'a11y_incorrect', 'a11y_partial',
+        'a11y_your_answer_correct', 'a11y_your_answer_incorrect', 'a11y_not_correct', 'a11y_answer_missing', 'a11y_mode_ask', 'a11y_mode_next', 'a11y_mode_discuss',
         'practice_start', 'practice_next', 'practice_check', 'practice_answer_placeholder',
         'practice_variable_placeholder', 'practice_score', 'practice_correct_value', 'xp', 'learning_units', 'learn_slide_of',
         'learn_previous', 'learn_next', 'learn_image_enlarge', 'learn_image_close', 'learn_audio', 'learn_audio_play',
@@ -233,11 +234,22 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     // Assets
     // ------------------------------------------------------------------
 
-    private function includeAssets(): void
+    /**
+     * @param bool $texts Whether the page shows Tarsus's texts: Markdown
+     *                    with KaTeX formulas, rendered like in the Tarsus app
+     *                    by the bundled renderer and KaTeX's stylesheet.
+     */
+    private function includeAssets(bool $texts = false): void
     {
+        if ($texts) {
+            $this->tpl->addCss(Ilias::assetUrl('vendor/katex/katex.min.css'));
+        }
         $this->tpl->addCss(Ilias::assetUrl('css/tarsus.css'));
         // A relative path starting with ./ keeps ILIAS from dropping a URL
         // with a query string, and the plugin version busts the cache.
+        if ($texts) {
+            $this->tpl->addJavaScript('./' . Ilias::assetUrl('js/vendor/tarsus-markdown.min.js'), false);
+        }
         $this->tpl->addJavaScript('./' . Ilias::assetUrl('js/tarsus.js'), false);
         $this->tpl->addOnLoadCode('if (window.TarsusIlias) { window.TarsusIlias.boot(); }');
     }
@@ -302,8 +314,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             ));
         }
 
-        $this->includeAssets();
-        MathSupport::includeOnPage();
+        $this->includeAssets(true);
 
         $toolbar = $this->toolbar;
         $toolbar->setFormAction($this->ctrl->getFormAction($this, 'confirmResetChat'));
