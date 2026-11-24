@@ -189,7 +189,7 @@ practice_table_amount#:#Betrag
 choice_true#:#Wahr
 choice_false#:#Falsch
 xp#:#XP
-learning_units#:#LU
+learning_units#:#LE
 practice_score#:#Bewertung der Antwort
 practice_progress#:#Fortschritt
 mode_switch#:#Interaktionsmodus
@@ -409,21 +409,6 @@ plan_feature_audio_explainer#:#Audio-Erklärer im KI-Lerncoach
 plan_feature_voice_input#:#Spracheingabe im KI-Lerncoach
 plan_feature_ai_driven#:#Agent-Modus (KI-gesteuerter Interaktionstyp)
 plan_features_note#:#Audio-Erklärer, Spracheingabe und Agent-Modus gehören zum KI-Lerncoach Tarsus Zero. Die Standard-Vertonung (Audio Generation) ist davon nicht betroffen.
-counting_title#:#So werden KI-Interaktionen gezählt
-counting_desc#:#Jede Anfrage, bei der die KI etwas beantwortet, erstellt, bewertet, vertont oder indexiert, ist eine KI-Interaktion. Audio plus ein weiterer KI-Schritt zählt doppelt; „Länger nachdenken“ verdoppelt jede Anfrage. Diese Installation zählt so jeden eigenen Aufruf; was das Brain tatsächlich berechnet hat, wird separat abgerufen und gilt, wenn es höher ist.
-counting_what#:#Was die KI tut
-counting_count#:#KI-Interaktionen
-counting_answer#:#Frage beantworten (Fragen stellen)
-counting_step#:#Nächsten Lernschritt erstellen: Erklärung, Folie oder Quizfrage
-counting_agent#:#Agent-Modus: Die KI steuert den Lernablauf (je Anfrage)
-counting_audio_explainer#:#Audio-Erklärer einer Lerneinheit
-counting_voice#:#Frage oder Antwort per Sprache (Audiodatei)
-counting_eval_open#:#Offene Frage, Dreisatz oder Tabellenkalkulation bewerten, mit Feedback
-counting_eval_choice#:#Single-Choice- oder Wahr/Falsch-Antwort korrigieren
-counting_index#:#Text, Tabelle, Frage, URL, Dokument oder Bild indexieren (je Anfrage)
-counting_index_media#:#Audio oder Video indexieren (je angefangene 2 Stunden)
-counting_management#:#API-Key und Brains verwalten, Nutzung abfragen, Inhalte abrufen, auflisten, prüfen, freigeben, bearbeiten oder löschen
-counting_note#:#Die öffentliche Übersicht ohne Preise steht unter tarsus.ai/ki-interaktionen.
 plan_included#:#Enthalten
 plan_included_value#:#{credits} KI-Interaktionen pro Monat, danach {price} je Interaktion
 plan_payg_note#:#Kein Kontingent: Jede KI-Interaktion kostet {price}
@@ -442,18 +427,16 @@ notify_emails#:#Empfänger der Warnungen
 notify_emails_desc#:#E-Mail-Adressen (eine pro Zeile oder durch Kommas getrennt), die bei {thresholds} des Limits eine Mail erhalten. Leer lassen, um die Administrationsadresse der Installation zu benachrichtigen ({admin}).
 error_email#:#„{email}“ ist keine gültige E-Mail-Adresse.
 limit_reduce_confirm#:#Du senkst das monatliche Limit von {old} auf {new} AI Credits. In diesem Monat sind bereits {used} Credits verbraucht; sobald das neue Limit erreicht ist, werden KI-Anfragen bis zum nächsten Monat oder bis zu einer Erhöhung abgelehnt. Fortfahren?
-usage_local#:#Von dieser Installation gezählt
-usage_local_value#:#{credits} KI-Interaktionen in {requests} Anfragen in diesem Monat
-usage_remote#:#Vom Brain berechnet
-usage_remote_none#:#noch nicht abgerufen (der Cron-Job ruft den Wert alle 15 Minuten ab)
-usage_remote_value#:#{credits} AI Credits in diesem Monat (Stand {fetched}); umfasst alles, was dieses Brain nutzt
+usage_remote#:#KI-Credits laut Tarsus
+usage_remote_none#:#noch nicht abgerufen (wird höchstens einmal pro Minute bei Tarsus abgefragt)
+usage_remote_value#:#{credits} KI-Credits in diesem Monat (Stand {fetched}). Das ist die einzige Zahl: Tarsus meldet sie für das ganze Brain, das Plugin schätzt nichts.
 usage_charged#:#Über das Kontingent hinaus
-usage_charged_value#:#{requests} KI-Interaktionen, etwa {cost}
-usage_charged_value_tarsus#:#{requests} KI-Interaktionen, abgerechnet durch Tarsus
+usage_charged_value#:#{requests} KI-Credits, etwa {cost}
+usage_charged_value_tarsus#:#{requests} KI-Credits, abgerechnet durch Tarsus
 usage_charged_none#:#in diesem Monat bisher nichts
 usage_reset#:#Nächster Neubeginn
 usage_refresh#:#Nutzung vom Brain abrufen
-usage_refreshed#:#Das Brain meldet {credits} AI Credits für diesen Monat.
+usage_refreshed#:#Tarsus meldet {credits} KI-Credits für diesen Monat.
 usage_refresh_failed#:#Die Nutzung konnte nicht vom Brain abgerufen werden.
 usage_breakdown#:#Aufschlüsselung nach Dienst (Angaben des Brains)
 usage_service#:#Dienst

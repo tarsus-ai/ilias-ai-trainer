@@ -409,21 +409,6 @@ plan_feature_audio_explainer#:#Audio explainer in the AI coach
 plan_feature_voice_input#:#Voice input in the AI coach
 plan_feature_ai_driven#:#Agent mode (AI-driven interaction type)
 plan_features_note#:#Audio explainer, voice input and agent mode belong to the AI coach Tarsus Zero. The standard narration of text (Audio Generation) is not affected.
-counting_title#:#How AI interactions are counted
-counting_desc#:#Every request in which the AI answers, creates, marks, voices or indexes something is one AI interaction. Audio plus another AI step counts twice; “think longer” doubles any request. This installation records these figures for every call it makes; what the brain actually charged is fetched separately and wins when it is higher.
-counting_what#:#What the AI does
-counting_count#:#AI interactions
-counting_answer#:#Answer a question (Ask a question)
-counting_step#:#Create the next learning step: explanation, slide or quiz question
-counting_agent#:#Agent mode: the AI steers the learning flow (per request)
-counting_audio_explainer#:#Audio explainer of a learning unit
-counting_voice#:#Spoken question or answer (audio file)
-counting_eval_open#:#Mark an open question, a rule of three or a spreadsheet calculation, with feedback
-counting_eval_choice#:#Correct a single-choice or true/false answer
-counting_index#:#Index text, a table, a question, a URL, a document or an image (per request)
-counting_index_media#:#Index audio or video (per started two hours)
-counting_management#:#Manage keys and brains, read the usage, retrieve, list, check, release, edit or delete content
-counting_note#:#The public overview without prices is at tarsus.ai/ki-interaktionen.
 plan_included#:#Included
 plan_included_value#:#{credits} AI interactions per month, then {price} per interaction
 plan_payg_note#:#Nothing included: every AI interaction costs {price}
@@ -442,18 +427,16 @@ notify_emails#:#Warning recipients
 notify_emails_desc#:#E-mail addresses (one per line or separated by commas) that receive a mail when {thresholds} of the limit are reached. Leave empty to notify the installation's administrator address ({admin}).
 error_email#:#"{email}" is not a valid e-mail address.
 limit_reduce_confirm#:#You are lowering the monthly limit from {old} to {new} AI credits. {used} credits are already used this month; once the new limit is reached, AI requests are refused until next month or until the limit is raised again. Continue?
-usage_local#:#Counted by this installation
-usage_local_value#:#{credits} AI interactions in {requests} requests this month
-usage_remote#:#Charged by the brain
-usage_remote_none#:#not fetched yet (the cron job fetches it every 15 minutes)
-usage_remote_value#:#{credits} AI credits this month (as of {fetched}); covers everything using this brain
+usage_remote#:#AI credits according to Tarsus
+usage_remote_none#:#not fetched yet (asked from Tarsus at most once a minute)
+usage_remote_value#:#{credits} AI credits this month (as of {fetched}). This is the only figure: Tarsus reports it for the whole brain; the plugin estimates nothing.
 usage_charged#:#Beyond the included amount
-usage_charged_value#:#{requests} AI interactions, about {cost}
-usage_charged_value_tarsus#:#{requests} AI interactions, billed by Tarsus
+usage_charged_value#:#{requests} AI credits, about {cost}
+usage_charged_value_tarsus#:#{requests} AI credits, billed by Tarsus
 usage_charged_none#:#nothing so far this month
 usage_reset#:#Next reset
 usage_refresh#:#Refresh usage from the brain
-usage_refreshed#:#The brain reports {credits} AI credits for this month.
+usage_refreshed#:#Tarsus reports {credits} AI credits for this month.
 usage_refresh_failed#:#The usage could not be fetched from the brain.
 usage_breakdown#:#Breakdown by service (brain figures)
 usage_service#:#Service

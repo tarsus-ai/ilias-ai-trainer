@@ -2305,9 +2305,9 @@
 
 .tarsus-learn-slide__body--top .tarsus-learn-slide__image {
     flex: none;
-    max-width: 100%;
     width: auto;
-    max-height: 70vh;
+    max-width: min(100%, 56rem);
+    max-height: 60vh;
     align-self: center;
     object-fit: contain;
 }

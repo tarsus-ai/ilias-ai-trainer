@@ -4,7 +4,6 @@ namespace TarsusIlias\Client;
 
 use TarsusIlias\Activity\Didactics;
 use TarsusIlias\Support\Config;
-use TarsusIlias\Support\Interactions;
 
 /**
  * Deterministic, stateful mock Tarsus client.
@@ -30,6 +29,9 @@ class MockClient implements ClientInterface
 
     /** Learning stacks until the course is complete. */
     private const STACKS = 3;
+
+    /** A small JPEG picture (as source pictures come: data:image/jpg). */
+    private const JPEG = '/9j/4AAQSkZJRgABAQAAAAAAAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0VFhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoLCw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozv/wAARCAAgADADASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAQF/8QAFhABAQEAAAAAAAAAAAAAAAAAABNh/8QAFwEBAQEBAAAAAAAAAAAAAAAAAAUDBP/EABYRAQEBAAAAAAAAAAAAAAAAAAARFP/aAAwDAQACEQMRAD8A1qlUVSrkzpNW1KoqlTOVbUqiqVM5UVSqKuldX87GralUVdK6ZyralUVdK6Zyv//Z';
 
     protected bool $async;
     protected int $simulatestatus;
@@ -66,7 +68,6 @@ class MockClient implements ClientInterface
         return [
             'status' => $this->async ? 'pending-confirmation' : 'indexed',
             'bitref' => 'mock-bit-' . sha1($resourceid),
-            'credits' => Interactions::forIndexing((string) ($resource['type'] ?? 'text'), (int) ($resource['duration'] ?? 0)),
         ];
     }
 
@@ -182,8 +183,13 @@ class MockClient implements ClientInterface
         }
 
         $query = trim((string) ($params['query'] ?? ''));
+        if ((string) ($params['audiofile'] ?? '') !== '') {
+            // A spoken question: Tarsus would return the text of the recording.
+            $query = self::de($params) ? 'Was ist der Unterschied zwischen Lichtreaktion und Calvin-Zyklus? (Demo-Aufnahme)'
+                : 'What is the difference between the light reaction and the Calvin cycle? (demo recording)';
+        }
         $scope = count((array) ($params['resourceids'] ?? []));
-        $reply = trim((string) ($params['replytowidget'] ?? ''));
+        $reply = trim((string) ($params['replytowidget'] ?? ($params['replytostack'] ?? '')));
         if (self::de($params)) {
             $answer = "Du hast gefragt: *" . $query . "*\n\n"
                 . "Im Demo-Modus antworte ich mit einer simulierten Antwort. Mit dem echten Brain wäre sie in den "
@@ -210,14 +216,19 @@ class MockClient implements ClientInterface
             $state['pageturn'] = $turn + 1;
             $html = self::page(['speed', 'discharge', 'cylinder'][$turn % 3], self::de($params));
         }
-        $state['feed'][] = ['kind' => 'exchange', 'query' => $query, 'answer' => $html === '' ? $answer : '', 'html' => $html];
+        $widgetid = 'mock-a-' . substr(sha1(uniqid('', true)), 0, 10);
+        $state['feed'][] = ['kind' => 'exchange', 'id' => $widgetid, 'state' => 'ask', 'query' => $query,
+            'answer' => $html === '' ? $answer : '', 'html' => $html, 'sources' => true];
         $this->save($params, $state);
 
         return [
             'answer' => $html === '' ? $answer : '',
             'html' => $html,
+            'question' => $query,
+            'widgetid' => $widgetid,
+            'sources' => true,
             'messages' => $messages,
-            'credits' => Interactions::forGenerate(),
+            'progress' => self::progressOf($state),
         ];
     }
 
@@ -270,7 +281,6 @@ class MockClient implements ClientInterface
         return [
             'widgets' => $widgets,
             'progress' => self::progressOf($state),
-            'credits' => $widgets === [] ? 0 : Interactions::forGenerate(),
         ];
     }
 
@@ -301,6 +311,11 @@ class MockClient implements ClientInterface
                 'title' => '',
                 'text' => $de ? 'Du hast alle Lernziele dieser Demo **erreicht**.' : 'You have **reached** every goal of this demo.',
             ];
+            if (!empty($state['lcomplete'])) {
+                // As Tarsus does once the path is finished: the same
+                // farewell again (HTTP 409), nothing new.
+                return ['items' => $items, 'progress' => [], 'replay' => true];
+            }
         } else {
             if ($step > 1) {
                 $items[] = [
@@ -324,7 +339,7 @@ class MockClient implements ClientInterface
         return [
             'items' => $items,
             'progress' => self::progressOf($state),
-            'credits' => Interactions::forGenerate(),
+            'replay' => false,
         ];
     }
 
@@ -374,7 +389,17 @@ class MockClient implements ClientInterface
                     'title' => $de ? 'Warum es funktioniert' : 'Why it works',
                     'text' => $de ? "Kurze Einheiten passen in den Alltag und werden öfter wiederholt - so bleibt mehr hängen."
                         : "Short units fit into everyday work and get repeated more often - so more of it sticks.",
-                    'image' => $svg, 'imageposition' => $step % 2 === 0 ? 'right' : 'left'],
+                    // A diagram goes above the text, as Tarsus places block diagrams.
+                    'image' => $svg, 'imageposition' => 'top', 'audio' => ''],
+                ['id' => $stackid . '-3', 'kind' => 'text', 'taxonomylevel' => 'VERSTEHEN',
+                    'title' => $de ? 'Ein Bild aus dem Material' : 'A picture from the material',
+                    'text' => $de ? "Bilder aus dem Kursmaterial kommen als JPEG und stehen neben dem Text."
+                        : "Pictures from the course material come as JPEG and stand beside the text.",
+                    'image' => 'data:image/jpeg;base64,' . self::JPEG, 'imageposition' => $step % 2 === 0 ? 'right' : 'left', 'audio' => ''],
+                ['id' => $stackid . '-4', 'kind' => 'text', 'taxonomylevel' => 'WISSEN',
+                    'title' => $de ? 'Zum Anhören' : 'To listen to',
+                    'text' => $de ? "Diese Karte wird gesprochen." : "This card is spoken.",
+                    'image' => '', 'imageposition' => 'right', 'audio' => 'data:audio/wav;base64,' . self::tone()],
             ], $pages, [
                 ['id' => $qid, 'kind' => 'question', 'title' => '', 'text' => '', 'image' => '', 'imageposition' => 'right',
                     'question' => self::publicQuestion($qid, $question) + ['kind' => 'practice', 'answered' => false,
@@ -428,41 +453,40 @@ class MockClient implements ClientInterface
             $score = round($right / max(1, count($answers)) * 100, 2);
             $result['answers'] = $answers;
             $result['score'] = $score;
-            $result['correct'] = $score >= 50;
+            $result['correct'] = $score >= 100;
             $result['feedback'] = $de ? $question['explain_de'] : $question['explain_en'];
             $stored = ['useranswers' => array_map(static fn($v, $k) => ['variable' => $k, 'answer' => $v], $given, array_keys($given)),
                 'answers' => $answers];
         } elseif ($type === 'tradeCostingQuestionWidget') {
-            $rows = [];
-            foreach ((array) ($params['usertable'] ?? []) as $row) {
-                $rows[(string) ($row['position'] ?? '')] = $row;
-            }
+            // The learner's table comes as rows of cell values in column order.
+            $rows = array_values(array_map(static fn($row): array => array_values(array_map('strval', (array) $row)), (array) ($params['usertable'] ?? [])));
             $right = 0;
             $asked = 0;
             $answertable = [];
-            foreach ((array) $question['solution'] as $model) {
-                $user = $rows[$model['position']] ?? [];
+            foreach (array_values((array) $question['solution']) as $i => $model) {
+                $user = $rows[$i] ?? [];
                 $rv = 0;
                 $av = 0;
                 if ($model['askrate']) {
                     $asked++;
-                    $rv = self::sameNumber((string) ($user['rate'] ?? ''), $model['rate']) ? 1 : -1;
+                    $rv = self::sameNumber((string) ($user[1] ?? ''), $model['rate']) ? 1 : -1;
                     $right += $rv > 0 ? 1 : 0;
                 }
                 if ($model['askamount']) {
                     $asked++;
-                    $av = self::sameNumber((string) ($user['amount'] ?? ''), $model['amount']) ? 1 : -1;
+                    $av = self::sameNumber((string) ($user[2] ?? ''), $model['amount']) ? 1 : -1;
                     $right += $av > 0 ? 1 : 0;
                 }
-                $answertable[] = ['position' => $model['position'], 'rate' => $model['rate'], 'amount' => $model['amount'],
-                    'rateverdict' => $rv, 'amountverdict' => $av];
+                $answertable[] = [
+                    ['value' => (string) $model['position'], 'verdict' => 0],
+                    ['value' => (string) $model['rate'], 'verdict' => $rv],
+                    ['value' => (string) $model['amount'], 'verdict' => $av],
+                ];
             }
             $score = round($right / max(1, $asked) * 100, 2);
             $result['score'] = $score;
-            $result['correct'] = $score >= 50;
-            $result['usertable'] = array_values(array_map(static fn($r) => [
-                'position' => (string) ($r['position'] ?? ''), 'rate' => (string) ($r['rate'] ?? ''), 'amount' => (string) ($r['amount'] ?? ''),
-            ], $rows));
+            $result['correct'] = $score >= 100;
+            $result['usertable'] = $rows;
             $result['answertable'] = $answertable;
             $result['feedback'] = $de ? $question['explain_de'] : $question['explain_en'];
             $stored = ['usertable' => $result['usertable'], 'answertable' => $answertable];
@@ -476,7 +500,7 @@ class MockClient implements ClientInterface
             }
             $score = min(100.0, $score + min(15.0, mb_strlen($given) / 10));
             $result['score'] = round($score, 2);
-            $result['correct'] = $score >= 50;
+            $result['correct'] = $score >= 100;
             $result['answer'] = $de ? $question['model_de'] : $question['model_en'];
             $result['feedback'] = ($score >= 50 ? ($de ? '**Gut erklärt.** ' : '**Well explained.** ') : ($de ? '**Fast.** ' : '**Nearly.** '))
                 . ($de ? $question['model_de'] : $question['model_en']);
@@ -527,7 +551,7 @@ class MockClient implements ClientInterface
         unset($item);
         $this->save($params, $state);
 
-        return $result + ['progress' => self::progressOf($state), 'credits' => Interactions::forEvaluation($type)];
+        return $result + ['progress' => self::progressOf($state)];
     }
 
     public function retrieveFeed(array $params): array
@@ -562,18 +586,17 @@ class MockClient implements ClientInterface
             'items' => $page,
             'rawcount' => $end > 0 ? min($pagesize, $rawcount) : 0,
             'progress' => self::progressOf($state),
-            'credits' => 0,
         ];
     }
 
     public function getUsage(int $start, int $end): array
     {
         $this->maybeFail();
-        // The demo brain charges what the local ledger counted, split over
-        // the services the real usage report names.
+        // The demo brain charges one credit per request the local ledger
+        // counted, split over the services the real usage report names.
         $db = \TarsusIlias\Support\Ilias::db();
         $res = $db->queryF(
-            'SELECT op_name, SUM(credits) credits FROM ' . \TarsusIlias\Support\UsageMeter::TABLE . ' WHERE created >= %s AND created <= %s GROUP BY op_name',
+            'SELECT op_name, COUNT(*) credits FROM ' . \TarsusIlias\Support\UsageMeter::TABLE . ' WHERE created >= %s AND created <= %s GROUP BY op_name',
             ['integer', 'integer'],
             [$start, $end]
         );
@@ -583,12 +606,18 @@ class MockClient implements ClientInterface
             'answerEvaluation' => ['Answer Evaluation', 'assets', 0],
             'bitsGeneration' => ['Nugget Generation', 'assets', 0],
             'audioGeneration' => ['Audio Generation', 'assets', 0],
+            'audioTranscription' => ['Audio Transcription', 'activity', 0],
+            'voiceCall' => ['Discuss Call Minutes', 'activity', 0],
         ];
         while ($row = $db->fetchAssoc($res)) {
             $op = (string) $row['op_name'];
             $credits = (int) $row['credits'];
             $key = 'questionGeneration';
-            if (strpos($op, 'ask') !== false) {
+            if (strpos($op, 'voice') !== false) {
+                $key = 'audioTranscription';
+            } elseif (strpos($op, 'discuss') !== false) {
+                $key = 'voiceCall';
+            } elseif (strpos($op, 'ask') !== false) {
                 $key = 'answeredQuery';
             } elseif (strpos($op, 'eval') !== false || strpos($op, 'check') !== false) {
                 $key = 'answerEvaluation';
@@ -600,12 +629,12 @@ class MockClient implements ClientInterface
             $services[$key][2] += $credits;
         }
         $items = [];
-        $total = 0;
+        $total = 0.0;
         foreach ($services as $key => [$name, $service, $credits]) {
-            $items[] = ['key' => $key, 'name' => $name, 'service' => $service, 'credits' => $credits];
+            $items[] = ['key' => $key, 'name' => $name, 'service' => $service, 'credits' => (float) $credits];
             $total += $credits;
         }
-        return ['total' => $total, 'items' => $items, 'credits' => 0];
+        return ['total' => $total, 'items' => $items];
     }
 
     public function resetConversation(string $contextid, string $userid): void
@@ -622,8 +651,74 @@ class MockClient implements ClientInterface
             'audio' => self::tone(),
             'mimetype' => 'audio/wav',
             'voice' => (string) ($params['voice'] ?? 'Daniel'),
-            'credits' => Interactions::forAudioExplainer(),
+            'text' => self::de($params) ? 'Eine kurze Melodie als Platzhalter für die Audio-Erklärung.' : 'A short tune standing in for the audio explanation.',
         ];
+    }
+
+    public function startDiscuss(array $params): array
+    {
+        $this->maybeFail();
+        $file = dirname(__DIR__, 2) . '/templates/mock/live.html';
+        $page = is_file($file) ? (string) file_get_contents($file) : '';
+        $page = str_replace(['{{lang}}', '{{name}}'], [self::de($params) ? 'de' : 'en', htmlspecialchars((string) ($params['robotname'] ?? 'Tarsus'), ENT_QUOTES)], $page);
+        return ['page' => $page, 'progress' => self::progressOf($this->load($params))];
+    }
+
+    public function getReferences(array $params): array
+    {
+        $this->maybeFail();
+        $svg = base64_encode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120"><rect width="200" height="120" rx="12" fill="#e6f2e1"/>'
+            . '<path d="M20 60 Q100 8 180 60 Q100 112 20 60z" fill="#7fbf6a"/><path d="M24 60H176" stroke="#4d8f3c" stroke-width="3"/></svg>');
+        $bits = [
+            ['type' => 'text', 'title' => 'Lehrbuch Biologie, Kapitel 4', 'text' => 'Chlorophyll a und b nehmen vor allem **blaues** und **rotes** Licht auf; grünes Licht wird kaum genutzt.'],
+            ['type' => 'table', 'title' => 'Absorptionsmaxima', 'text' => '', 'rows' => [['Pigment', 'Blau', 'Rot'], ['Chlorophyll a', '430 nm', '662 nm'], ['Chlorophyll b', '453 nm', '642 nm']]],
+            ['type' => 'image', 'title' => 'Blattquerschnitt', 'text' => 'Aufbau eines Laubblatts.', 'image' => 'data:image/svg+xml;base64,' . $svg],
+            ['type' => 'image', 'title' => 'Foto aus dem Material', 'text' => '', 'image' => 'data:image/jpeg;base64,' . self::JPEG],
+            ['type' => 'audio', 'title' => 'Vorlesung 3', 'text' => '„… das grüne Licht wird kaum genutzt, es wird zurückgeworfen …“'],
+            ['type' => 'video', 'title' => 'Fotosynthese einfach erklärt', 'text' => '„… Chlorophyll a hat zwei Spitzen, eine im Blauen und eine im Roten …“'],
+            ['type' => 'question', 'title' => 'Fragenpool Kapitel 4', 'text' => "Warum erscheinen Blätter grün?
+
+Grünes Licht wird reflektiert."],
+        ];
+        $out = [];
+        foreach ($bits as $i => $bit) {
+            $out[] = $bit + ['id' => 'mock-bit-' . $i, 'subtitle' => '', 'rows' => [], 'image' => '', 'sourceid' => '', 'assetid' => '',
+                'sourcetype' => '', 'link' => '', 'position' => (float) $i];
+        }
+        return $out;
+    }
+
+    public function getContextStatistics(string $contextid, array $userids): array
+    {
+        $this->maybeFail();
+        $result = [];
+        foreach ($userids as $userid) {
+            $raw = Config::fresh(self::key($contextid, (string) $userid));
+            $state = $raw !== null ? json_decode($raw, true) : null;
+            if (is_array($state) && !empty($state['feed'])) {
+                $result[(string) $userid] = self::progressOf($state + ['xp' => 0.0, 'units' => 0.0]);
+            }
+        }
+        return $result;
+    }
+
+    public function getUserAnalytics(string $contextid, string $userid, int $start, int $end): array
+    {
+        $this->maybeFail();
+        $raw = Config::fresh(self::key($contextid, $userid));
+        $state = $raw !== null ? json_decode($raw, true) : null;
+        $figures = self::progressOf(is_array($state) ? $state + ['xp' => 0.0, 'units' => 0.0] : ['xp' => 0.0, 'units' => 0.0]);
+        $xp = $figures['totalxp'] > 0 ? $figures['earnedxp'] / $figures['totalxp'] * 100 : 0.0;
+        $units = $figures['totalunits'] > 0 ? $figures['earnedunits'] / $figures['totalunits'] * 100 : 0.0;
+        // A demo growth: four steps from nothing to today's figure.
+        $series = static function (float $target) use ($start, $end): array {
+            $points = [];
+            foreach ([0.0, 0.3, 0.55, 0.8, 1.0] as $i => $share) {
+                $points[] = ['x' => (int) ($start + ($end - $start) * $share), 'y' => round($target * ($i / 4), 2)];
+            }
+            return $points;
+        };
+        return ['xp' => $series($xp), 'units' => $series($units)];
     }
 
     // ------------------------------------------------------------------
@@ -730,15 +825,15 @@ class MockClient implements ClientInterface
      */
     private static function publicQuestion(string $id, array $question): array
     {
+        // A task table as Tarsus sends it: rows of cells under named
+        // columns, '?' where the learner fills in.
         $table = [];
         foreach ((array) ($question['solution'] ?? []) as $row) {
             if (is_array($row) && isset($row['position'])) {
                 $table[] = [
-                    'position' => $row['position'],
-                    'rate' => $row['askrate'] ? '?' : $row['rate'],
-                    'amount' => $row['askamount'] ? '?' : $row['amount'],
-                    'askrate' => $row['askrate'],
-                    'askamount' => $row['askamount'],
+                    ['value' => (string) $row['position'], 'ask' => false],
+                    ['value' => $row['askrate'] ? '?' : (string) $row['rate'], 'ask' => (bool) $row['askrate']],
+                    ['value' => $row['askamount'] ? '?' : (string) $row['amount'], 'ask' => (bool) $row['askamount']],
                 ];
             }
         }
@@ -749,7 +844,7 @@ class MockClient implements ClientInterface
             'choices' => array_values((array) ($question['choices'] ?? [])),
             'variables' => $question['type'] === 'crossMultiplicationQuestionWidget' ? array_keys((array) $question['solution']) : [],
             'table' => $table,
-            'columns' => $table !== [] ? ['Position', 'Satz', 'Betrag'] : [],
+            'columns' => $table !== [] ? (array) ($question['columns'] ?? ['Position', 'Satz', 'Betrag']) : [],
             'taxonomylevel' => (string) ($question['taxonomylevel'] ?? 'WISSEN'),
             'difficultylevel' => (int) ($question['difficultylevel'] ?? 1),
         ];
@@ -801,6 +896,7 @@ class MockClient implements ClientInterface
             [
                 'type' => 'tradeCostingQuestionWidget',
                 'question' => $de ? 'Berechne Rabatt und Zieleinkaufspreis.' : 'Work out the discount and the target purchase price.',
+                'columns' => $de ? ['Position', 'Satz', 'Betrag'] : ['Position', 'Rate', 'Amount'],
                 'solution' => [
                     ['position' => $de ? 'Listeneinkaufspreis' : 'List price', 'rate' => '', 'amount' => '1000', 'askrate' => false, 'askamount' => false],
                     ['position' => $de ? '- Rabatt' : '- Discount', 'rate' => '10', 'amount' => '100', 'askrate' => false, 'askamount' => true],

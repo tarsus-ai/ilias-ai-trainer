@@ -1354,7 +1354,7 @@
         var build = this.state.mode === 'build';
         var earned = progress ? (build ? progress.earnedunits : progress.earnedxp) : 0;
         var total = progress ? (build ? progress.totalunits : progress.totalxp) : 0;
-        if (this.state.mode === 'ask' || !(total > 0)) {
+        if (this.state.mode === 'ask' || this.state.mode === 'discuss' || !(total > 0)) {
             show(badge, false);
             return;
         }
@@ -1391,7 +1391,7 @@
         if (!bar || !fill) {
             return;
         }
-        if (this.state.mode === 'ask' || !this.state.progress) {
+        if (this.state.mode === 'ask' || this.state.mode === 'discuss' || !this.state.progress) {
             show(bar, false);
             return;
         }
@@ -2015,7 +2015,7 @@
         Object.keys(buttons).forEach(function (button) {
             show(region.querySelector('[data-action="voice-' + button + '"]'), buttons[button].indexOf(name) !== -1);
         });
-        var label = {idle: 'voice_start', recording: 'voice_recording', paused: 'voice_paused', ready: 'voice_ready'}[name] || 'voice_start';
+        var label = {idle: 'voice_question', recording: 'voice_recording', paused: 'voice_paused', ready: 'voice_ready'}[name] || 'voice_question';
         region.querySelector('[data-region="voice-state"]').textContent = this.t(label);
         var submit = this.q('.tarsus-chat-submit');
         if (submit && this.state.voiceInput && this.state.mode === 'ask') {
