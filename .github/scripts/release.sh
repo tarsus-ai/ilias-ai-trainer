@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Publish a GitHub release for every version listed in CHANGELOG.md that has
 # no tag yet. For each such version the newest commit whose plugin.php
-# declares it is tagged v<version>, the plugin zip is built from the tag
+# declares it is tagged v<version> - the newest commit at all, also one that
+# did not change plugin.php, since fixes made after the version was set
+# belong to the release -, the plugin zip is built from the tag
 # with `git archive` (docs/ and .github/ are export-ignored, see
 # .gitattributes), and the release notes are the version's changelog section
 # plus install instructions and the zip's checksum.
@@ -29,8 +31,8 @@ for v in $versions; do
 
     # The newest commit on this branch whose plugin.php declares the version.
     commit=""
-    for c in $(git log --format=%H -- plugin.php); do
-        if git show "$c:plugin.php" | grep -Eq "^\\\$version = '$v';"; then
+    for c in $(git rev-list HEAD); do
+        if git show "$c:plugin.php" 2>/dev/null | grep -Eq "^\\\$version = '$v';"; then
             commit=$c
             break
         fi

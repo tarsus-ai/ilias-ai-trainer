@@ -3,6 +3,15 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [2.1.1] – 2026-11-24
+
+The screen reader and keyboard support described for 2.1.0, now in the download.
+
+### Fixed
+
+- The 2.1.0 zip was built from an earlier commit and did not contain the screen reader and keyboard support listed for 2.1.0 (skip link, headings on every card, read-out answers and results, keyboard focus on new questions and verdicts, dialogs that keep the focus, right and wrong in words and symbols). 2.1.1 contains it. After updating, click **Update** and then **Refresh Languages** in the plugin list, so the new texts for screen readers appear.
+- The release workflow builds each version from the newest commit that declares it.
+
 ## [2.1.0] – 2026-11-24
 
 Tarsus's texts look the way they do in the Tarsus app, and the coach works with screen readers and the keyboard alone.
@@ -168,6 +177,8 @@ First release for ILIAS 9, 10 and 11.
 - Default permissions seeded on first activation for course and group roles.
 - English and German.
 
+[2.1.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.1.1
+[2.1.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.1.0
 [2.0.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.0.1
 [2.0.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.0.0
 [1.2.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.1
