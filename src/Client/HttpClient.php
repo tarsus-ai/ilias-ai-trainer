@@ -1724,7 +1724,8 @@ class HttpClient implements ClientInterface
         $response = curl_exec($curl);
         $errno = curl_errno($curl);
         $httpcode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        curl_close($curl);
+        // No curl_close(): it does nothing since PHP 8.0 and is deprecated
+        // in PHP 8.5. The handle is freed when $curl goes out of scope.
 
         if ($errno !== 0 || $response === false) {
             // Never echo the request: it carries the API key.

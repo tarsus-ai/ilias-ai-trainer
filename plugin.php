@@ -12,11 +12,11 @@
 $id = 'xtar';
 
 // Plugin version.
-$version = '2.0.0';
+$version = '2.0.1';
 
 // ILIAS releases this version runs on.
 $ilias_min_version = '9.0';
-$ilias_max_version = '11.999';
+$ilias_max_version = '12.999';
 
 // Responsible developer.
 $responsible = 'Tarsus GmbH';

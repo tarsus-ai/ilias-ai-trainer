@@ -49,7 +49,7 @@ for v in $versions; do
     sum=$(sha256sum "$zip" | cut -d ' ' -f 1)
 
     {
-        echo "Tarsus for ILIAS $v – repository object plugin for ILIAS 9, 10 and 11."
+        echo "Tarsus for ILIAS $v – repository object plugin for ILIAS 9, 10, 11 and 12."
         echo
         # The version's section of the changelog, without its heading and
         # without the link references at the end of the file.

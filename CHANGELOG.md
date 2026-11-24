@@ -3,6 +3,22 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [2.0.1] – 2026-11-24
+
+Runs on more ILIAS and PHP versions.
+
+### Added
+
+- **ILIAS 12**: the plugin installs and runs on ILIAS 12 (tested with the 12.0 beta, on PHP 8.4 and 8.5).
+
+### Changed
+
+- The installer starts composer with a PHP version your ILIAS accepts – also on servers with several PHP versions, and when it runs composer as the web server's user.
+
+### Fixed
+
+- No deprecation notices under PHP 8.5: two calls that have done nothing since PHP 8.0 (`curl_close()` and `imagedestroy()`) are gone.
+
 ## [2.0.0] – 2026-11-24
 
 Catches the plugin up with Tarsus: everything the coach shows comes from the Tarsus API, and nothing is assumed about what happens in the brain.
@@ -132,6 +148,7 @@ First release for ILIAS 9, 10 and 11.
 - Default permissions seeded on first activation for course and group roles.
 - English and German.
 
+[2.0.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.0.1
 [2.0.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.0.0
 [1.2.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.1
 [1.2.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v1.2.0
