@@ -34,7 +34,7 @@ use TarsusIlias\Support\Plan;
 use TarsusIlias\Support\UsageMeter;
 use TarsusIlias\Support\Voices;
 
-class ilTarsusConfigGUI extends ilPluginConfigGUI
+class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInterface
 {
     /** Largest avatar kept, in pixels (longest side). */
     private const AVATAR_SIZE = 160;
@@ -59,6 +59,25 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
     private function txt(string $key, array $params = []): string
     {
         return Ilias::txt($key, $params);
+    }
+
+    /**
+     * Links that change something: ILIAS adds its token to them and checks
+     * it, as it does for every form sent here.
+     *
+     * @return string[]
+     */
+    public function getUnsafeGetCommands(): array
+    {
+        return ['refreshVoices'];
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getSafePostCommands(): array
+    {
+        return [];
     }
 
     public function performCommand(string $cmd): void
@@ -623,10 +642,9 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
 
     private function confirmPlan(): void
     {
-        $body = Ilias::postBody();
         $values = [];
         foreach (['plan', 'plan_credits', 'plan_price', 'plan_currency', 'monthly_limit', 'notify_emails'] as $key) {
-            $values[$key] = (string) ($body['plan_' . $key] ?? '');
+            $values[$key] = Ilias::postString('plan_' . $key);
         }
         if (!in_array($values['plan'], Plan::ALL, true)) {
             $this->ctrl->redirect($this, 'showPlan');
@@ -731,7 +749,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
         try {
             $brains = ClientFactory::getClient()->listBrains();
         } catch (ConfigurationException $e) {
-            $this->tpl->setOnScreenMessage('info', $this->txt($e->langKey));
+            $this->tpl->setOnScreenMessage('info', $this->txt($e->lang_key));
             $this->tpl->setContent('');
             return;
         } catch (TransportException | BlockedException $e) {
@@ -791,8 +809,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
 
     private function activateBrain(): void
     {
-        $body = Ilias::postBody();
-        $brainid = trim((string) ($body['brainid'] ?? ''));
+        $brainid = trim(Ilias::postString('brainid'));
         $ok = false;
         if ($brainid !== '' && preg_match('/^[A-Za-z0-9_.:-]{1,255}$/', $brainid)) {
             try {
@@ -957,7 +974,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI
             $brains = (new Pipeline())->execute(fn() => ClientFactory::getClient()->listBrains(), 0);
             $this->tpl->setOnScreenMessage('success', $this->txt('status_test_ok', ['count' => count((array) $brains)]), true);
         } catch (ConfigurationException $e) {
-            $this->tpl->setOnScreenMessage('failure', $this->txt($e->langKey), true);
+            $this->tpl->setOnScreenMessage('failure', $this->txt($e->lang_key), true);
         } catch (BlockedException $e) {
             $this->tpl->setOnScreenMessage('failure', $this->txt('guardrail_blocked_' . $e->reason), true);
         } catch (Throwable $e) {

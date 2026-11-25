@@ -12,7 +12,7 @@ namespace TarsusIlias\Client;
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
-final class ReplayException extends \RuntimeException
+final class ReplayException extends \TarsusIlias\TarsusException
 {
     /** @var array<string, mixed> The widget Tarsus sent again. */
     public array $widget;

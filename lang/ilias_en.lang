@@ -20,7 +20,6 @@ root_create_xtar#:#Create Tarsus
 // Tabs and general
 tab_content#:#Learning companion
 tab_materials#:#Materials
-tab_learners#:#Learners
 tab_settings#:#Settings
 status#:#Status
 offline#:#Offline
@@ -29,7 +28,6 @@ online_info#:#Only online objects are shown to learners. Keep the object offline
 offline_notice#:#This object is offline: learners do not see it yet. Switch it online in the settings once materials are included.
 your_progress#:#Your progress
 total#:#total
-export_csv#:#Export as CSV
 unexpected_error#:#Something went wrong. Please try again.
 session_lost#:#Your session has expired. Please reload the page.
 permission_denied#:#You are not allowed to do this.
@@ -73,7 +71,6 @@ action_index#:#Index
 action_reindex#:#Re-index
 action_remove#:#Remove
 action_retry#:#Retry
-confirmremove_title#:#Remove from the brain?
 confirmremove_body#:#This material will be removed from the brain and will no longer be used to answer questions. You can re-index it again later.
 pager#:#Pages
 pager_previous#:#Previous
@@ -91,22 +88,13 @@ status_pendingreindex#:#Content changed
 status_pendingdeletion#:#Pending removal
 status_error#:#Error
 // Learners
-col_learner#:#Learner
 col_progress#:#Progress
 col_score#:#Result (%)
 col_lp_status#:#Learning progress
 col_last_activity#:#Last activity
 avg_progress#:#Average progress
-avg_score#:#Average score {score}
-n_learners#:#{count} learners
-n_completed#:#{count} completed
-n_inprogress#:#{count} in progress
-n_notstarted#:#{count} not started
 distribution#:#{completed} completed, {inprogress} in progress, {notstarted} not started
 histogram#:#Learners by progress
-learners_threshold#:#A learner counts as completed once the progress reaches {threshold} %.
-no_learners#:#No learner has used this object yet.
-not_member#:#not a member
 lp_completed#:#Completed
 lp_in_progress#:#In progress
 lp_not_attempted#:#Not started
@@ -183,9 +171,6 @@ practice_check#:#Check
 practice_answer_placeholder#:#Write your answer here...
 practice_nowidget#:#The assistant could not create a question of the selected types from the included materials. Try again, or ask your teacher to adjust the question types or the included materials.
 practice_variable_placeholder#:#Your answer
-practice_table_position#:#Position
-practice_table_rate#:#Rate
-practice_table_amount#:#Amount
 choice_true#:#True
 choice_false#:#False
 xp#:#XP
@@ -471,25 +456,6 @@ help_links_desc#:#One link per line as "Title | https://...". YouTube and Vimeo 
 help#:#Help
 help_title#:#Help & videos
 // Analytics
-tab_analytics#:#Analytics
-analytics_requests_month#:#requests this month
-analytics_credits_month#:#AI credits this month
-analytics_active_learners#:#active learners this month
-analytics_share#:#of this installation's credits this month
-analytics_budget#:#Monthly AI credits of this installation
-analytics_budget_note#:#All Tarsus objects of this installation share the monthly credits. The month resets on {reset}.
-analytics_chart_title#:#Requests per day, last 30 days
-analytics_chart_label#:#Requests per day over the last 30 days
-analytics_tooltip#:#{calls} requests, {credits} credits
-analytics_by_mode#:#By mode, last 30 days
-analytics_mode#:#Mode
-analytics_top_learners#:#Most active learners, last 30 days
-analytics_none#:#No requests yet.
-analytics_note#:#Figures come from this installation's own ledger with the brain's cost estimates; the brain's invoice may differ slightly.
-col_lastactivity#:#Last activity
-learners_readonly#:#Neither Test knowledge nor Build knowledge is active here (switched off, or not included in the plan), so this object has no score and no learning progress: it is a read-only activity.
-col_participation#:#Participation
-participated#:#Took part
 // Version 2: live interaction, spoken questions, sources, evaluation, history, thinking level
 mode_discuss#:#Live interaction
 discussenabled#:#Enable Live interaction

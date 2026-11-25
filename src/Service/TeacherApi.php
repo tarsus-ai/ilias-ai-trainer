@@ -70,7 +70,7 @@ final class TeacherApi
         } catch (TransportException $e) {
             return Messages::forTransport($e, $context);
         } catch (ConfigurationException $e) {
-            return Ilias::txt($e->langKey);
+            return Ilias::txt($e->lang_key);
         }
     }
 

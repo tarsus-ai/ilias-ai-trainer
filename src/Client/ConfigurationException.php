@@ -10,13 +10,13 @@ namespace TarsusIlias\Client;
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
-class ConfigurationException extends \RuntimeException
+class ConfigurationException extends \TarsusIlias\TarsusException
 {
-    public string $langKey;
+    public string $lang_key;
 
-    public function __construct(string $langKey)
+    public function __construct(string $lang_key)
     {
-        $this->langKey = $langKey;
-        parent::__construct($langKey);
+        $this->lang_key = $lang_key;
+        parent::__construct($lang_key);
     }
 }

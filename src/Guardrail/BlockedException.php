@@ -11,7 +11,7 @@ namespace TarsusIlias\Guardrail;
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
-class BlockedException extends \RuntimeException
+class BlockedException extends \TarsusIlias\TarsusException
 {
     public string $reason;
 

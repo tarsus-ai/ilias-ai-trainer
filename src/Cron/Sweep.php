@@ -35,18 +35,26 @@ final class Sweep
             Ilias::log('cron run failed: ' . $e->getMessage(), 'error');
             return ['ok' => false, 'acted' => false, 'message' => substr($e->getMessage(), 0, 250)];
         }
+        // Learners whose ILIAS account was deleted since the last run.
+        try {
+            $departed = DeletedAccounts::clean();
+        } catch (\Throwable $e) {
+            Ilias::log('cleaning up deleted accounts failed: ' . $e->getMessage(), 'error');
+            $departed = ['accounts' => 0, 'failed' => 0];
+        }
         // The brain's own usage figure for the month, for the limit and
         // the warnings.
         $usage = Budget::refreshRemote(true);
-        $acted = ($summary['withdrawn'] + $summary['uploaded'] + $summary['confirmed']) > 0;
+        $acted = ($summary['withdrawn'] + $summary['uploaded'] + $summary['confirmed'] + $departed['accounts']) > 0;
         $message = sprintf(
-            '%d course(s) checked: %d withdrawn, %d changed, %d re-sent, %d confirmed, %d failed. Credits this month: %s%s.',
+            '%d course(s) checked: %d withdrawn, %d changed, %d re-sent, %d confirmed, %d failed.%s Credits this month: %s%s.',
             $summary['containers'],
             $summary['withdrawn'],
             $summary['changed'],
             $summary['uploaded'],
             $summary['confirmed'],
             $summary['failed'],
+            $departed['accounts'] > 0 ? ' Deleted accounts cleaned up: ' . $departed['accounts'] . '.' : '',
             number_format(Budget::used()),
             Budget::hasLimit() ? ' of ' . number_format(Budget::limit()) . ($usage === null ? ' (brain figure unavailable)' : '') : ''
         );

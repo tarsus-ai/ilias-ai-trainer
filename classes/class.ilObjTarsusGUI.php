@@ -821,7 +821,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             } else {
                 // Not part of the customer's plan: shown, explained, locked.
                 $box->setDisabled(true);
-                $box->setInfo($this->txt($mode . 'enabled_help') . ' <strong>' . $this->txt('plan_mode_unavailable', ['plan' => Plan::label()]) . '</strong>');
+                $box->setInfo($this->txt($mode . 'enabled_help') . ' <strong>' . Ilias::txt('plan_mode_unavailable', ['plan' => Plan::label()]) . '</strong>');
             }
             $form->addItem($box);
         }
@@ -836,7 +836,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         $trainer = new ilRadioOption($this->txt('interaction_trainer'), Plan::INTERACTION_TRAINER, $this->txt('interaction_trainer_help'));
         $interaction->addOption($trainer);
         $ai = new ilRadioOption($this->txt('interaction_ai'), Plan::INTERACTION_AI, $this->txt('interaction_ai_help')
-            . (Plan::allowsAiDriven() ? '' : ' <strong>' . $this->txt('plan_interaction_unavailable', ['plan' => Plan::label()]) . '</strong>'));
+            . (Plan::allowsAiDriven() ? '' : ' <strong>' . Ilias::txt('plan_interaction_unavailable', ['plan' => Plan::label()]) . '</strong>'));
         if (!Plan::allowsAiDriven()) {
             $ai->setDisabled(true);
         }
@@ -848,7 +848,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             $voice->setInfo($this->txt('voiceinput_help'));
         } else {
             $voice->setDisabled(true);
-            $voice->setInfo($this->txt('voiceinput_help') . ' <strong>' . $this->txt('plan_feature_locked', ['plan' => Plan::label()]) . '</strong>');
+            $voice->setInfo($this->txt('voiceinput_help') . ' <strong>' . Ilias::txt('plan_feature_locked', ['plan' => Plan::label()]) . '</strong>');
         }
         $form->addItem($voice);
 
