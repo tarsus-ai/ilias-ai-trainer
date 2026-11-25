@@ -86,7 +86,7 @@ The coach adapts to the **DQR level**, the **taxonomy stage** (Anderson & Krathw
 
 - The modes in the order Tarsus uses: **Build knowledge**, **Test knowledge**, **Live interaction**, **Ask a question**. Widgets form a centred column like in Tarsus.
 - **Spoken questions:** record, listen back, send – the answer shows the recording and the text Tarsus heard.
-- **Live interaction:** a voice call with the AI trainer; the page of the call may use the microphone.
+- **Live interaction:** a voice call with the AI trainer. The call runs sealed off from ILIAS, like the AI trainer's other pages; the microphone is recorded by the plugin and passed on to the call.
 - **Screen readers and keyboard:** everything works without a mouse, and screen readers hear the answers, the results and every step – see [Accessibility](#accessibility-screen-readers-and-keyboard).
 - **English and German**, following the user's interface language. A **help button** opens the support links and videos the administrator configured.
 
@@ -373,7 +373,7 @@ Each object has an interaction type, sent to the brain as `interaction_type` wit
 - **trainer-driven** – the coach answers with text, formulas, tables, pictures and the usual question widgets.
 - **ai-driven** – the coach may additionally answer with HTML pages: animations, simulations, small tools (a rotating cylinder whose volume follows the sliders, a capacitor discharge curve with a marker, a diagram of a process, …), both in *Ask a question* and in *Build knowledge*.
 
-Pages are rendered in an `<iframe sandbox="allow-scripts allow-forms allow-pointer-lock">` with `srcdoc`, so they can run their scripts but cannot reach ILIAS, its cookies or the surrounding page. They size themselves to their content; an *Enlarge* button opens a page in a dialog. The page of the **live interaction** is the one exception: it runs in a frame without the sandbox that may use the microphone (`allow="microphone; autoplay"`), because the call needs it. AI-driven interaction and the live interaction are available on the Build Knowledge and Pay as you grow packages.
+Pages are rendered in an `<iframe sandbox="allow-scripts allow-forms allow-pointer-lock">` with `srcdoc`, so they can run their scripts but cannot reach ILIAS, its cookies or the surrounding page. They size themselves to their content; an *Enlarge* button opens a page in a dialog. The page of the **live interaction** runs sandboxed too (`sandbox="allow-scripts allow-forms"`). Browsers give a sandboxed page no microphone, so the plugin's own script records it (only while a call runs, and only for that frame) and hands the sound over through a message channel; a small script placed first in the call page stands in for the microphone there. A call that starts in another tab ends the running one. AI-driven interaction and the live interaction are available on the Build Knowledge and Pay as you grow packages.
 
 ## Result and progress
 
@@ -440,7 +440,7 @@ Found something that does not work with your screen reader? Please [open an issu
 - The plugin talks to the brain over HTTPS only; every call carries the installation's API key and brain ID – or, for an existing Tarsus customer, the API key and the license key – and passes the guardrail pipeline (kill switch → circuit breaker, which opens after five consecutive outages for five minutes → monthly credit limit → rate limit). Refusals from Tarsus are shown with their own clear message and do not trip the breaker; nothing is retried blindly.
 - The plugin keeps its data in seven tables (`rep_robj_xtar_*`): plugin configuration (including the plan, the limit and the brain's usage figure), the settings of each object, the index map of the material sent to the brain, the inclusions per object, the latest figures per learner, a log of the requests sent, and the guardrail state. Uninstalling the plugin drops them.
 - Learners are sent to the brain under a **pseudonym** – an HMAC of the ILIAS user id with a secret generated at installation – together with their display name and interface language. The conversation itself lives in the brain. *Reset chat history* erases the learner's own conversation in the brain and the local figures. A spoken question is sent to Tarsus as audio to be transcribed.
-- Interactive pages from the brain run sandboxed (see above) and are never stored in ILIAS beyond the conversation history the brain returns.
+- Interactive pages and the live call page from the brain run sandboxed (see above) and are never stored in ILIAS beyond the conversation history the brain returns.
 - The coach does not search the internet: it generates explanations and answers exclusively from the documents your organisation provides. Tarsus stores your content at Microsoft Azure in Germany, GDPR-compliant – and the entire stack can be deployed on-premise on request ([Getting access](#getting-access)).
 
 ## Development

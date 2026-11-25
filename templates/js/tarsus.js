@@ -897,6 +897,383 @@
         window.addEventListener('message', sizeFrames);
     }
 
+    // --- the live interaction's microphone ------------------------------
+    //
+    // Tarsus's call page runs in a sandboxed frame like Tarsus's other
+    // pages: scripts may run, but the page has an opaque origin and no
+    // access to ILIAS, its cookies or this document. Browsers give such a
+    // page no microphone, so this document records for it (hostMic) and
+    // hands the sound over through a message channel; the script below,
+    // put first into the call page, stands in for getUserMedia there.
+
+    var LIVE_MIC_BRIDGE = [
+        '(function() {',
+        '  "use strict";',
+        '  var port = null;',
+        '  var waiting = [];',
+        '  var session = null;',
+        '  var lastid = 0;',
+        '  var Context = window.AudioContext || window.webkitAudioContext;',
+        '  var fail = function(name, message) {',
+        '    try {',
+        '      return new DOMException(message, name);',
+        '    } catch (e) {',
+        '      var error = new Error(message);',
+        '      error.name = name;',
+        '      return error;',
+        '    }',
+        '  };',
+        '  var send = function(message) {',
+        '    if (port) {',
+        '      port.postMessage(message);',
+        '    } else {',
+        '      waiting.push(message);',
+        '    }',
+        '  };',
+        '  var finish = function(current, tell) {',
+        '    if (session === current) {',
+        '      session = null;',
+        '    }',
+        '    current.done = true;',
+        '    if (tell) {',
+        '      send({type: "stop", id: current.id});',
+        '    }',
+        '    if (current.ctx && current.ctx.state !== "closed") {',
+        '      current.ctx.close().catch(function() {',
+        '        return null;',
+        '      });',
+        '    }',
+        '  };',
+        '  var begin = function(current, rate) {',
+        '    var ctx = current.ctx;',
+        '    current.rate = rate || ctx.sampleRate;',
+        '    current.dest = ctx.createMediaStreamDestination();',
+        '    current.next = 0;',
+        '    current.dest.stream.getAudioTracks().forEach(function(track) {',
+        '      var stop = track.stop.bind(track);',
+        '      track.stop = function() {',
+        '        stop();',
+        '        if (!current.done) {',
+        '          finish(current, true);',
+        '        }',
+        '      };',
+        '    });',
+        '    current.resolve(current.dest.stream);',
+        '  };',
+        '  var play = function(current, buffer) {',
+        '    var pcm = new Float32Array(buffer);',
+        '    var ctx = current.ctx;',
+        '    if (!pcm.length || !current.dest || ctx.state === "closed") {',
+        '      return;',
+        '    }',
+        '    var audio = ctx.createBuffer(1, pcm.length, current.rate);',
+        '    audio.getChannelData(0).set(pcm);',
+        '    var source = ctx.createBufferSource();',
+        '    source.buffer = audio;',
+        '    source.connect(current.dest);',
+        '    var now = ctx.currentTime;',
+        '    if (current.next < now || current.next > now + 0.25) {',
+        '      current.next = now + 0.01;',
+        '    }',
+        '    source.start(current.next);',
+        '    current.next += audio.duration;',
+        '  };',
+        '  var receive = function(event) {',
+        '    var data = event.data;',
+        '    if (data instanceof ArrayBuffer) {',
+        '      if (session && session.dest) {',
+        '        play(session, data);',
+        '      }',
+        '      return;',
+        '    }',
+        '    if (!data || !session || data.id !== session.id) {',
+        '      return;',
+        '    }',
+        '    var current = session;',
+        '    if (data.type === "started") {',
+        '      begin(current, data.sampleRate);',
+        '    } else if (data.type === "failed") {',
+        '      finish(current, false);',
+        '      var name = data.name || "NotAllowedError";',
+        '      current.reject(fail(name, data.message || "The microphone is not available."));',
+        '    } else if (data.type === "ended") {',
+        '      finish(current, false);',
+        '    }',
+        '  };',
+        '  window.addEventListener("message", function(event) {',
+        '    var data = event.data;',
+        '    if (port || event.source !== window.parent || !data || data.type !== "tarsus:mic-port") {',
+        '      return;',
+        '    }',
+        '    if (!event.ports || !event.ports[0]) {',
+        '      return;',
+        '    }',
+        '    port = event.ports[0];',
+        '    port.onmessage = receive;',
+        '    waiting.splice(0).forEach(function(message) {',
+        '      port.postMessage(message);',
+        '    });',
+        '  });',
+        '  if (navigator.mediaDevices && Context) {',
+        '    navigator.mediaDevices.getUserMedia = function(constraints) {',
+        '      return new Promise(function(resolve, reject) {',
+        '        if (!constraints || !constraints.audio || constraints.video) {',
+        '          reject(fail("NotSupportedError", "Only the microphone is available here."));',
+        '          return;',
+        '        }',
+        '        if (session) {',
+        '          finish(session, true);',
+        '        }',
+        '        var ctx = null;',
+        '        try {',
+        '          ctx = new Context();',
+        '        } catch (e) {',
+        '          ctx = null;',
+        '        }',
+        '        if (!ctx) {',
+        '          reject(fail("NotReadableError", "Audio is not available in this browser."));',
+        '          return;',
+        '        }',
+        '        if (ctx.state === "suspended") {',
+        '          ctx.resume().catch(function() {',
+        '            return null;',
+        '          });',
+        '        }',
+        '        lastid += 1;',
+        '        session = {id: lastid, resolve: resolve, reject: reject, ctx: ctx, done: false};',
+        '        var audio = typeof constraints.audio === "object" ? constraints.audio : {};',
+        '        send({type: "start", id: lastid, audio: audio});',
+        '      });',
+        '    };',
+        '  }',
+        '  window.parent.postMessage({type: "tarsus:mic-hello"}, "*");',
+        '})();'
+    ].join('\n');
+    /**
+     * The call page with the microphone bridge as its first script.
+     *
+     * @param {string} html The call page.
+     * @return {string}
+     */
+    function withMicBridge(html) {
+        var script = '<script>' + LIVE_MIC_BRIDGE + '<' + '/script>';
+        var start = html.slice(0, 4096).toLowerCase();
+        var head = start.indexOf('<head');
+        var after = head === -1 ? '' : start.charAt(head + 5);
+        var end = (after === '>' || after === ' ' || after === '\n' || after === '\r' || after === '\t') ? start.indexOf('>', head) + 1 : 0;
+        if (end <= 0) {
+            // No head: right after the doctype, so the page keeps its standards mode.
+            var doctype = start.indexOf('<!doctype');
+            end = doctype === -1 ? 0 : start.indexOf('>', doctype) + 1;
+        }
+        return html.slice(0, end) + script + html.slice(end);
+    }
+
+    /**
+     * Record for the sandboxed call page and hand the sound over. Only the
+     * given frame may ask, only for the microphone, and the recording stops
+     * with the call or when the frame goes away.
+     *
+     * @param {HTMLIFrameElement} frame The call page's frame.
+     * @param {Function} onstart Called when a call starts recording.
+     * @return {{close: Function, recording: Function}}
+     */
+    function hostMic(frame, onstart) {
+        var port = null;
+        var current = null;
+        var CAPTURE = "registerProcessor('tarsus-host-mic', class extends AudioWorkletProcessor {"
+            + 'constructor() { super(); this.size = Math.round(sampleRate / 50); this.buf = new Float32Array(this.size); this.n = 0; }'
+            + 'process(inputs) { const ch = inputs[0] && inputs[0][0]; if (ch) { for (let i = 0; i < ch.length; i++) {'
+            + 'this.buf[this.n++] = ch[i]; if (this.n === this.size) { this.port.postMessage(this.buf.buffer, [this.buf.buffer]);'
+            + 'this.buf = new Float32Array(this.size); this.n = 0; } } } return true; } });';
+        var stopRecording = function(recording) {
+            if (!recording) {
+                return;
+            }
+            recording.closed = true;
+            try {
+                if (recording.node) {
+                    recording.node.disconnect();
+                }
+            } catch (e) {
+                // Already gone.
+            }
+            if (recording.stream) {
+                recording.stream.getTracks().forEach(function(track) {
+                    track.stop();
+                });
+            }
+            if (recording.ctx && recording.ctx.state !== 'closed') {
+                recording.ctx.close().catch(function() {
+                    return null;
+                });
+            }
+        };
+
+        var forward = function(recording, buffer) {
+            if (!recording.closed && port && current === recording) {
+                port.postMessage(buffer, [buffer]);
+            }
+        };
+
+        var running = function(ctx) {
+            if (ctx.state === 'running') {
+                return Promise.resolve();
+            }
+            return new Promise(function(resolve, reject) {
+                var check = function() {
+                    if (ctx.state === 'running') {
+                        window.clearTimeout(timer);
+                        ctx.removeEventListener('statechange', check);
+                        resolve();
+                    }
+                };
+                var timer = window.setTimeout(function() {
+                    ctx.removeEventListener('statechange', check);
+                    reject(new DOMException('The browser did not start the recording.', 'NotReadableError'));
+                }, 4000);
+                ctx.addEventListener('statechange', check);
+                ctx.resume().catch(function() {
+                    return null;
+                });
+            });
+        };
+
+        var capture = function(recording) {
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            recording.ctx = ctx;
+            var source = ctx.createMediaStreamSource(recording.stream);
+            var quiet = ctx.createGain();
+            quiet.gain.value = 0;
+            quiet.connect(ctx.destination);
+            var older = function() {
+                var size = 1024;
+                var node = ctx.createScriptProcessor(size, 1, 1);
+                node.onaudioprocess = function(event) {
+                    forward(recording, new Float32Array(event.inputBuffer.getChannelData(0)).buffer);
+                };
+                return node;
+            };
+            var worklet = null;
+            if (ctx.audioWorklet && window.AudioWorkletNode) {
+                var url = URL.createObjectURL(new Blob([CAPTURE], {type: 'text/javascript'}));
+                worklet = ctx.audioWorklet.addModule(url).then(function() {
+                    URL.revokeObjectURL(url);
+                    var node = new AudioWorkletNode(ctx, 'tarsus-host-mic');
+                    node.port.onmessage = function(event) {
+                        forward(recording, event.data);
+                    };
+                    return node;
+                }, function() {
+                    // A strict content security policy may forbid it: the older node does the same.
+                    URL.revokeObjectURL(url);
+                    return older();
+                });
+            } else {
+                worklet = Promise.resolve(older());
+            }
+            return worklet.then(function(node) {
+                recording.node = node;
+                source.connect(node);
+                node.connect(quiet);
+                return running(ctx);
+            }).then(function() {
+                return ctx.sampleRate;
+            });
+        };
+
+        var start = function(id, audio) {
+            stopRecording(current);
+            var recording = {id: id, stream: null, ctx: null, node: null, closed: false};
+            current = recording;
+            var constraints = {audio: {
+                echoCancellation: audio.echoCancellation !== false,
+                noiseSuppression: audio.noiseSuppression !== false,
+                autoGainControl: audio.autoGainControl !== false,
+                channelCount: 1
+            }};
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                port.postMessage({type: 'failed', id: id, name: 'NotSupportedError', message: 'No microphone in this browser.'});
+                return;
+            }
+            navigator.mediaDevices.getUserMedia(constraints).then(function(stream) {
+                if (recording.closed) {
+                    stream.getTracks().forEach(function(track) {
+                        track.stop();
+                    });
+                    return null;
+                }
+                recording.stream = stream;
+                stream.getAudioTracks().forEach(function(track) {
+                    track.addEventListener('ended', function() {
+                        if (current === recording) {
+                            port.postMessage({type: 'ended', id: id});
+                            stopRecording(recording);
+                            current = null;
+                        }
+                    });
+                });
+                return capture(recording).then(function(rate) {
+                    if (!recording.closed) {
+                        port.postMessage({type: 'started', id: id, sampleRate: rate});
+                        if (onstart) {
+                            onstart();
+                        }
+                    }
+                    return rate;
+                });
+            }).catch(function(error) {
+                if (current !== recording) {
+                    return;
+                }
+                stopRecording(recording);
+                current = null;
+                port.postMessage({type: 'failed', id: id, name: (error && error.name) || 'NotAllowedError',
+                    message: (error && error.message) || ''});
+            });
+        };
+
+        var receive = function(event) {
+            var data = event.data;
+            if (!data || typeof data !== 'object') {
+                return;
+            }
+            if (data.type === 'start' && typeof data.id === 'number') {
+                start(data.id, data.audio && typeof data.audio === 'object' ? data.audio : {});
+            } else if (data.type === 'stop' && current && data.id === current.id) {
+                stopRecording(current);
+                current = null;
+            }
+        };
+
+        var hello = function(event) {
+            if (port || event.source !== frame.contentWindow || !event.data || event.data.type !== 'tarsus:mic-hello') {
+                return;
+            }
+            var channel = new MessageChannel();
+            port = channel.port1;
+            port.onmessage = receive;
+            // The frame has an opaque origin, so no origin can be named; the message goes to this frame's window only.
+            frame.contentWindow.postMessage({type: 'tarsus:mic-port'}, '*', [channel.port2]);
+        };
+        window.addEventListener('message', hello);
+
+        return {
+            close: function() {
+                window.removeEventListener('message', hello);
+                stopRecording(current);
+                current = null;
+                if (port) {
+                    port.close();
+                    port = null;
+                }
+            },
+            recording: function() {
+                return Boolean(current && current.stream && !current.closed);
+            }
+        };
+    }
+
     Chat.prototype.frame = function (html, title) {
         var iframe = el('iframe', {
             'class': 'tarsus-frame__iframe', sandbox: 'allow-scripts allow-forms allow-pointer-lock',
@@ -2555,10 +2932,10 @@
 
     // --- live interaction ----------------------------------------------
     //
-    // Tarsus sends the whole call as one page (a genericLiveWidget). Its
-    // contract: shown in a frame without sandbox that may use the
-    // microphone - the page is Tarsus's own code; the AI-made slides in it
-    // run in their own sandbox. The page tells when its call has expired.
+    // Tarsus sends the whole call as one page (a genericLiveWidget). It runs
+    // in a sandboxed frame (see hostMic): the page cannot reach ILIAS, and
+    // its microphone is recorded here and handed over. The AI-made slides in
+    // it run in their own sandbox. The page tells when its call has expired.
 
     Chat.prototype.setLiveLabel = function (key) {
         var label = this.q('[data-region="live-label"]');
@@ -2587,8 +2964,14 @@
                 self.alert(result.error || self.t('unexpected_error'));
                 return;
             }
-            var frame = el('iframe', {'class': 'tarsus-live__frame', allow: 'microphone; autoplay', title: self.t('live_title')});
-            frame.setAttribute('srcdoc', result.page);
+            var frame = el('iframe', {
+                'class': 'tarsus-live__frame', sandbox: 'allow-scripts allow-forms', allow: 'microphone; autoplay',
+                title: self.t('live_title')
+            });
+            self.state.liveMic = hostMic(frame, function () {
+                self.announceCall();
+            });
+            frame.setAttribute('srcdoc', withMicBridge(result.page));
             var card = el('div', {'class': 'tarsus-card tarsus-live', 'data-region': 'live-card'}, [
                 el('div', {'class': 'tarsus-live__notice tarsus-hidden', 'data-region': 'live-notice', role: 'status'}),
                 frame
@@ -2609,6 +2992,10 @@
     Chat.prototype.endLive = function (keepFeed) {
         var card = this.state.live;
         this.state.live = null;
+        if (this.state.liveMic) {
+            this.state.liveMic.close();
+            this.state.liveMic = null;
+        }
         if (card && card.parentNode) {
             card.parentNode.removeChild(card);
         }
@@ -2616,6 +3003,28 @@
         if (!keepFeed) {
             this.loadFeed();
         }
+    };
+
+    /**
+     * One call at a time in the browser, as on Tarsus: a call that starts
+     * in another tab ends the one here.
+     */
+    Chat.prototype.announceCall = function () {
+        var self = this;
+        if (!window.BroadcastChannel) {
+            return;
+        }
+        if (!this.callChannel) {
+            this.callTab = String(Date.now()) + String(Math.random()).slice(2);
+            this.callChannel = new BroadcastChannel('xtar-calls');
+            this.callChannel.onmessage = function (event) {
+                var data = event.data;
+                if (data && data.type === 'call-started' && data.tab !== self.callTab && self.state.live) {
+                    self.endLive(false);
+                }
+            };
+        }
+        this.callChannel.postMessage({type: 'call-started', tab: this.callTab});
     };
 
     Chat.prototype.onLiveMessage = function (event) {

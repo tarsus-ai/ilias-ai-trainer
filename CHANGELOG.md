@@ -3,6 +3,16 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [2.1.2] – 2026-11-25
+
+A security update: please install it.
+
+### Security
+
+- The page of the **live interaction** now runs in a sandboxed frame like the AI trainer's other pages. Before, it ran in a frame without a sandbox, so the call page's scripts could reach the ILIAS page, the cookies and the user's session. Browsers give a sandboxed page no microphone, so the plugin records it and passes the sound on to the call. Nothing changes for learners: the call starts, sounds and ends as before. A call that starts in another tab ends the running one, as before.
+
+After updating, click **Update** in the plugin list (*Administration › Extending ILIAS › Plugins*). Your settings, material and learners' figures are kept.
+
 ## [2.1.1] – 2026-11-24
 
 The screen reader and keyboard support described for 2.1.0, now in the download.
