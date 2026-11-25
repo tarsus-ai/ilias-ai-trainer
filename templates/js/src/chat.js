@@ -13,6 +13,7 @@ import {
   focusOn, nextId, srText, trapTab,
 } from './a11y.js';
 import { post, postForm } from './net.js';
+import confirmDialog from './dialog.js';
 import Scroller from './scroller.js';
 import processingSequence from './processing.js';
 
@@ -1701,15 +1702,38 @@ export default class Chat {
 
   // --- modes, reply chip, asking -------------------------------------
 
-  setMode(mode, quiet) {
+  /**
+   * Switch to a mode; after() runs once it is switched. Leaving the live
+   * interaction ends the call: a running call asks first, a call the
+   * learner already hung up needs no question.
+   */
+  setMode(mode, quiet, after) {
     if (this.state.mode === 'discuss' && mode !== 'discuss' && this.state.live) {
-      // Leaving the live interaction ends the call; a call the
-      // learner already hung up needs no question.
-      if (this.state.live.getAttribute('data-call') !== 'ended' && !window.confirm(this.t('live_end_confirm'))) {
+      if (this.state.live.getAttribute('data-call') !== 'ended') {
+        confirmDialog(this.root, {
+          text: this.t('live_end_confirm'),
+          confirm: this.t('live_end'),
+          cancel: this.t('dialog_cancel'),
+        }).then((confirmed) => {
+          if (confirmed) {
+            this.endLive();
+            this.applyMode(mode, quiet);
+            if (after) {
+              after();
+            }
+          }
+        });
         return;
       }
       this.endLive();
     }
+    this.applyMode(mode, quiet);
+    if (after) {
+      after();
+    }
+  }
+
+  applyMode(mode, quiet) {
     this.state.mode = mode;
     this.qa('.tarsus-mode-switch__btn').forEach((btn) => {
       const active = btn.getAttribute('data-mode') === mode;
@@ -1780,13 +1804,14 @@ export default class Chat {
     if (!reply) {
       return;
     }
-    this.setMode('ask', true);
-    this.setReply(reply);
-    this.announce(this.t('chat_reply_about', { title: reply.title }));
-    const input = this.q('.tarsus-chat-input');
-    if (input && !this.state.voiceInput) {
-      input.focus();
-    }
+    this.setMode('ask', true, () => {
+      this.setReply(reply);
+      this.announce(this.t('chat_reply_about', { title: reply.title }));
+      const input = this.q('.tarsus-chat-input');
+      if (input && !this.state.voiceInput) {
+        input.focus();
+      }
+    });
   }
 
   handleSubmit(event) {

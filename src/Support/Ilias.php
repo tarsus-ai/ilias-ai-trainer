@@ -38,6 +38,43 @@ final class Ilias
         return self::dic()->access();
     }
 
+    /**
+     * ILIAS's UI framework: the forms, buttons, dialogs and messages of
+     * the administration and settings screens.
+     */
+    public static function ui(): \ILIAS\DI\UIServices
+    {
+        return self::dic()->ui();
+    }
+
+    public static function refinery(): \ILIAS\Refinery\Factory
+    {
+        return self::dic()->refinery();
+    }
+
+    /**
+     * The current request, for the forms of the UI framework.
+     */
+    public static function request(): \Psr\Http\Message\ServerRequestInterface
+    {
+        return self::dic()->http()->request();
+    }
+
+    /**
+     * A check of a form field: $is_ok gets the value; $message is the text
+     * shown at the field, or a function of the value that returns it.
+     */
+    public static function check(callable $is_ok, $message): \ILIAS\Refinery\Constraint
+    {
+        if ($message instanceof \Closure) {
+            return self::refinery()->custom()->constraint(
+                $is_ok,
+                static fn($txt, $value): string => (string) $message($value)
+            );
+        }
+        return self::refinery()->custom()->constraint($is_ok, (string) $message);
+    }
+
     public static function tree(): \ilTree
     {
         return self::dic()->repositoryTree();

@@ -8,6 +8,7 @@
 import { el, show } from './helpers.js';
 import Chat from './chat.js';
 import Dashboard from './dashboard.js';
+import nameUnnamedControls from './names.js';
 
 // ------------------------------------------------------------------
 // Boot
@@ -70,6 +71,7 @@ function bootHelp(panelRoot) {
 }
 
 TarsusIlias.boot = function () {
+  nameUnnamedControls(document);
   document.querySelectorAll('.tarsus-help').forEach(bootHelp);
   document.querySelectorAll('.tarsus-app[data-config]').forEach((root) => {
     if (root.getAttribute('data-booted') === '1') {

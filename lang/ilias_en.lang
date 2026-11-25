@@ -254,7 +254,6 @@ proc_learn_check#:#The learning cards are checked for clarity
 proc_learn_path_update#:#Your learning path is carried forward
 proc_learn_polish#:#Final polish of your learning unit
 // Plugin configuration
-cfg_title#:#Tarsus configuration
 cfg_tab_settings#:#Settings
 cfg_tab_brains#:#Brains
 cfg_tab_deletions#:#Deletions
@@ -288,6 +287,7 @@ robotdescription#:#Assistant description
 robotdescription_desc#:#A short description of the assistant, e.g. its role or instructions.
 robotavatar#:#Assistant avatar
 robotavatar_desc#:#The image shown next to the assistant's answers in the chat. Square images work best; the image is scaled down to 160 pixels.
+robotavatar_remove#:#Remove the current picture
 error_avatar#:#The avatar could not be read as an image (PNG, JPEG, GIF or WebP up to 2 MB).
 voice_mode#:#Voice selection
 voice_mode_desc#:#How the voice that reads learning units aloud is chosen.
@@ -413,6 +413,8 @@ no_limit#:#no limit
 notify_emails#:#Warning recipients
 notify_emails_desc#:#E-mail addresses (one per line or separated by commas) that receive a mail when {thresholds} of the limit are reached. Leave empty to notify the installation's administrator address ({admin}).
 error_email#:#"{email}" is not a valid e-mail address.
+error_minimum#:#Please enter {minimum} or more.
+error_price#:#Please enter a price of 0 or more, for example 0.05.
 limit_reduce_confirm#:#You are lowering the monthly limit from {old} to {new} AI credits. {used} credits are already used this month; once the new limit is reached, AI requests are refused until next month or until the limit is raised again. Continue?
 usage_remote#:#AI credits according to Tarsus
 usage_remote_none#:#not fetched yet (asked from Tarsus at most once a minute)
@@ -484,6 +486,7 @@ panel_settings#:#Settings
 panel_stats#:#Evaluation
 panel_history#:#History
 panel_close#:#Close
+dialog_cancel#:#Cancel
 loading#:#Loading …
 settings_save#:#Save
 settings_saving#:#Saving …
@@ -521,6 +524,7 @@ live_starting#:#Preparing the conversation …
 live_intro#:#Just talk to the AI trainer. The slides appear above, the answers stay in the history.
 live_expired#:#This live interaction has expired. “New conversation” starts a new one.
 live_end_confirm#:#The running conversation will end. Continue?
+live_end#:#End conversation
 live_title#:#Live interaction with the AI trainer
 sources_show#:#View sources
 sources_title#:#References

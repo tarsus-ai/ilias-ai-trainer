@@ -254,7 +254,6 @@ proc_learn_check#:#Die Lernkarten werden auf Verständlichkeit geprüft
 proc_learn_path_update#:#Ihr Lernpfad wird fortgeschrieben
 proc_learn_polish#:#Letzter Feinschliff Ihrer Lerneinheit
 // Plugin-Konfiguration
-cfg_title#:#Tarsus-Konfiguration
 cfg_tab_settings#:#Einstellungen
 cfg_tab_brains#:#Brains
 cfg_tab_deletions#:#Löschungen
@@ -288,6 +287,7 @@ robotdescription#:#Beschreibung des Assistenten
 robotdescription_desc#:#Eine kurze Beschreibung des Assistenten, z. B. Rolle oder Anweisungen.
 robotavatar#:#Avatar des Assistenten
 robotavatar_desc#:#Das Bild neben den Antworten des Assistenten im Chat. Quadratische Bilder eignen sich am besten; das Bild wird auf 160 Pixel verkleinert.
+robotavatar_remove#:#Aktuelles Bild entfernen
 error_avatar#:#Der Avatar konnte nicht als Bild gelesen werden (PNG, JPEG, GIF oder WebP bis 2 MB).
 voice_mode#:#Stimmauswahl
 voice_mode_desc#:#Wie die Stimme gewählt wird, die Lerneinheiten vorliest.
@@ -413,6 +413,8 @@ no_limit#:#kein Limit
 notify_emails#:#Empfänger der Warnungen
 notify_emails_desc#:#E-Mail-Adressen (eine pro Zeile oder durch Kommas getrennt), die bei {thresholds} des Limits eine Mail erhalten. Leer lassen, um die Administrationsadresse der Installation zu benachrichtigen ({admin}).
 error_email#:#„{email}“ ist keine gültige E-Mail-Adresse.
+error_minimum#:#Bitte geben Sie {minimum} oder mehr ein.
+error_price#:#Bitte geben Sie einen Preis von 0 oder mehr ein, zum Beispiel 0,05.
 limit_reduce_confirm#:#Du senkst das monatliche Limit von {old} auf {new} KI-Credits. In diesem Monat sind bereits {used} Credits verbraucht; sobald das neue Limit erreicht ist, werden KI-Anfragen bis zum nächsten Monat oder bis zu einer Erhöhung abgelehnt. Fortfahren?
 usage_remote#:#KI-Credits laut Tarsus
 usage_remote_none#:#noch nicht abgerufen (wird höchstens einmal pro Minute bei Tarsus abgefragt)
@@ -484,6 +486,7 @@ panel_settings#:#Einstellungen
 panel_stats#:#Auswertung
 panel_history#:#Verlauf
 panel_close#:#Schließen
+dialog_cancel#:#Abbrechen
 loading#:#Wird geladen …
 settings_save#:#Speichern
 settings_saving#:#Wird gespeichert …
@@ -521,6 +524,7 @@ live_starting#:#Das Gespräch wird vorbereitet …
 live_intro#:#Sprechen Sie einfach mit dem KI-Trainer. Die Folien erscheinen oben, die Antworten bleiben im Verlauf.
 live_expired#:#Diese Live-Interaktion ist abgelaufen. Mit „Neues Gespräch“ starten Sie eine neue.
 live_end_confirm#:#Das laufende Gespräch wird beendet. Fortfahren?
+live_end#:#Gespräch beenden
 live_title#:#Live-Interaktion mit dem KI-Trainer
 sources_show#:#Quellen anschauen
 sources_title#:#Referenzen

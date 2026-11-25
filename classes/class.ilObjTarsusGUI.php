@@ -38,6 +38,7 @@ use TarsusIlias\Support\Config;
 use TarsusIlias\Support\Help;
 use TarsusIlias\Support\Ilias;
 use TarsusIlias\Support\Plan;
+use ILIAS\UI\Component\Input\Container\Form\Standard as StandardForm;
 
 class ilObjTarsusGUI extends ilObjectPluginGUI
 {
@@ -59,6 +60,9 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     /** Longest spoken question accepted, in seconds. */
     public const VOICE_MAX_SECONDS = 180;
 
+    /** The coach's modes, in the order of the settings. */
+    private const MODES = ['ask', 'test', 'build', 'discuss'];
+
     /** @var string[] Interface texts of the coach. */
     private const CHAT_STRINGS = [
         'a11y_you_asked', 'a11y_question', 'a11y_learning_unit', 'a11y_working', 'a11y_answered', 'a11y_correct', 'a11y_incorrect', 'a11y_partial',
@@ -72,7 +76,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         'voice_to_voice', 'voice_to_text', 'voice_start', 'voice_stop', 'voice_pause', 'voice_resume', 'voice_discard',
         'voice_play', 'voice_recording', 'voice_paused', 'voice_ready', 'voice_question', 'voice_transcribing',
         'voice_transcript_note', 'voice_limit', 'voice_unsupported', 'mic_denied', 'mic_notfound', 'mic_failed',
-        'live_start', 'live_new', 'live_intro', 'live_expired', 'live_end_confirm', 'live_title', 'live_starting',
+        'live_start', 'live_new', 'live_intro', 'live_expired', 'live_end_confirm', 'live_end', 'dialog_cancel', 'live_title', 'live_starting',
         'sources_show', 'sources_title', 'sources_count', 'sources_none', 'sources_open', 'sources_transcript',
         'source_type_text', 'source_type_table', 'source_type_image', 'source_type_audio', 'source_type_video',
         'source_type_question', 'source_type_form', 'source_type_other', 'panel_close', 'loading',
@@ -139,7 +143,6 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
 
         switch ($cmd) {
             case 'showContent':
-            case 'confirmResetChat':
             case 'resetChat':
                 $this->checkPermission('read');
                 $this->$cmd();
@@ -316,10 +319,6 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
 
         $this->includeAssets(true);
 
-        $toolbar = $this->toolbar;
-        $toolbar->setFormAction($this->ctrl->getFormAction($this, 'confirmResetChat'));
-        $toolbar->addFormButton($this->txt('resetchat'), 'confirmResetChat');
-
         $robotavatar = Config::robotAvatar();
         if ($robotavatar === '') {
             $robotavatar = Ilias::assetUrl('images/robot.svg');
@@ -386,7 +385,23 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             'strings' => $this->strings(array_merge(self::CHAT_STRINGS, $teacher ? self::TEACHER_STRINGS : [])),
         ];
 
-        $this->tpl->setContent(Views::chat('tarsus-chat-' . $object->getId(), $config, Views::help(Help::links(), 'tarsus-help-chat')));
+        $this->tpl->setContent($this->resetChatButton() . Views::chat('tarsus-chat-' . $object->getId(), $config, Views::help(Help::links(), 'tarsus-help-chat')));
+    }
+
+    /**
+     * "Reset chat history": an ILIAS button that opens ILIAS's
+     * confirmation dialog, which sends the reset.
+     */
+    private function resetChatButton(): string
+    {
+        $ui = Ilias::dic()->ui();
+        $modal = $ui->factory()->modal()->interruptive(
+            $this->txt('resetchat'),
+            sprintf($this->txt('resetchat_confirm'), Html::e($this->object->getTitle())),
+            $this->ctrl->getFormAction($this, 'resetChat')
+        )->withActionButtonLabel($this->txt('resetchat'));
+        $button = $ui->factory()->button()->standard($this->txt('resetchat'), '')->withOnClick($modal->getShowSignal());
+        return '<div class="tarsus-reset-row">' . $ui->renderer()->render($button) . '</div>' . $ui->renderer()->render($modal);
     }
 
     /**
@@ -414,17 +429,6 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     {
         $help = Views::help(Help::links(), 'tarsus-help-' . $this->object->getId());
         return $help === '' ? '' : '<div class="tarsus-app tarsus-help-row">' . $help . '</div>';
-    }
-
-    private function confirmResetChat(): void
-    {
-        $this->tabs->activateTab('content');
-        $confirm = new ilConfirmationGUI();
-        $confirm->setFormAction($this->ctrl->getFormAction($this, 'resetChat'));
-        $confirm->setHeaderText(sprintf($this->txt('resetchat_confirm'), Html::e($this->object->getTitle())));
-        $confirm->setConfirm($this->txt('resetchat'), 'resetChat');
-        $confirm->setCancel($this->lng->txt('cancel'), 'showContent');
-        $this->tpl->setContent($confirm->getHTML());
     }
 
     private function resetChat(): void
@@ -625,7 +629,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
             ]),
             'batchLimit' => ClientInterface::BATCH_LIMIT,
             'strings' => $this->strings([
-                'confirmremove_body', 'unexpected_error', 'session_lost', 'sync_done', 'bulk_done',
+                'confirmremove_body', 'dialog_cancel', 'unexpected_error', 'session_lost', 'sync_done', 'bulk_done',
                 'include_not_indexed', 'action_index', 'action_reindex', 'action_remove', 'action_retry',
             ]),
         ];
@@ -778,286 +782,271 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     // Settings
     // ------------------------------------------------------------------
 
-    private function editSettings(?ilPropertyFormGUI $form = null): void
+    private function editSettings(?StandardForm $form = null): void
     {
         $this->tabs->activateTab('settings');
         $this->budgetBanner();
-        if ($form === null) {
-            $form = $this->initSettingsForm();
-            $this->fillSettingsForm($form);
-        }
         $this->includeAssets();
-        $this->tpl->setContent($this->helpHtml() . $form->getHTML());
+        $this->tpl->setContent($this->helpHtml() . Ilias::ui()->renderer()->render($form ?? $this->settingsForm()));
     }
 
-    private function initSettingsForm(): ilPropertyFormGUI
+    /**
+     * The object's settings, filled with the stored values: title,
+     * description and online state, then what the coach offers and how it
+     * teaches. Modes and features outside the booked package are shown,
+     * explained and locked.
+     */
+    private function settingsForm(): StandardForm
     {
-        $form = new ilPropertyFormGUI();
-        $form->setFormAction($this->ctrl->getFormAction($this, 'updateSettings'));
-        $form->setTitle($this->txt('settings_title'));
+        $field = Ilias::ui()->factory()->input()->field();
+        $settings = $this->tarsus()->getSettings();
 
-        $title = new ilTextInputGUI($this->lng->txt('title'), 'title');
-        $title->setRequired(true);
-        $title->setMaxLength(ilObject::TITLE_LENGTH);
-        $form->addItem($title);
-
-        $description = new ilTextAreaInputGUI($this->lng->txt('description'), 'description');
-        $description->setRows(3);
-        $description->setInfo($this->txt('description_info'));
-        $form->addItem($description);
-
-        $online = new ilCheckboxInputGUI($this->lng->txt('online'), 'online');
-        $online->setInfo($this->txt('online_info'));
-        $form->addItem($online);
+        $general = [
+            'title' => $field->text($this->lng->txt('title'))
+                ->withMaxLength(ilObject::TITLE_LENGTH)
+                ->withRequired(true)
+                ->withValue((string) $this->object->getTitle()),
+            'description' => $field->textarea($this->lng->txt('description'), $this->txt('description_info'))
+                ->withValue((string) $this->object->getDescription()),
+            'online' => $field->checkbox($this->lng->txt('online'), $this->txt('online_info'))->withValue($settings->online),
+        ];
 
         // Modes.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_modes'));
-        $form->addItem($section);
-        foreach (['ask', 'test', 'build', 'discuss'] as $mode) {
-            $box = new ilCheckboxInputGUI($this->txt($mode . 'enabled'), $mode . 'enabled');
-            if (Plan::allowsMode($mode)) {
-                $box->setInfo($this->txt($mode . 'enabled_help'));
-            } else {
+        $modes = [];
+        foreach (self::MODES as $mode) {
+            $byline = $this->txt($mode . 'enabled_help');
+            if (!Plan::allowsMode($mode)) {
                 // Not part of the customer's plan: shown, explained, locked.
-                $box->setDisabled(true);
-                $box->setInfo($this->txt($mode . 'enabled_help') . ' <strong>' . Ilias::txt('plan_mode_unavailable', ['plan' => Plan::label()]) . '</strong>');
+                $byline .= ' <strong>' . Ilias::txt('plan_mode_unavailable', ['plan' => Plan::label()]) . '</strong>';
             }
-            $form->addItem($box);
+            $modes[$mode . 'enabled'] = $field->checkbox($this->txt($mode . 'enabled'), $byline)
+                ->withValue($settings->modeEnabled($mode))
+                ->withDisabled(!Plan::allowsMode($mode));
         }
 
         // Interaction.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_interaction'));
-        $section->setInfo($this->txt('settings_interaction_desc'));
-        $form->addItem($section);
-
-        $interaction = new ilRadioGroupInputGUI($this->txt('interactiontype'), 'interactiontype');
-        $trainer = new ilRadioOption($this->txt('interaction_trainer'), Plan::INTERACTION_TRAINER, $this->txt('interaction_trainer_help'));
-        $interaction->addOption($trainer);
-        $ai = new ilRadioOption($this->txt('interaction_ai'), Plan::INTERACTION_AI, $this->txt('interaction_ai_help')
-            . (Plan::allowsAiDriven() ? '' : ' <strong>' . Ilias::txt('plan_interaction_unavailable', ['plan' => Plan::label()]) . '</strong>'));
-        if (!Plan::allowsAiDriven()) {
-            $ai->setDisabled(true);
-        }
-        $interaction->addOption($ai);
-        $form->addItem($interaction);
-
-        $voice = new ilCheckboxInputGUI($this->txt('voiceinput'), 'voiceinput');
-        if (Plan::allowsVoiceInput()) {
-            $voice->setInfo($this->txt('voiceinput_help'));
+        if (Plan::allowsAiDriven()) {
+            $interaction = $field->radio($this->txt('interactiontype'))
+                ->withOption(Plan::INTERACTION_TRAINER, $this->txt('interaction_trainer'), $this->txt('interaction_trainer_help'))
+                ->withOption(Plan::INTERACTION_AI, $this->txt('interaction_ai'), $this->txt('interaction_ai_help'))
+                ->withValue(self::option($settings->interactiontype, [Plan::INTERACTION_TRAINER => '', Plan::INTERACTION_AI => '']));
         } else {
-            $voice->setDisabled(true);
-            $voice->setInfo($this->txt('voiceinput_help') . ' <strong>' . Ilias::txt('plan_feature_locked', ['plan' => Plan::label()]) . '</strong>');
+            // AI-driven pages are not part of the package: the trainer drives.
+            $interaction = $field->radio(
+                $this->txt('interactiontype'),
+                $this->txt('interaction_ai') . ': ' . $this->txt('interaction_ai_help')
+                    . ' <strong>' . Ilias::txt('plan_interaction_unavailable', ['plan' => Plan::label()]) . '</strong>'
+            )
+                ->withOption(Plan::INTERACTION_TRAINER, $this->txt('interaction_trainer'), $this->txt('interaction_trainer_help'))
+                ->withValue(Plan::INTERACTION_TRAINER);
         }
-        $form->addItem($voice);
-
-        $references = new ilCheckboxInputGUI($this->txt('referencesenabled'), 'referencesenabled');
-        $references->setInfo($this->txt('referencesenabled_help'));
-        $form->addItem($references);
-
-        $accessible = new ilCheckboxInputGUI($this->txt('visualaccessibility'), 'visualaccessibility');
-        $accessible->setInfo($this->txt('visualaccessibility_help'));
-        $form->addItem($accessible);
-
+        $voicebyline = $this->txt('voiceinput_help');
+        if (!Plan::allowsVoiceInput()) {
+            $voicebyline .= ' <strong>' . Ilias::txt('plan_feature_locked', ['plan' => Plan::label()]) . '</strong>';
+        }
         // Thinking level: how thoroughly the coach thinks (replaces "think longer").
-        $thinking = new ilRadioGroupInputGUI($this->txt('thinkinglevel'), 'thinkinglevel');
-        $thinking->setInfo($this->txt('thinkinglevel_help'));
+        $thinking = $field->radio($this->txt('thinkinglevel'), $this->txt('thinkinglevel_help'));
         foreach ([1 => 'fast', 2 => 'slow', 3 => 'deep', 4 => 'intense'] as $level => $key) {
-            $thinking->addOption(new ilRadioOption($this->txt('thinking_' . $key), (string) $level, $this->txt('thinking_' . $key . '_help')));
+            $thinking = $thinking->withOption((string) $level, $this->txt('thinking_' . $key), $this->txt('thinking_' . $key . '_help'));
         }
-        $form->addItem($thinking);
+        $interactionsection = [
+            'interactiontype' => $interaction,
+            'voiceinput' => $field->checkbox($this->txt('voiceinput'), $voicebyline)
+                ->withValue($settings->voiceinput)
+                ->withDisabled(!Plan::allowsVoiceInput()),
+            'referencesenabled' => $field->checkbox($this->txt('referencesenabled'), $this->txt('referencesenabled_help'))
+                ->withValue($settings->referencesenabled),
+            'visualaccessibility' => $field->checkbox($this->txt('visualaccessibility'), $this->txt('visualaccessibility_help'))
+                ->withValue($settings->visualaccessibility),
+            'thinkinglevel' => $thinking->withValue(self::option($settings->thinkinglevel, [1 => '', 2 => '', 3 => '', 4 => ''])),
+        ];
 
         // General didactics.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_general'));
-        $form->addItem($section);
-
-        $dqr = new ilSelectInputGUI($this->txt('dqr'), 'dqr');
         $levels = [];
         foreach (Didactics::DQR_LEVELS as $level) {
             $levels[$level] = $level . ' – ' . $this->txt('dqr_level' . $level);
         }
-        $dqr->setOptions($levels);
-        $dqr->setInfo($this->txt('dqr_help'));
-        $form->addItem($dqr);
-
-        $industry = new ilTextInputGUI($this->txt('industry'), 'industry');
-        $industry->setMaxLength(255);
-        $industry->setInfo($this->txt('industry_help'));
-        $form->addItem($industry);
-
-        $anticheat = new ilCheckboxInputGUI($this->txt('anticheat'), 'anticheat');
-        $anticheat->setInfo($this->txt('anticheat_help'));
-        $form->addItem($anticheat);
+        $didactics = [
+            'dqr' => $field->select($this->txt('dqr'), $levels, $this->txt('dqr_help'))
+                ->withRequired(true)
+                ->withValue(self::option($settings->dqr, $levels)),
+            'industry' => $field->text($this->txt('industry'), $this->txt('industry_help'))
+                ->withMaxLength(255)
+                ->withValue($settings->industry),
+            'anticheat' => $field->checkbox($this->txt('anticheat'), $this->txt('anticheat_help'))->withValue($settings->anticheat),
+        ];
 
         // Ask a question.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_ask'));
-        $form->addItem($section);
-
-        $style = new ilSelectInputGUI($this->txt('conversationstyle'), 'conversationstyle');
         $styles = [];
         foreach (['closed', 'lexical', 'tutorial', 'socratic', 'open'] as $i => $key) {
             $styles[$i + 1] = $this->txt('style_' . $key);
         }
-        $style->setOptions($styles);
-        $style->setInfo($this->txt('conversationstyle_help'));
-        $form->addItem($style);
+        $ask = [
+            'conversationstyle' => $field->select($this->txt('conversationstyle'), $styles, $this->txt('conversationstyle_help'))
+                ->withRequired(true)
+                ->withValue(self::option($settings->conversationstyle, $styles)),
+        ];
 
         // Test knowledge.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_test'));
-        $form->addItem($section);
-
-        $taxonomy = new ilCheckboxGroupInputGUI($this->txt('taxonomylevels'), 'taxonomylevels');
-        $taxonomy->setInfo($this->txt('taxonomylevels_help'));
+        $taxonomy = [];
         foreach ([1 => 'taxonomy_knowledge', 2 => 'taxonomy_understanding', 3 => 'taxonomy_application'] as $level => $key) {
-            $taxonomy->addOption(new ilCheckboxOption($this->txt($key), (string) $level));
+            $taxonomy[(string) $level] = $this->txt($key);
         }
-        $form->addItem($taxonomy);
-
-        $grades = [1 => 'difficulty_easy', 2 => 'difficulty_medium', 3 => 'difficulty_hard'];
-        foreach ($grades as $grade => $gradekey) {
-            $types = new ilCheckboxGroupInputGUI(str_replace('{grade}', $this->txt($gradekey), $this->txt('questiontypes_grade')), 'qtypes' . $grade);
-            foreach (Didactics::TYPES as $type) {
-                $types->addOption(new ilCheckboxOption($this->txt(Didactics::typeLabelKey($type)), $type));
-            }
-            if ($grade === 1) {
-                $types->setInfo($this->txt('questiontypes_help'));
-            }
-            $form->addItem($types);
+        $test = [
+            'taxonomylevels' => $field->multiSelect($this->txt('taxonomylevels'), $taxonomy, $this->txt('taxonomylevels_help'))
+                ->withValue(self::options($settings->taxonomylevels, $taxonomy))
+                ->withAdditionalTransformation(Ilias::check(
+                    static fn($value): bool => is_array($value) && $value !== [],
+                    $this->txt('error_taxonomyrequired')
+                )),
+        ];
+        $types = [];
+        foreach (Didactics::TYPES as $type) {
+            $types[$type] = $this->txt(Didactics::typeLabelKey($type));
         }
-
-        $operators = new ilRadioGroupInputGUI($this->txt('operators'), 'operators');
-        $operators->addOption(new ilRadioOption($this->txt('operators_standard'), Didactics::OPERATORS_STANDARD));
-        $operators->addOption(new ilRadioOption($this->txt('operators_ihk'), Didactics::OPERATORS_IHK));
-        $operators->setInfo($this->txt('operators_help'));
-        $form->addItem($operators);
-
-        $tempo = new ilSelectInputGUI($this->txt('learntempo'), 'learntempo');
+        foreach ([1 => 'difficulty_easy', 2 => 'difficulty_medium', 3 => 'difficulty_hard'] as $grade => $gradekey) {
+            $test['qtypes' . $grade] = $field->multiSelect(
+                str_replace('{grade}', $this->txt($gradekey), $this->txt('questiontypes_grade')),
+                $types,
+                $grade === 1 ? $this->txt('questiontypes_help') : null
+            )
+                ->withValue(self::options($settings->questiontypes[$grade] ?? [], $types))
+                ->withAdditionalTransformation(Ilias::check(
+                    static fn($value): bool => is_array($value) && $value !== [],
+                    $this->txt('error_questiontypesrequired')
+                ));
+        }
+        $test['operators'] = $field->radio($this->txt('operators'), $this->txt('operators_help'))
+            ->withOption(Didactics::OPERATORS_STANDARD, $this->txt('operators_standard'))
+            ->withOption(Didactics::OPERATORS_IHK, $this->txt('operators_ihk'))
+            ->withValue(self::option($settings->operators, [Didactics::OPERATORS_STANDARD => '', Didactics::OPERATORS_IHK => '']));
         $tempos = [];
         foreach (Didactics::LEARN_TEMPOS as $value) {
             $label = Didactics::tempoLabel($value);
             $tempos[(string) $value] = $value === Didactics::LEARN_TEMPO_DEFAULT
                 ? str_replace('{label}', $label, $this->txt('learntempo_recommended')) : $label;
         }
-        $tempo->setOptions($tempos);
-        $tempo->setInfo($this->txt('learntempo_help'));
-        $form->addItem($tempo);
+        $test['learntempo'] = $field->select($this->txt('learntempo'), $tempos, $this->txt('learntempo_help'))
+            ->withRequired(true)
+            ->withValue(self::option($settings->learntempo, $tempos));
 
         // Build knowledge.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_build'));
-        $form->addItem($section);
-
-        $method = new ilSelectInputGUI($this->txt('learningmethod'), 'learningmethod');
         $methods = [];
         foreach (Didactics::LEARNING_METHODS as $value) {
             $methods[$value] = $this->txt('learningmethod_' . str_replace('-', '', $value));
         }
-        $method->setOptions($methods);
-        $method->setInfo($this->txt('learningmethod_help'));
-        $form->addItem($method);
-
-        $gif = new ilCheckboxInputGUI($this->txt('gifenabled'), 'gifenabled');
-        $gif->setInfo($this->txt('gifenabled_help'));
-        $form->addItem($gif);
+        $build = [
+            'learningmethod' => $field->select($this->txt('learningmethod'), $methods, $this->txt('learningmethod_help'))
+                ->withRequired(true)
+                ->withValue(self::option($settings->learningmethod, $methods)),
+            'gifenabled' => $field->checkbox($this->txt('gifenabled'), $this->txt('gifenabled_help'))->withValue($settings->gifenabled),
+        ];
 
         // Learning progress.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->lng->txt('learning_progress'));
-        $form->addItem($section);
+        $progress = [
+            'completionprogress' => $field->numeric($this->txt('completionprogress') . ' (%)', $this->txt('completionprogress_help'))
+                ->withValue($settings->completionprogress)
+                ->withAdditionalTransformation(Ilias::check(
+                    static fn($value): bool => is_numeric($value) && (int) $value >= 0 && (int) $value <= 100,
+                    $this->txt('error_completion')
+                )),
+        ];
 
-        $completion = new ilNumberInputGUI($this->txt('completionprogress'), 'completionprogress');
-        $completion->setMinValue(0);
-        $completion->setMaxValue(100);
-        $completion->setSize(4);
-        $completion->setSuffix('%');
-        $completion->allowDecimals(false);
-        $completion->setInfo($this->txt('completionprogress_help'));
-        $form->addItem($completion);
-
-        $form->addCommandButton('updateSettings', $this->lng->txt('save'));
-        return $form;
+        return Ilias::ui()->factory()->input()->container()->form()->standard(
+            $this->ctrl->getFormAction($this, 'updateSettings'),
+            [
+                'general' => $field->section($general, $this->txt('settings_title')),
+                'modes' => $field->section($modes, $this->txt('settings_modes'))
+                    ->withAdditionalTransformation(Ilias::check(
+                        static function ($values): bool {
+                            foreach (self::MODES as $mode) {
+                                if (!empty($values[$mode . 'enabled']) && Plan::allowsMode($mode)) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        },
+                        $this->txt('error_modesrequired')
+                    )),
+                'interaction' => $field->section($interactionsection, $this->txt('settings_interaction'), $this->txt('settings_interaction_desc')),
+                'didactics' => $field->section($didactics, $this->txt('settings_general')),
+                'ask' => $field->section($ask, $this->txt('settings_ask')),
+                'test' => $field->section($test, $this->txt('settings_test')),
+                'build' => $field->section($build, $this->txt('settings_build')),
+                'progress' => $field->section($progress, $this->lng->txt('learning_progress')),
+            ]
+        )->withSubmitLabel($this->lng->txt('save'));
     }
 
-    private function fillSettingsForm(ilPropertyFormGUI $form): void
+    /**
+     * A stored value as a field may show it: one of its options, else
+     * none (the UI framework refuses values it does not offer).
+     *
+     * @param mixed $value
+     * @param array<int|string, string> $options
+     */
+    private static function option($value, array $options): ?string
     {
-        $settings = $this->tarsus()->getSettings();
-        $values = [
-            'title' => $this->object->getTitle(),
-            'description' => $this->object->getDescription(),
-            'online' => $settings->online,
-            'askenabled' => $settings->askenabled,
-            'testenabled' => $settings->testenabled,
-            'buildenabled' => $settings->buildenabled,
-            'discussenabled' => $settings->discussenabled,
-            'voiceinput' => $settings->voiceinput,
-            'referencesenabled' => $settings->referencesenabled,
-            'visualaccessibility' => $settings->visualaccessibility,
-            'thinkinglevel' => (string) $settings->thinkinglevel,
-            'dqr' => $settings->dqr,
-            'industry' => $settings->industry,
-            'anticheat' => $settings->anticheat,
-            'conversationstyle' => $settings->conversationstyle,
-            'taxonomylevels' => array_map('strval', $settings->taxonomylevels),
-            'operators' => $settings->operators,
-            'learntempo' => (string) $settings->learntempo,
-            'learningmethod' => $settings->learningmethod,
-            'gifenabled' => $settings->gifenabled,
-            'interactiontype' => $settings->interactiontype,
-            'completionprogress' => $settings->completionprogress,
-        ];
-        foreach (Didactics::GRADES as $grade) {
-            $values['qtypes' . $grade] = $settings->questiontypes[$grade] ?? [];
-        }
-        $form->setValuesByArray($values);
+        $value = (string) $value;
+        return array_key_exists($value, $options) ? $value : null;
+    }
+
+    /**
+     * The stored values a multiple choice offers.
+     *
+     * @param array<int|string, mixed> $values
+     * @param array<int|string, string> $options
+     * @return string[]
+     */
+    private static function options(array $values, array $options): array
+    {
+        return array_values(array_filter(
+            array_map('strval', $values),
+            static fn(string $value): bool => array_key_exists($value, $options)
+        ));
     }
 
     private function updateSettings(): void
     {
-        $form = $this->initSettingsForm();
-        if (!$form->checkInput()) {
-            $form->setValuesByPost();
+        $form = $this->settingsForm()->withRequest(Ilias::request());
+        $data = $form->getData();
+        if (!is_array($data)) {
             $this->editSettings($form);
             return;
         }
+        $values = [];
+        foreach ($data as $section) {
+            $values += (array) $section;
+        }
 
         // The same checks as the settings panel of the coach.
-        $values = [];
+        $input = [];
         foreach ([
             'askenabled', 'testenabled', 'buildenabled', 'discussenabled', 'interactiontype', 'voiceinput',
             'referencesenabled', 'visualaccessibility', 'thinkinglevel', 'dqr', 'industry', 'anticheat',
             'conversationstyle', 'taxonomylevels', 'qtypes1', 'qtypes2', 'qtypes3', 'operators', 'learntempo',
             'learningmethod', 'gifenabled', 'completionprogress',
         ] as $name) {
-            $values[$name] = $form->getInput($name);
+            $input[$name] = $values[$name] ?? null;
         }
         foreach (['taxonomylevels', 'qtypes1', 'qtypes2', 'qtypes3'] as $name) {
-            $values[$name] = (array) ($values[$name] ?? []);
+            $input[$name] = (array) ($input[$name] ?? []);
         }
 
         $object = $this->tarsus();
         $settings = $object->getSettings();
-        $errors = (new SettingsApi($settings))->apply($values);
+        $errors = (new SettingsApi($settings))->apply($input);
         if ($errors !== []) {
-            foreach ($errors as $name => $message) {
-                $item = $form->getItemByPostVar($name);
-                if ($item !== null) {
-                    $item->setAlert($message);
-                }
-            }
-            $this->tpl->setOnScreenMessage('failure', $this->lng->txt('form_input_not_valid'));
-            $form->setValuesByPost();
+            // The form checks the same; this is met when the package changed meanwhile.
+            $this->tpl->setOnScreenMessage('failure', implode(' ', array_unique($errors)));
             $this->editSettings($form);
             return;
         }
 
-        $object->setTitle((string) $form->getInput('title'));
-        $object->setDescription((string) $form->getInput('description'));
+        $object->setTitle((string) $values['title']);
+        $object->setDescription((string) $values['description']);
         $settings->objid = $object->getId();
-        $settings->online = (bool) $form->getInput('online');
+        $settings->online = !empty($values['online']);
 
         $object->update();
 

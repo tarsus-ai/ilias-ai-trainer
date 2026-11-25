@@ -33,6 +33,7 @@ use TarsusIlias\Support\Ilias;
 use TarsusIlias\Support\Plan;
 use TarsusIlias\Support\UsageMeter;
 use TarsusIlias\Support\Voices;
+use ILIAS\UI\Component\Input\Container\Form\Standard as StandardForm;
 
 class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInterface
 {
@@ -41,6 +42,9 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
 
     /** Largest avatar upload accepted, in bytes. */
     private const AVATAR_MAX_BYTES = 2097152;
+
+    /** Session key of plan values that wait for the confirmation of a lower limit. */
+    private const PENDING_PLAN = 'xtar_pending_plan';
 
     private ilCtrlInterface $ctrl;
     private ilGlobalTemplateInterface $tpl;
@@ -69,7 +73,7 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
      */
     public function getUnsafeGetCommands(): array
     {
-        return ['refreshVoices'];
+        return ['refreshVoices', 'confirmPlan'];
     }
 
     /**
@@ -84,6 +88,11 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
     {
         if ($this->getPluginObject() !== null) {
             Ilias::setPlugin($this->getPluginObject());
+        }
+        if ($this->ctrl->getNextClass($this) === strtolower(ilTarsusAvatarUploadHandlerGUI::class)) {
+            // The picture field uploads (and removes) its file here.
+            $this->ctrl->forwardCommand(new ilTarsusAvatarUploadHandlerGUI());
+            return;
         }
         $this->tabs->addSubTab('cfg_settings', $this->txt('cfg_tab_settings'), $this->ctrl->getLinkTarget($this, 'configure'));
         $this->tabs->addSubTab('cfg_plan', $this->txt('cfg_tab_plan'), $this->ctrl->getLinkTarget($this, 'showPlan'));
@@ -124,15 +133,15 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
     // Settings
     // ------------------------------------------------------------------
 
-    private function configure(?ilPropertyFormGUI $form = null): void
+    private function configure(?StandardForm $form = null): void
     {
         $this->tabs->activateSubTab('cfg_settings');
         if ($form === null) {
-            $form = $this->initSettingsForm();
-            $this->fillSettingsForm($form);
+            // A fresh form: pictures uploaded before but never saved go.
+            ilTarsusAvatarUploadHandlerGUI::discardPending();
         }
         $this->planHint();
-        $this->tpl->setContent($form->getHTML());
+        $this->tpl->setContent(Ilias::ui()->renderer()->render($form ?? $this->settingsForm()));
     }
 
     /**
@@ -148,128 +157,150 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
         }
     }
 
-    private function initSettingsForm(): ilPropertyFormGUI
+    /**
+     * The connection to Tarsus, the assistant, the guardrails and the help
+     * links, filled with the stored values; keys are never shown.
+     */
+    private function settingsForm(): StandardForm
     {
-        $form = new ilPropertyFormGUI();
-        $form->setFormAction($this->ctrl->getFormAction($this, 'saveSettings'));
-        $form->setTitle($this->txt('cfg_title'));
+        $field = Ilias::ui()->factory()->input()->field();
 
         // Connection.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_connection'));
-        $section->setInfo($this->txt('settings_connection_desc'));
-        $form->addItem($section);
-
-        $url = new ilTextInputGUI($this->txt('baseurl'), 'base_url');
-        $url->setInfo($this->txt('baseurl_desc'));
-        $url->setMaxLength(255);
-        $form->addItem($url);
-
-        $key = new ilPasswordInputGUI($this->txt('apikey'), 'api_key');
-        $key->setRetype(false);
-        $key->setSkipSyntaxCheck(true);
-        $key->setMaxLength(255);
-        $key->setInfo($this->txt('apikey_desc') . ' ' . $this->txt(Config::apiKey() !== '' ? 'apikey_keep' : 'apikey_none'));
-        $form->addItem($key);
-
-        $brain = new ilTextInputGUI($this->txt('brainid'), 'brain_id');
-        $brain->setMaxLength(255);
-        $brain->setInfo($this->txt('brainid_desc') . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showBrains')) . '">'
-            . $this->txt('cfg_tab_brains') . '</a> ' . $this->txt('brainid_sandbox'));
-        $form->addItem($brain);
-
-        // Existing Tarsus customers: a license key in place of a brain ID,
-        // billed by Tarsus.
-        $license = new ilPasswordInputGUI($this->txt('licensekey'), 'license_key');
-        $license->setRetype(false);
-        $license->setSkipSyntaxCheck(true);
-        $license->setMaxLength(255);
-        $license->setInfo($this->txt('licensekey_desc') . ' ' . $this->txt(Config::licenseKey() !== '' ? 'licensekey_keep' : 'licensekey_none'));
-        $form->addItem($license);
+        $connection = [
+            'base_url' => $field->text($this->txt('baseurl'), $this->txt('baseurl_desc'))
+                ->withMaxLength(255)
+                ->withValue(Config::baseUrl())
+                ->withAdditionalTransformation(Ilias::check(
+                    static fn($value): bool => self::baseUrlOk((string) $value),
+                    $this->txt('error_baseurl')
+                )),
+            'api_key' => $field->password(
+                $this->txt('apikey'),
+                $this->txt('apikey_desc') . ' ' . $this->txt(Config::apiKey() !== '' ? 'apikey_keep' : 'apikey_none')
+            ),
+            'brain_id' => $field->text(
+                $this->txt('brainid'),
+                $this->txt('brainid_desc') . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showBrains')) . '">'
+                    . $this->txt('cfg_tab_brains') . '</a> ' . $this->txt('brainid_sandbox')
+            )->withMaxLength(255)->withValue(Config::brainId()),
+            // Existing Tarsus customers: a license key in place of a brain
+            // ID, billed by Tarsus.
+            'license_key' => $field->password(
+                $this->txt('licensekey'),
+                $this->txt('licensekey_desc') . ' ' . $this->txt(Config::licenseKey() !== '' ? 'licensekey_keep' : 'licensekey_none')
+            ),
+        ];
         if (Config::licenseKey() !== '') {
-            $clear = new ilCheckboxInputGUI($this->txt('licensekey_clear'), 'license_key_clear');
-            $clear->setInfo($this->txt('licensekey_clear_desc'));
-            $form->addItem($clear);
+            $connection['license_key_clear'] = $field->checkbox($this->txt('licensekey_clear'), $this->txt('licensekey_clear_desc'));
         }
 
         // Assistant.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_assistant'));
-        $section->setInfo($this->txt('settings_assistant_desc'));
-        $form->addItem($section);
+        $image = Config::robotAvatar();
+        $assistant = [
+            'robot_name' => $field->text($this->txt('robotname'), $this->txt('robotname_desc'))
+                ->withMaxLength(100)
+                ->withValue((string) Config::get('robot_name', Config::DEFAULT_ROBOT_NAME)),
+            'robot_id' => $field->text($this->txt('robotid'), $this->txt('robotid_desc'))
+                ->withMaxLength(255)
+                ->withValue((string) Config::get('robot_id', '')),
+            'robot_description' => $field->textarea($this->txt('robotdescription'), $this->txt('robotdescription_desc'))
+                ->withValue((string) Config::get('robot_description', '')),
+        ];
+        $avatar = $this->avatarField($image);
+        if ($avatar !== null) {
+            $assistant['robot_avatar'] = $avatar;
+        }
+        if ($image !== '') {
+            $assistant['robot_avatar_remove'] = $field->checkbox($this->txt('robotavatar_remove'));
+        }
+        $assistant['voice_mode'] = $field->radio($this->txt('voice_mode'), $this->txt('voice_mode_desc'))
+            ->withOption(Voices::MODE_AUTO, $this->txt('voice_mode_auto'))
+            ->withOption(Voices::MODE_FIXED, $this->txt('voice_mode_fixed'))
+            ->withValue((string) Config::get('voice_mode', Voices::MODE_AUTO) === Voices::MODE_FIXED ? Voices::MODE_FIXED : Voices::MODE_AUTO);
+        $voices = $this->voiceOptions();
+        $voice = trim((string) Config::get('voice', '')) !== '' ? (string) Config::get('voice') : Voices::DEFAULT_VOICE;
+        $assistant['voice'] = $field->select(
+            $this->txt('voice'),
+            $voices,
+            $this->txt('voice_desc') . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'refreshVoices')) . '">'
+                . $this->txt('voice_refresh') . '</a>'
+        )
+            ->withRequired(true)
+            ->withValue(array_key_exists($voice, $voices) ? $voice : null);
 
-        $name = new ilTextInputGUI($this->txt('robotname'), 'robot_name');
-        $name->setInfo($this->txt('robotname_desc'));
-        $name->setMaxLength(100);
-        $form->addItem($name);
-
-        $id = new ilTextInputGUI($this->txt('robotid'), 'robot_id');
-        $id->setInfo($this->txt('robotid_desc'));
-        $id->setMaxLength(255);
-        $form->addItem($id);
-
-        $description = new ilTextAreaInputGUI($this->txt('robotdescription'), 'robot_description');
-        $description->setInfo($this->txt('robotdescription_desc'));
-        $description->setRows(3);
-        $form->addItem($description);
-
-        $avatar = new ilImageFileInputGUI($this->txt('robotavatar'), 'robot_avatar');
-        $avatar->setInfo($this->txt('robotavatar_desc'));
-        $avatar->setSuffixes(['png', 'jpg', 'jpeg', 'gif', 'webp']);
-        $avatar->setAllowDeletion(true);
-        $form->addItem($avatar);
-
-        $mode = new ilRadioGroupInputGUI($this->txt('voice_mode'), 'voice_mode');
-        $mode->setInfo($this->txt('voice_mode_desc'));
-        $mode->addOption(new ilRadioOption($this->txt('voice_mode_auto'), Voices::MODE_AUTO));
-        $mode->addOption(new ilRadioOption($this->txt('voice_mode_fixed'), Voices::MODE_FIXED));
-        $form->addItem($mode);
-
-        $voice = new ilSelectInputGUI($this->txt('voice'), 'voice');
-        $voice->setInfo($this->txt('voice_desc') . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'refreshVoices')) . '">'
-            . $this->txt('voice_refresh') . '</a>');
-        $voice->setOptions($this->voiceOptions());
-        $form->addItem($voice);
-
-        // Guardrails.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_guardrails'));
-        $section->setInfo($this->txt('settings_guardrails_desc'));
-        $form->addItem($section);
-
-        $mock = new ilCheckboxInputGUI($this->txt('mockmode'), 'mockmode');
-        $mock->setInfo($this->txt('mockmode_desc'));
-        $form->addItem($mock);
-
-        $kill = new ilCheckboxInputGUI($this->txt('killswitch'), 'killswitch');
-        $kill->setInfo($this->txt('killswitch_desc'));
-        $form->addItem($kill);
-
-        $rate = new ilNumberInputGUI($this->txt('ratelimit'), 'ratelimit');
-        $rate->setInfo($this->txt('ratelimit_desc'));
-        $rate->setMinValue(1);
-        $rate->setSize(6);
-        $rate->allowDecimals(false);
-        $form->addItem($rate);
-
-        $limitnote = new ilNonEditableValueGUI($this->txt('monthly_limit'), 'monthly_limit_note', true);
-        $limitnote->setValue($this->txt('monthly_limit_elsewhere', ['limit' => Budget::hasLimit() ? number_format(Budget::limit()) : $this->txt('no_limit')])
-            . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showPlan')) . '">' . $this->txt('cfg_tab_plan') . '</a>');
-        $form->addItem($limitnote);
+        // Guardrails; the monthly limit is set with the plan.
+        $guardrails = [
+            'mockmode' => $field->checkbox($this->txt('mockmode'), $this->txt('mockmode_desc'))->withValue(Config::mockMode()),
+            'killswitch' => $field->checkbox($this->txt('killswitch'), $this->txt('killswitch_desc'))->withValue(Config::killswitch()),
+            'ratelimit' => $field->numeric($this->txt('ratelimit'), $this->txt('ratelimit_desc'))
+                ->withValue(Config::rateLimit())
+                ->withAdditionalTransformation($this->atLeast(1)),
+        ];
+        $limitnote = $this->txt('monthly_limit') . ': '
+            . $this->txt('monthly_limit_elsewhere', ['limit' => Budget::hasLimit() ? number_format(Budget::limit()) : $this->txt('no_limit')])
+            . ' <a href="' . Html::e($this->ctrl->getLinkTarget($this, 'showPlan')) . '">' . $this->txt('cfg_tab_plan') . '</a>';
 
         // Help.
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('settings_help'));
-        $section->setInfo($this->txt('settings_help_desc'));
-        $form->addItem($section);
+        $help = [
+            Help::KEY => $field->textarea($this->txt('help_links'), $this->txt('help_links_desc'))
+                ->withValue((string) Config::get(Help::KEY, '')),
+        ];
 
-        $help = new ilTextAreaInputGUI($this->txt('help_links'), Help::KEY);
-        $help->setInfo($this->txt('help_links_desc'));
-        $help->setRows(5);
-        $form->addItem($help);
+        return Ilias::ui()->factory()->input()->container()->form()->standard(
+            $this->ctrl->getFormAction($this, 'saveSettings'),
+            [
+                'connection' => $field->section($connection, $this->txt('settings_connection'), $this->txt('settings_connection_desc')),
+                'assistant' => $field->section($assistant, $this->txt('settings_assistant'), $this->txt('settings_assistant_desc')),
+                'guardrails' => $field->section($guardrails, $this->txt('settings_guardrails'), $this->txt('settings_guardrails_desc') . '<br>' . $limitnote),
+                'help' => $field->section($help, $this->txt('settings_help'), $this->txt('settings_help_desc')),
+            ]
+        )->withSubmitLabel($this->lng->txt('save'));
+    }
 
-        $form->addCommandButton('saveSettings', $this->lng->txt('save'));
-        return $form;
+    /**
+     * The file field of the assistant's picture, with the current one
+     * shown; null while ILIAS does not know the upload handler yet (the
+     * page then works without it).
+     */
+    private function avatarField(string $image): ?\ILIAS\UI\Component\Input\Field\File
+    {
+        $byline = $this->txt('robotavatar_desc');
+        if ($image !== '') {
+            $byline .= '<br><img class="tarsus-avatar-preview" src="' . Html::e($image) . '" alt="">';
+        }
+        try {
+            $handler = new ilTarsusAvatarUploadHandlerGUI();
+            // Fails when ILIAS's list of GUI classes misses the handler.
+            $handler->getUploadURL();
+            return Ilias::ui()->factory()->input()->field()->file($handler, $this->txt('robotavatar'), $byline)
+                ->withAcceptedMimeTypes(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+                ->withMaxFileSize(self::AVATAR_MAX_BYTES);
+        } catch (Throwable $e) {
+            Ilias::log('picture upload unavailable: ' . $e->getMessage(), 'warning');
+            return null;
+        }
+    }
+
+    /**
+     * An empty base URL, or one starting with http:// or https:// and a host.
+     */
+    private static function baseUrlOk(string $value): bool
+    {
+        $url = rtrim(trim($value), '/');
+        return $url === '' || preg_match('~^https?://[^\s/]+~i', $url) === 1;
+    }
+
+    /**
+     * The text of a password field ('' when left empty).
+     *
+     * @param mixed $value
+     */
+    private static function secret($value): string
+    {
+        if ($value instanceof \ILIAS\Data\Password) {
+            return $value->toString();
+        }
+        return is_string($value) ? $value : '';
     }
 
     /**
@@ -293,86 +324,58 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
         return $options;
     }
 
-    private function fillSettingsForm(ilPropertyFormGUI $form): void
-    {
-        $form->setValuesByArray([
-            'base_url' => Config::baseUrl(),
-            'api_key' => '',
-            'brain_id' => Config::brainId(),
-            'license_key' => '',
-            'robot_name' => (string) Config::get('robot_name', Config::DEFAULT_ROBOT_NAME),
-            'robot_id' => (string) Config::get('robot_id', ''),
-            'robot_description' => (string) Config::get('robot_description', ''),
-            'voice_mode' => (string) Config::get('voice_mode', Voices::MODE_AUTO),
-            'voice' => trim((string) Config::get('voice', '')) !== '' ? (string) Config::get('voice') : Voices::DEFAULT_VOICE,
-            'mockmode' => Config::mockMode(),
-            'killswitch' => Config::killswitch(),
-            'ratelimit' => Config::rateLimit(),
-            Help::KEY => (string) Config::get(Help::KEY, ''),
-        ]);
-        /** @var ilImageFileInputGUI $avatar */
-        $avatar = $form->getItemByPostVar('robot_avatar');
-        $image = Config::robotAvatar();
-        if ($image !== '') {
-            $avatar->setImage($image);
-        }
-    }
-
     private function saveSettings(): void
     {
-        $form = $this->initSettingsForm();
-        if (!$form->checkInput()) {
-            $form->setValuesByPost();
+        $form = $this->settingsForm()->withRequest(Ilias::request());
+        $data = $form->getData();
+        if (!is_array($data)) {
             $this->configure($form);
             return;
+        }
+        $values = [];
+        foreach ($data as $section) {
+            $values += (array) $section;
         }
 
-        $url = rtrim(trim((string) $form->getInput('base_url')), '/');
-        if ($url !== '' && !preg_match('~^https?://[^\s/]+~i', $url)) {
-            $form->getItemByPostVar('base_url')->setAlert($this->txt('error_baseurl'));
-            $form->setValuesByPost();
-            $this->configure($form);
-            return;
-        }
         $target = Config::target();
-        Config::set('base_url', $url);
+        Config::set('base_url', rtrim(trim((string) $values['base_url']), '/'));
 
-        $apikey = trim((string) $form->getInput('api_key'));
+        $apikey = trim(self::secret($values['api_key'] ?? null));
         if ($apikey !== '') {
             Config::set('api_key', $apikey);
         }
-        Config::set('brain_id', trim((string) $form->getInput('brain_id')));
-        if ($form->getItemByPostVar('license_key_clear') !== null && $form->getInput('license_key_clear')) {
+        Config::set('brain_id', trim((string) $values['brain_id']));
+        if (!empty($values['license_key_clear'])) {
             Config::set('license_key', '');
         } else {
-            $licensekey = trim((string) $form->getInput('license_key'));
+            $licensekey = trim(self::secret($values['license_key'] ?? null));
             if ($licensekey !== '') {
                 Config::set('license_key', $licensekey);
             }
         }
-        Config::set('robot_name', Config::bmp(trim((string) $form->getInput('robot_name'))));
-        Config::set('robot_id', Config::bmp(trim((string) $form->getInput('robot_id'))));
-        Config::set('robot_description', Config::bmp(trim((string) $form->getInput('robot_description'))));
-        $mode = (string) $form->getInput('voice_mode');
+        Config::set('robot_name', Config::bmp(trim((string) $values['robot_name'])));
+        Config::set('robot_id', Config::bmp(trim((string) $values['robot_id'])));
+        Config::set('robot_description', Config::bmp(trim((string) $values['robot_description'])));
+        $mode = (string) $values['voice_mode'];
         Config::set('voice_mode', $mode === Voices::MODE_FIXED ? Voices::MODE_FIXED : Voices::MODE_AUTO);
-        Config::set('voice', Config::bmp(trim((string) $form->getInput('voice'))));
-        Config::set('mockmode', $form->getInput('mockmode') ? '1' : '0');
-        Config::set('killswitch', $form->getInput('killswitch') ? '1' : '0');
-        Config::set('ratelimit', (string) max(1, (int) $form->getInput('ratelimit')));
-        Config::set(Help::KEY, Config::bmp(trim((string) $form->getInput(Help::KEY))));
+        Config::set('voice', Config::bmp(trim((string) $values['voice'])));
+        Config::set('mockmode', !empty($values['mockmode']) ? '1' : '0');
+        Config::set('killswitch', !empty($values['killswitch']) ? '1' : '0');
+        Config::set('ratelimit', (string) max(1, (int) $values['ratelimit']));
+        Config::set(Help::KEY, Config::bmp(trim((string) $values[Help::KEY])));
 
-        /** @var ilImageFileInputGUI $avatar */
-        $avatar = $form->getItemByPostVar('robot_avatar');
-        if ($avatar->getDeletionFlag()) {
+        $uploads = array_values(array_filter((array) ($values['robot_avatar'] ?? []), 'is_string'));
+        if (!empty($values['robot_avatar_remove'])) {
             Config::set('robot_avatar', '');
-        } elseif (!empty($_FILES['robot_avatar']['tmp_name']) && is_uploaded_file($_FILES['robot_avatar']['tmp_name'])) {
-            $uri = $this->avatarDataUri((string) $_FILES['robot_avatar']['tmp_name']);
+        } elseif ($uploads !== []) {
+            $uri = $this->avatarDataUri((string) ilTarsusAvatarUploadHandlerGUI::read($uploads[0]));
             if ($uri === null) {
                 $this->tpl->setOnScreenMessage('failure', $this->txt('error_avatar'), true);
             } else {
                 Config::set('robot_avatar', $uri);
             }
         }
+        ilTarsusAvatarUploadHandlerGUI::discardPending();
 
         $this->retargetIfMoved($target);
         $this->tpl->setOnScreenMessage('success', $this->lng->txt('settings_saved'), true);
@@ -405,12 +408,12 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
      * The uploaded image, downscaled and encoded as a data URI; null when
      * it is no usable image.
      */
-    private function avatarDataUri(string $path): ?string
+    private function avatarDataUri(string $data): ?string
     {
-        if (!is_file($path) || filesize($path) > self::AVATAR_MAX_BYTES) {
+        if ($data === '' || strlen($data) > self::AVATAR_MAX_BYTES) {
             return null;
         }
-        $info = @getimagesize($path);
+        $info = @getimagesizefromstring($data);
         if ($info === false) {
             return null;
         }
@@ -418,7 +421,6 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
         if (!in_array($mime, ['image/png', 'image/jpeg', 'image/gif', 'image/webp'], true)) {
             return null;
         }
-        $data = (string) file_get_contents($path);
         if (function_exists('imagecreatefromstring')) {
             $image = @imagecreatefromstring($data);
             if ($image !== false) {
@@ -462,22 +464,14 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
     // Plan and credits
     // ------------------------------------------------------------------
 
-    private function showPlan(?ilPropertyFormGUI $form = null): void
+    private function showPlan(?StandardForm $form = null): void
     {
         $this->tabs->activateSubTab('cfg_plan');
         $this->planHint();
-        if ($form === null) {
-            $form = $this->initPlanForm();
-            $form->setValuesByArray([
-                'plan' => Plan::current(),
-                'plan_credits' => Plan::isPayAsYouGrow() ? '' : (string) Plan::includedCredits(),
-                'plan_price' => number_format(Plan::pricePerRequest(), 2, '.', ''),
-                'plan_currency' => Plan::currency(),
-                'monthly_limit' => (string) Budget::limit(),
-                'notify_emails' => (string) Config::get('notify_emails', ''),
-            ]);
-        }
-        $this->tpl->setContent('<div class="tarsus-app">' . $this->usagePanel() . $this->featurePanel() . '</div>' . $form->getHTML());
+        // Leaving the confirmation of a lower limit drops what it held.
+        ilSession::clear(self::PENDING_PLAN);
+        $this->tpl->setContent('<div class="tarsus-app">' . $this->usagePanel() . $this->featurePanel() . '</div>'
+            . Ilias::ui()->renderer()->render($form ?? $this->planForm()));
     }
 
     /**
@@ -509,132 +503,163 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
         return $html;
     }
 
-    private function initPlanForm(): ilPropertyFormGUI
+    /**
+     * The package, its AI credits and price, and the monthly limit with
+     * the addresses warned about it, filled with the stored values.
+     */
+    private function planForm(): StandardForm
     {
-        $form = new ilPropertyFormGUI();
-        $form->setFormAction($this->ctrl->getFormAction($this, 'savePlan'));
-        $form->setTitle($this->txt('cfg_tab_plan'));
+        $field = Ilias::ui()->factory()->input()->field();
 
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('plan_section'));
-        $section->setInfo($this->txt('plan_section_desc'));
-        $form->addItem($section);
-
-        $plan = new ilRadioGroupInputGUI($this->txt('plan'), 'plan');
+        $plan = $field->radio($this->txt('plan'))->withRequired(true);
         foreach (Plan::ALL as $key) {
-            $plan->addOption(new ilRadioOption($this->txt('plan_' . $key), $key, $this->txt('plan_' . $key . '_desc')));
+            $plan = $plan->withOption($key, $this->txt('plan_' . $key), $this->txt('plan_' . $key . '_desc'));
         }
-        $plan->setRequired(true);
-        $form->addItem($plan);
+        $plan = $plan->withValue(in_array(Plan::current(), Plan::ALL, true) ? Plan::current() : null);
 
-        $credits = new ilNumberInputGUI($this->txt('plan_credits'), 'plan_credits');
-        $credits->setInfo($this->txt('plan_credits_desc', ['default' => number_format(Plan::DEFAULT_CREDITS)]));
-        $credits->setMinValue(0);
-        $credits->setSize(10);
-        $credits->allowDecimals(false);
-        $form->addItem($credits);
+        $credits = $field->numeric($this->txt('plan_credits'), $this->txt('plan_credits_desc', ['default' => number_format(Plan::DEFAULT_CREDITS)]))
+            ->withAdditionalTransformation($this->atLeast(0));
+        if (!Plan::isPayAsYouGrow()) {
+            $credits = $credits->withValue(Plan::includedCredits());
+        }
 
-        $price = new ilNumberInputGUI($this->txt('plan_price'), 'plan_price');
-        $price->setInfo($this->txt('plan_price_desc', ['default' => number_format(Plan::DEFAULT_PRICE, 2)]));
-        $price->setMinValue(0);
-        $price->setSize(8);
-        $price->allowDecimals(true);
-        $price->setDecimals(2);
-        $form->addItem($price);
+        $price = $field->text($this->txt('plan_price'), $this->txt('plan_price_desc', ['default' => number_format(Plan::DEFAULT_PRICE, 2)]))
+            ->withMaxLength(12)
+            ->withValue(number_format(Plan::pricePerRequest(), 2, '.', ''))
+            ->withAdditionalTransformation(Ilias::check(
+                static fn($value): bool => self::price((string) $value) !== null,
+                $this->txt('error_price')
+            ));
 
-        $currency = new ilTextInputGUI($this->txt('plan_currency'), 'plan_currency');
-        $currency->setMaxLength(8);
-        $currency->setSize(6);
-        $form->addItem($currency);
+        $currency = $field->text($this->txt('plan_currency'))->withMaxLength(8)->withValue(Plan::currency());
 
-        $section = new ilFormSectionHeaderGUI();
-        $section->setTitle($this->txt('limit_section'));
-        $section->setInfo($this->txt('limit_section_desc'));
-        $form->addItem($section);
-
-        $limit = new ilNumberInputGUI($this->txt('monthly_limit'), 'monthly_limit');
-        $limit->setInfo($this->txt('monthly_limit_desc', [
+        $limit = $field->numeric($this->txt('monthly_limit'), $this->txt('monthly_limit_desc', [
             'used' => Budget::format(Budget::used()),
             'included' => number_format(Plan::includedCredits()),
             'reset' => Views::date(Budget::nextMonthStart()),
-        ]));
-        $limit->setMinValue(0);
-        $limit->setSize(10);
-        $limit->allowDecimals(false);
-        $limit->setRequired(true);
-        $form->addItem($limit);
+        ]))
+            ->withRequired(true)
+            ->withValue(Budget::limit())
+            ->withAdditionalTransformation($this->atLeast(0));
 
-        $emails = new ilTextAreaInputGUI($this->txt('notify_emails'), 'notify_emails');
-        $emails->setInfo($this->txt('notify_emails_desc', ['admin' => Html::e(Ilias::setting('admin_email')), 'thresholds' => implode(' %, ', Budget::THRESHOLDS) . ' %']));
-        $emails->setRows(2);
-        $form->addItem($emails);
+        $emails = $field->textarea($this->txt('notify_emails'), $this->txt('notify_emails_desc', [
+            'admin' => Html::e(Ilias::setting('admin_email')),
+            'thresholds' => implode(' %, ', Budget::THRESHOLDS) . ' %',
+        ]))
+            ->withValue((string) Config::get('notify_emails', ''))
+            ->withAdditionalTransformation(Ilias::check(
+                fn($value): bool => $this->invalidEmail((string) $value) === null,
+                fn($value): string => $this->txt('error_email', ['email' => Html::e((string) $this->invalidEmail((string) $value))])
+            ));
 
-        $form->addCommandButton('savePlan', $this->lng->txt('save'));
-        return $form;
+        return Ilias::ui()->factory()->input()->container()->form()->standard(
+            $this->ctrl->getFormAction($this, 'savePlan'),
+            [
+                'plan' => $field->section(
+                    ['plan' => $plan, 'plan_credits' => $credits, 'plan_price' => $price, 'plan_currency' => $currency],
+                    $this->txt('plan_section'),
+                    $this->txt('plan_section_desc')
+                ),
+                'limit' => $field->section(
+                    ['monthly_limit' => $limit, 'notify_emails' => $emails],
+                    $this->txt('limit_section'),
+                    $this->txt('limit_section_desc')
+                ),
+            ]
+        )->withSubmitLabel($this->lng->txt('save'));
     }
 
     /**
-     * Read and validate the plan form; null when it is invalid (the form
-     * is shown again with the alerts).
-     *
-     * @return array<string, string>|null
+     * A number field may stay empty or hold at least $minimum.
      */
-    private function planInput(ilPropertyFormGUI $form): ?array
+    private function atLeast(int $minimum): \ILIAS\Refinery\Constraint
     {
-        if (!$form->checkInput()) {
-            $form->setValuesByPost();
-            $this->showPlan($form);
+        return Ilias::check(
+            static fn($value): bool => $value === null || $value === '' || (int) $value >= $minimum,
+            $this->txt('error_minimum', ['minimum' => $minimum])
+        );
+    }
+
+    /**
+     * The price per request as entered, with a point or a comma; 0 when
+     * empty, null when it is no number of 0 or more.
+     */
+    private static function price(string $value): ?float
+    {
+        $value = trim(str_replace(',', '.', $value));
+        if ($value === '') {
+            return 0.0;
+        }
+        if (!is_numeric($value) || (float) $value < 0) {
             return null;
         }
-        $plan = (string) $form->getInput('plan');
+        return (float) $value;
+    }
+
+    /**
+     * The first entry of the list that is no e-mail address; null when
+     * there is none.
+     */
+    private function invalidEmail(string $emails): ?string
+    {
+        foreach (preg_split('/[\s,;]+/', trim($emails)) ?: [] as $address) {
+            if ($address !== '' && !filter_var($address, FILTER_VALIDATE_EMAIL)) {
+                return $address;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The values of the plan form as stored.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, string>
+     */
+    private function planValues(array $data): array
+    {
+        $values = array_merge((array) $data['plan'], (array) $data['limit']);
+        $plan = (string) $values['plan'];
         if (!in_array($plan, Plan::ALL, true)) {
             $plan = Plan::LEARN;
         }
-        $emails = trim((string) $form->getInput('notify_emails'));
-        foreach (preg_split('/[\s,;]+/', $emails) ?: [] as $address) {
-            if ($address !== '' && !filter_var($address, FILTER_VALIDATE_EMAIL)) {
-                $form->getItemByPostVar('notify_emails')->setAlert($this->txt('error_email', ['email' => Html::e($address)]));
-                $form->setValuesByPost();
-                $this->showPlan($form);
-                return null;
-            }
-        }
         return [
             'plan' => $plan,
-            'plan_credits' => (string) max(0, (int) $form->getInput('plan_credits')),
-            'plan_price' => number_format(max(0, (float) str_replace(',', '.', (string) $form->getInput('plan_price'))), 2, '.', ''),
-            'plan_currency' => Config::bmp(mb_substr(trim((string) $form->getInput('plan_currency')), 0, 8)),
-            'monthly_limit' => (string) max(0, (int) $form->getInput('monthly_limit')),
-            'notify_emails' => Config::bmp($emails),
+            'plan_credits' => (string) max(0, (int) $values['plan_credits']),
+            'plan_price' => number_format(max(0, (float) self::price((string) $values['plan_price'])), 2, '.', ''),
+            'plan_currency' => Config::bmp(mb_substr(trim((string) $values['plan_currency']), 0, 8)),
+            'monthly_limit' => (string) max(0, (int) $values['monthly_limit']),
+            'notify_emails' => Config::bmp(trim((string) $values['notify_emails'])),
         ];
     }
 
     private function savePlan(): void
     {
-        $form = $this->initPlanForm();
-        $values = $this->planInput($form);
-        if ($values === null) {
+        $form = $this->planForm()->withRequest(Ilias::request());
+        $data = $form->getData();
+        if (!is_array($data)) {
+            $this->showPlan($form);
             return;
         }
+        $values = $this->planValues($data);
         $old = Budget::limit();
         $new = (int) $values['monthly_limit'];
         if ($new > 0 && ($old === 0 || $new < $old)) {
             // Lowering the limit (or introducing one) can block requests
-            // this very month: confirm it first.
+            // this very month: confirm it first. The values wait in the
+            // session; the confirming link carries ILIAS's token.
             $this->tabs->activateSubTab('cfg_plan');
-            $confirm = new ilConfirmationGUI();
-            $confirm->setFormAction($this->ctrl->getFormAction($this, 'confirmPlan'));
-            $confirm->setHeaderText($this->txt('limit_reduce_confirm', [
+            ilSession::set(self::PENDING_PLAN, json_encode($values));
+            $factory = Ilias::ui()->factory();
+            $box = $factory->messageBox()->confirmation($this->txt('limit_reduce_confirm', [
                 'old' => $old > 0 ? number_format($old) : $this->txt('no_limit'),
                 'new' => number_format($new),
                 'used' => Budget::format(Budget::used()),
-            ]));
-            $confirm->setConfirm($this->lng->txt('confirm'), 'confirmPlan');
-            $confirm->setCancel($this->lng->txt('cancel'), 'showPlan');
-            foreach ($values as $key => $value) {
-                $confirm->addHiddenItem('plan_' . $key, $value);
-            }
-            $this->tpl->setContent($confirm->getHTML());
+            ]))->withButtons([
+                $factory->button()->primary($this->lng->txt('confirm'), $this->ctrl->getLinkTarget($this, 'confirmPlan')),
+                $factory->button()->standard($this->lng->txt('cancel'), $this->ctrl->getLinkTarget($this, 'showPlan')),
+            ]);
+            $this->tpl->setContent(Ilias::ui()->renderer()->render($box));
             return;
         }
         $this->storePlan($values);
@@ -642,12 +667,14 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
 
     private function confirmPlan(): void
     {
+        $pending = json_decode((string) ilSession::get(self::PENDING_PLAN), true);
+        ilSession::clear(self::PENDING_PLAN);
+        if (!is_array($pending) || !in_array($pending['plan'] ?? null, Plan::ALL, true)) {
+            $this->ctrl->redirect($this, 'showPlan');
+        }
         $values = [];
         foreach (['plan', 'plan_credits', 'plan_price', 'plan_currency', 'monthly_limit', 'notify_emails'] as $key) {
-            $values[$key] = Ilias::postString('plan_' . $key);
-        }
-        if (!in_array($values['plan'], Plan::ALL, true)) {
-            $this->ctrl->redirect($this, 'showPlan');
+            $values[$key] = (string) ($pending[$key] ?? '');
         }
         $values['plan_credits'] = (string) max(0, (int) $values['plan_credits']);
         $values['plan_price'] = number_format(max(0, (float) $values['plan_price']), 2, '.', '');

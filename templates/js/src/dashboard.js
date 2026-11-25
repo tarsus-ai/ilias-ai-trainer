@@ -7,6 +7,7 @@
 
 import { format } from './helpers.js';
 import { post } from './net.js';
+import confirmDialog from './dialog.js';
 
 // ------------------------------------------------------------------
 // Teacher's material list
@@ -273,7 +274,16 @@ export default class Dashboard {
       }
       const resourceid = row.getAttribute('data-resourceid');
       const action = button.getAttribute('data-action');
-      if (action === 'remove' && !window.confirm(self.t('confirmremove_body'))) {
+      if (action === 'remove') {
+        confirmDialog(self.root, {
+          text: self.t('confirmremove_body'),
+          confirm: self.t('action_remove'),
+          cancel: self.t('dialog_cancel'),
+        }).then((confirmed) => {
+          if (confirmed) {
+            self.sendAction(row, resourceid, action);
+          }
+        });
         return;
       }
       self.sendAction(row, resourceid, action);

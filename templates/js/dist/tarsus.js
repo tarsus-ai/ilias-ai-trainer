@@ -332,6 +332,61 @@
   }
 
   /**
+   * Tarsus for ILIAS - A question with two answers in a modal dialog, in place of the browser's
+   * confirm().
+   *
+   * @author  Tarsus GmbH
+   * @license GPL-3.0-or-later
+   */
+
+
+  /**
+   * Ask a question in a modal dialog: keyboard focus starts on the
+   * cancelling button, stays inside the dialog and goes back where it came
+   * from; Escape cancels.
+   *
+   * @param {Element} root The screen the dialog belongs to (for its colours).
+   * @param {Object} options text: the question; confirm and cancel: the
+   *   labels of the two buttons.
+   * @return {Promise<boolean>} true when the person confirmed
+   */
+  function confirmDialog(root, options) {
+    const opener = document.activeElement;
+    const textId = nextId('tarsus-dialog-text-');
+    const confirmButton = el('button', { type: 'button', class: 'tarsus-btn tarsus-btn--primary', text: options.confirm });
+    const cancelButton = el('button', { type: 'button', class: 'tarsus-btn', text: options.cancel });
+    const dialog = el('dialog', {
+      class: 'tarsus-dialog', role: 'alertdialog', 'aria-labelledby': textId,
+    }, [
+      el('p', { class: 'tarsus-dialog__text', id: textId, text: options.text }),
+      el('div', { class: 'tarsus-dialog__actions' }, [cancelButton, confirmButton]),
+    ]);
+    return new Promise((resolve) => {
+      let confirmed = false;
+      confirmButton.addEventListener('click', () => {
+        confirmed = true;
+        dialog.close();
+      });
+      cancelButton.addEventListener('click', () => {
+        dialog.close();
+      });
+      dialog.addEventListener('keydown', (event) => {
+        trapTab(dialog, event);
+      });
+      dialog.addEventListener('close', () => {
+        dialog.remove();
+        if (opener && typeof opener.focus === 'function' && document.contains(opener)) {
+          opener.focus();
+        }
+        resolve(confirmed);
+      });
+      root.appendChild(dialog);
+      dialog.showModal();
+      cancelButton.focus();
+    });
+  }
+
+  /**
    * Tarsus for ILIAS - The element that scrolls the page.
    *
    * @author  Tarsus GmbH
@@ -2193,15 +2248,38 @@
 
     // --- modes, reply chip, asking -------------------------------------
 
-    setMode(mode, quiet) {
+    /**
+     * Switch to a mode; after() runs once it is switched. Leaving the live
+     * interaction ends the call: a running call asks first, a call the
+     * learner already hung up needs no question.
+     */
+    setMode(mode, quiet, after) {
       if (this.state.mode === 'discuss' && mode !== 'discuss' && this.state.live) {
-        // Leaving the live interaction ends the call; a call the
-        // learner already hung up needs no question.
-        if (this.state.live.getAttribute('data-call') !== 'ended' && !window.confirm(this.t('live_end_confirm'))) {
+        if (this.state.live.getAttribute('data-call') !== 'ended') {
+          confirmDialog(this.root, {
+            text: this.t('live_end_confirm'),
+            confirm: this.t('live_end'),
+            cancel: this.t('dialog_cancel'),
+          }).then((confirmed) => {
+            if (confirmed) {
+              this.endLive();
+              this.applyMode(mode, quiet);
+              if (after) {
+                after();
+              }
+            }
+          });
           return;
         }
         this.endLive();
       }
+      this.applyMode(mode, quiet);
+      if (after) {
+        after();
+      }
+    }
+
+    applyMode(mode, quiet) {
       this.state.mode = mode;
       this.qa('.tarsus-mode-switch__btn').forEach((btn) => {
         const active = btn.getAttribute('data-mode') === mode;
@@ -2272,13 +2350,14 @@
       if (!reply) {
         return;
       }
-      this.setMode('ask', true);
-      this.setReply(reply);
-      this.announce(this.t('chat_reply_about', { title: reply.title }));
-      const input = this.q('.tarsus-chat-input');
-      if (input && !this.state.voiceInput) {
-        input.focus();
-      }
+      this.setMode('ask', true, () => {
+        this.setReply(reply);
+        this.announce(this.t('chat_reply_about', { title: reply.title }));
+        const input = this.q('.tarsus-chat-input');
+        if (input && !this.state.voiceInput) {
+          input.focus();
+        }
+      });
     }
 
     handleSubmit(event) {
@@ -4515,7 +4594,16 @@
         }
         const resourceid = row.getAttribute('data-resourceid');
         const action = button.getAttribute('data-action');
-        if (action === 'remove' && !window.confirm(self.t('confirmremove_body'))) {
+        if (action === 'remove') {
+          confirmDialog(self.root, {
+            text: self.t('confirmremove_body'),
+            confirm: self.t('action_remove'),
+            cancel: self.t('dialog_cancel'),
+          }).then((confirmed) => {
+            if (confirmed) {
+              self.sendAction(row, resourceid, action);
+            }
+          });
           return;
         }
         self.sendAction(row, resourceid, action);
@@ -4533,6 +4621,46 @@
       // The listed statuses are read live on open, one call per page.
       this.bulkSync(true);
     }
+  }
+
+  /**
+   * Tarsus for ILIAS - Names for screen readers that ILIAS 9's UI framework leaves out.
+   *
+   * @author  Tarsus GmbH
+   * @license GPL-3.0-or-later
+   */
+
+
+  /**
+   * On the plugin's pages ILIAS 9 shows two controls without a name for
+   * screen readers: the options of a multiple choice (ILIAS 10 wraps each
+   * in a label) and the confirmation dialog (ILIAS 10 names it by its
+   * title). Name them the same way; controls that have a name keep it.
+   *
+   * @param {Document|Element} scope
+   */
+  function nameUnnamedControls(scope) {
+    scope.querySelectorAll('ul.il-input-multiselect li').forEach((item) => {
+      const input = item.querySelector('input[type="checkbox"]');
+      const text = item.querySelector('span');
+      if (!input || !text || input.closest('label') || input.hasAttribute('aria-labelledby') || input.hasAttribute('aria-label')) {
+        return;
+      }
+      if (!text.id) {
+        text.id = nextId('tarsus-option-');
+      }
+      input.setAttribute('aria-labelledby', text.id);
+    });
+    scope.querySelectorAll('.c-modal--interruptive[role="dialog"]').forEach((modal) => {
+      const title = modal.querySelector('.modal-title');
+      if (!title || modal.hasAttribute('aria-labelledby') || modal.hasAttribute('aria-label')) {
+        return;
+      }
+      if (!title.id) {
+        title.id = nextId('tarsus-dialog-title-');
+      }
+      modal.setAttribute('aria-labelledby', title.id);
+    });
   }
 
   /**
@@ -4604,6 +4732,7 @@
   }
 
   TarsusIlias.boot = function () {
+    nameUnnamedControls(document);
     document.querySelectorAll('.tarsus-help').forEach(bootHelp);
     document.querySelectorAll('.tarsus-app[data-config]').forEach((root) => {
       if (root.getAttribute('data-booted') === '1') {
