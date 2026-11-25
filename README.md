@@ -240,17 +240,19 @@ Everything from here happens in your web browser.
 
 > You are an existing Tarsus customer and got a *license key*? Put it into **License key**, just below, and leave the brain ID empty.
 
-**8.** Scroll down a little and remove the tick at **Mock mode (demo)** (4) *(Mock-Modus (Demo))*. While it is ticked, the coach only shows sample answers.
+**8.** Scroll down and remove the tick at **Mock mode (demo)** (4) *(Mock-Modus (Demo))*. While it is ticked, the coach only shows sample answers.
 
 ![Remove the tick at Mock mode](docs/screenshots/guide/b08_demo_off_save.png)
 
-**9.** Scroll back up and click **Save** (5) *(Speichern)*.
+**9.** Click **Save** (5) *(Speichern)* at the end of the form.
 
-![Save](docs/screenshots/guide/b08b_save.png)
+![Save at the end of the form](docs/screenshots/guide/b08b_save.png)
 
-**10.** Click **Plan & credits** (1) *(Plan & Credits)*, choose the package of your Tarsus contract (2) and click **Save** (3).
+**10.** Click **Plan & credits** (1) *(Plan & Credits)* and choose the package of your Tarsus contract (2). Then click **Save** (3) at the end of the form.
 
 ![Choose the package](docs/screenshots/guide/b09_plan.png)
+
+![Save at the end of the form](docs/screenshots/guide/b09b_save.png)
 
 **11.** Click **Status** (1), then **Test connection** (2) *(Verbindung testen)*. A green message (3) means: Tarsus is connected. A red message? See [If something does not work](#if-something-does-not-work).
 
@@ -270,9 +272,11 @@ The plugin is ready. Now give a course its coach.
 
 ![Name, then Add Tarsus](docs/screenshots/guide/b13_title.png)
 
-**15.** Click **Settings** (1) *(Einstellungen)*, tick **Online** (2) and click **Save** (3). Learners cannot see the coach until you do this.
+**15.** Click **Settings** (1) *(Einstellungen)* and tick **Online** (2). Then click **Save** (3) at the end of the form. Learners cannot see the coach until you do this.
 
 ![Switch it online](docs/screenshots/guide/b14_online.png)
+
+![Save at the end of the form](docs/screenshots/guide/b14b_save.png)
 
 **16.** Click **Materials** (1) *(Materialien)*. You see the files, links and pages of the course. Click **Index** (2) *(Indexieren)* next to each one the coach should learn from.
 
@@ -306,7 +310,7 @@ In ILIAS 9 the file is `cron/cron.php` instead of `cli/cron.php`. Without the jo
 
 ## Updating
 
-1. Run the command from [part 1](#part-1--put-the-plugin-on-the-server) again. It keeps the version you have in `/tmp` and puts the newest one in its place.
+1. Run the command from [part 1](#part-1--put-the-plugin-on-the-server) again. It keeps the version you have in `/tmp` and puts the newest one in its place. Updating by hand? Do steps 1 to 4 under *by hand* in part 1 again – `composer du` (step 4) belongs to every update.
 2. In ILIAS, open **Administration › Extending ILIAS › Plugins**, click the small arrow next to **Tarsus** and choose **Update** *(Aktualisieren)*. Click the arrow again and choose **Refresh Languages** *(Sprachen neu laden)*.
 
 Your settings, the indexed material and the learners' figures are kept. The [changelog](CHANGELOG.md) lists what changed in each version.
@@ -401,7 +405,7 @@ The coach works **without a mouse** and **with screen readers** (NVDA, JAWS, Voi
 | <kbd>Shift</kbd>+<kbd>Enter</kbd> | A new line in a question. |
 | <kbd>Space</kbd> | Presses a button, ticks a checkbox. |
 | Arrow keys | Choose an answer option of a question. |
-| <kbd>Esc</kbd> | Closes a side panel, a picture or the help. In the input field: drops the *Ask about this* reference. |
+| <kbd>Esc</kbd> | Closes a side panel, a picture or the help; in a confirmation dialog, it cancels. In the input field: drops the *Ask about this* reference. |
 
 **What a screen reader says**
 
@@ -412,6 +416,7 @@ The coach works **without a mouse** and **with screen readers** (NVDA, JAWS, Voi
 - **Check** puts the focus on the verdict – "Correct.", "Not correct." or "Partly correct: 60 %" – and reads the feedback, the experience points and the result. Right and wrong are words and a ✓ or ✗, never a colour alone. Pressing **Check** with nothing chosen says so and puts the focus on the first open field.
 - In a learning unit, the focus goes to the slide's title and the slide is read. **Next** says "Slide 2 of 5" and reads the slide; the focus stays on the button.
 - Side panels (sources, settings, evaluation, history) are dialogs: the focus moves in, <kbd>Tab</kbd> stays inside, <kbd>Esc</kbd> closes them and the focus returns to the button that opened them. Pictures and enlarged pages are dialogs too.
+- Before a step that cannot be undone – ending a running live conversation by switching the mode, removing material on the *Materials* tab – the coach asks in a dialog: the focus starts on **Cancel** *(Abbrechen)*, <kbd>Tab</kbd> stays inside, <kbd>Esc</kbd> cancels and the focus returns to the button. **Reset chat history** asks in ILIAS's own confirmation dialog.
 - While Tarsus answers, the input field keeps the focus; you never lose your place.
 
 **For teachers:** switch on **Accessible content** *(Barrierefreie Inhalte)* in the object's settings. Tarsus then describes in words what pictures, diagrams and simulations show, so learners who cannot see them get the same information.
@@ -440,8 +445,10 @@ Found something that does not work with your screen reader? Please [open an issu
 - The plugin talks to the brain over HTTPS only; every call carries the installation's API key and brain ID – or, for an existing Tarsus customer, the API key and the license key – and passes the guardrail pipeline (kill switch → circuit breaker, which opens after five consecutive outages for five minutes → monthly credit limit → rate limit). Refusals from Tarsus are shown with their own clear message and do not trip the breaker; nothing is retried blindly.
 - The plugin keeps its data in seven tables (`rep_robj_xtar_*`): plugin configuration (including the plan, the limit and the brain's usage figure), the settings of each object, the index map of the material sent to the brain, the inclusions per object, the latest figures per learner, a log of the requests sent, and the guardrail state. Uninstalling the plugin drops them.
 - Learners are sent to the brain under a **pseudonym** – an HMAC of the ILIAS user id with a secret generated at installation – together with their display name and interface language. The conversation itself lives in the brain. *Reset chat history* erases the learner's own conversation in the brain and the local figures. A spoken question is sent to Tarsus as audio to be transcribed.
+- When an ILIAS user account is deleted, the background job ([Keep material up to date automatically](#keep-material-up-to-date-automatically)) erases the account's conversations in the brain and its figures in the plugin, and removes the user id from the log of requests (the counts stay, without the person).
 - Interactive pages and the live call page from the brain run sandboxed (see above) and are never stored in ILIAS beyond the conversation history the brain returns.
 - The coach does not search the internet: it generates explanations and answers exclusively from the documents your organisation provides. Tarsus stores your content at Microsoft Azure in Germany, GDPR-compliant – and the entire stack can be deployed on-premise on request ([Getting access](#getting-access)).
+- [PRIVACY.md](PRIVACY.md) lists the personal data the plugin keeps, shows and deletes, following ILIAS's guide for it.
 
 ## Development
 

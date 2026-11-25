@@ -26,4 +26,20 @@ if (!defined('TARSUS_ILIAS_AUTOLOAD')) {
             require_once $file;
         }
     });
+
+    // The same safety net for the plugin's ILIAS classes in classes/
+    // (class.ilTarsus*.php, class.ilObjTarsus*.php).
+    spl_autoload_register(static function (string $class): void {
+        if (strncmp($class, 'ilTarsus', 8) !== 0 && strncmp($class, 'ilObjTarsus', 11) !== 0) {
+            return;
+        }
+        $letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        if (strspn($class, $letters) !== strlen($class)) {
+            return;
+        }
+        $file = dirname(__DIR__) . '/classes/class.' . $class . '.php';
+        if (is_file($file)) {
+            require_once $file;
+        }
+    });
 }
