@@ -576,6 +576,7 @@ err_access#:#Der KI-Trainer ist nicht richtig mit Tarsus verbunden. Bitte melden
 err_notindexed#:#Die Kursmaterialien werden noch vorbereitet. Bitte versuchen Sie es etwas später noch einmal.
 err_audio_nospeech#:#In der Aufnahme war keine Sprache zu hören. Bitte sprechen Sie Ihre Frage noch einmal.
 err_audio_format#:#Die Aufnahme konnte nicht gelesen werden. Bitte nehmen Sie Ihre Frage noch einmal auf.
+err_audio_refused#:#Dieses ILIAS nimmt die Aufnahme nicht als Datei an. Bitten Sie Ihre Administration, Audiodateien (webm, ogg, m4a) für Uploads zu erlauben.
 err_audio_transcribe#:#Die Aufnahme konnte gerade nicht in Text umgewandelt werden. Bitte versuchen Sie es gleich noch einmal.
 err_live_unavailable#:#Die Live-Interaktion ist gerade nicht verfügbar.
 err_voice#:#Die eingestellte Stimme ist bei Tarsus nicht bekannt. Bitte melden Sie das dem Support.

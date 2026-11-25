@@ -576,6 +576,7 @@ err_access#:#The AI trainer is not connected to Tarsus correctly. Please tell yo
 err_notindexed#:#The course materials are still being prepared. Please try again a little later.
 err_audio_nospeech#:#No speech could be heard in the recording. Please speak your question again.
 err_audio_format#:#The recording could not be read. Please record your question again.
+err_audio_refused#:#This ILIAS does not accept the recording as a file. Please ask your administrator to allow audio files (webm, ogg, m4a) for uploads.
 err_audio_transcribe#:#The recording could not be turned into text right now. Please try again in a moment.
 err_live_unavailable#:#The live interaction is not available right now.
 err_voice#:#Tarsus does not know the configured voice. Please tell support.

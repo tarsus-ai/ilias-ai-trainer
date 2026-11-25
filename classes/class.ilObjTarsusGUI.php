@@ -39,6 +39,7 @@ use TarsusIlias\Support\Help;
 use TarsusIlias\Support\Ilias;
 use TarsusIlias\Support\Plan;
 use ILIAS\UI\Component\Input\Container\Form\Standard as StandardForm;
+use Psr\Http\Message\UploadedFileInterface;
 
 class ilObjTarsusGUI extends ilObjectPluginGUI
 {
@@ -481,23 +482,38 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
     private function ajaxAskVoice(): void
     {
         $payload = Ilias::jsonPayload();
-        $file = $_FILES['audio'] ?? null;
-        $error = is_array($file) ? (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
+        // Larger than PHP accepts: the recording never arrived.
+        $file = Ilias::request()->getUploadedFiles()['audio'] ?? null;
+        $error = $file instanceof UploadedFileInterface ? $file->getError() : UPLOAD_ERR_NO_FILE;
         if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
             Ilias::sendJson(['status' => 'error', 'error' => $this->txt('err_toolarge')]);
         }
-        $path = is_array($file) ? (string) ($file['tmp_name'] ?? '') : '';
-        if ($error !== UPLOAD_ERR_OK || $path === '' || !is_uploaded_file($path)) {
-            Ilias::sendJson(['status' => 'error', 'error' => $this->txt('err_audio_format')]);
+        // ILIAS's upload service applies the installation's rules (allowed
+        // file types, virus scanner) before the recording goes on.
+        $upload = Ilias::dic()->upload();
+        if (!$upload->hasBeenProcessed()) {
+            $upload->process();
+        }
+        $recording = null;
+        foreach ($upload->getResults() as $result) {
+            if ($result->isOK() && $result->getPath() !== '') {
+                $recording = $result;
+                break;
+            }
+        }
+        if ($recording === null) {
+            // Arrived complete but refused: the installation's rules; else unreadable.
+            Ilias::sendJson(['status' => 'error', 'error' => $this->txt($error === UPLOAD_ERR_OK ? 'err_audio_refused' : 'err_audio_format')]);
+            return;
         }
         // The browser's type without its parameters (audio/webm;codecs=opus).
-        $mimetype = strtolower(trim(explode(';', (string) ($file['type'] ?? ''))[0]));
+        $mimetype = strtolower(trim(explode(';', $recording->getMimeType())[0]));
         if (strncmp($mimetype, 'audio/', 6) !== 0 && strncmp($mimetype, 'video/', 6) !== 0) {
             $mimetype = 'application/octet-stream';
         }
-        $name = basename((string) ($file['name'] ?? 'question.webm'));
+        $name = basename($recording->getName());
         Ilias::sendJson($this->learnerApi()->askVoice(
-            $path,
+            $recording->getPath(),
             $mimetype,
             $name !== '' ? $name : 'question.webm',
             (string) ($payload['replyto'] ?? ''),
