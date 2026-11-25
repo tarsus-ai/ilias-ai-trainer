@@ -250,7 +250,7 @@ class ilObjTarsusGUI extends ilObjectPluginGUI
         if ($texts) {
             $this->tpl->addJavaScript('./' . Ilias::assetUrl('js/vendor/tarsus-markdown.min.js'), false);
         }
-        $this->tpl->addJavaScript('./' . Ilias::assetUrl('js/tarsus.js'), false);
+        $this->tpl->addJavaScript('./' . Ilias::assetUrl('js/dist/tarsus.js'), false);
         $this->tpl->addOnLoadCode('if (window.TarsusIlias) { window.TarsusIlias.boot(); }');
     }
 

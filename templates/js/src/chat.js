@@ -1,0 +1,3751 @@
+/**
+ * Tarsus for ILIAS - The coach: the feed, the four modes and the panels.
+ *
+ * @author  Tarsus GmbH
+ * @license GPL-3.0-or-later
+ */
+
+import {
+  FEED_SCROLL_THRESHOLD, el, escapeHtml, format, inlineMarkdown, noop, show,
+} from './helpers.js';
+import { readableText, typeset } from './markdown.js';
+import {
+  focusOn, nextId, srText, trapTab,
+} from './a11y.js';
+import { post, postForm } from './net.js';
+import Scroller from './scroller.js';
+import processingSequence from './processing.js';
+
+// The kinds of sources of an answer, and their icons.
+const SOURCE_TYPES = ['text', 'table', 'image', 'audio', 'video', 'question', 'form'];
+const SOURCE_ICONS = {
+  text: 'file', table: 'table', image: 'image', audio: 'audio', video: 'video', question: 'mode_ask', form: 'mode_test',
+};
+
+// Learning progress statuses as ILIAS records them.
+const LP_COMPLETED = 2;
+const LP_IN_PROGRESS = 1;
+
+/** The language key of a learning progress status. */
+function statusKey(status) {
+  if (status === LP_COMPLETED) {
+    return 'lp_completed';
+  }
+  return status === LP_IN_PROGRESS ? 'lp_in_progress' : 'lp_not_attempted';
+}
+
+// ------------------------------------------------------------------
+// Chat
+// ------------------------------------------------------------------
+
+export default class Chat {
+  constructor(root, config) {
+    this.root = root;
+    this.config = config;
+    this.strings = config.strings || {};
+    this.icons = config.icons || {};
+    this.modes = config.modes || [];
+    this.scroller = new Scroller(root);
+    this.navOffset = 0;
+    this.state = {
+      mode: 'ask',
+      replyTo: null,
+      practiceStarted: false,
+      learnStarted: false,
+      feedOffset: 0,
+      feedHasMore: false,
+      feedLoading: false,
+      stacks: {},
+      programmaticScroll: false,
+      progress: null,
+      voiceInput: false,
+      live: null,
+      stats: null,
+    };
+    this.voice = {
+      state: 'idle', recorder: null, stream: null, chunks: [], blob: null, url: null, timer: null, elapsed: 0, discarding: false,
+    };
+  }
+
+  q(selector) {
+    return this.root.querySelector(selector);
+  }
+
+  qa(selector) {
+    return Array.prototype.slice.call(this.root.querySelectorAll(selector));
+  }
+
+  t(key, params) {
+    return format(this.strings[key] || key, params);
+  }
+
+  icon(name, cls) {
+    const path = this.icons[name] || '';
+    if (!path) {
+      return '';
+    }
+    return `<svg class="${cls || 'tarsus-icon'}" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">${
+      path}</svg>`;
+  }
+
+  call(endpoint, payload) {
+    return post(this.config.endpoints[endpoint], payload, this.strings);
+  }
+
+  alert(message) {
+    const box = this.q('[data-region="alert"]');
+    if (!box) {
+      return;
+    }
+    if (!message) {
+      box.textContent = '';
+      show(box, false);
+      return;
+    }
+    box.textContent = message;
+    show(box, true);
+  }
+
+  // --- accessibility ---------------------------------------------------
+
+  robotName() {
+    return this.config.robotName || 'Tarsus';
+  }
+
+  /**
+   * Tell screen-reader users what happened, without moving focus (a
+   * polite live region). Messages of the same moment are read together.
+   */
+  announce(text) {
+    const self = this;
+    const region = this.q('[data-region="announcer"]');
+    if (!region || !text) {
+      return;
+    }
+    this.pendingAnnouncement = (this.pendingAnnouncement ? `${this.pendingAnnouncement} ` : '') + text;
+    if (this.announceTimer) {
+      window.clearTimeout(this.announceTimer);
+    }
+    region.textContent = '';
+    this.announceTimer = window.setTimeout(() => {
+      region.textContent = self.pendingAnnouncement;
+      self.pendingAnnouncement = '';
+      self.announceTimer = null;
+      // Gone after a while, so reading the page later does not meet it again.
+      if (self.announceClear) {
+        window.clearTimeout(self.announceClear);
+      }
+      self.announceClear = window.setTimeout(() => {
+        region.textContent = '';
+      }, 15000);
+    }, 80);
+  }
+
+  /** The answer of a new exchange card, read out. */
+  announceAnswer(card) {
+    const body = card ? card.querySelector('[data-region="card-answer"]') : null;
+    if (!body) {
+      return;
+    }
+    let text = readableText(body).trim();
+    if (body.querySelector('iframe')) {
+      text = (text ? `${text} ` : '') + this.t('frame_title');
+    }
+    this.announce(`${this.t('a11y_answered', { name: this.robotName() })} ${text}`);
+  }
+
+  /** How to go on in a mode, for the announcement of a mode change. */
+  modeHint(mode) {
+    if (mode === 'ask') {
+      return this.t('a11y_mode_ask');
+    }
+    if (mode === 'discuss') {
+      const live = this.q('[data-region="live-label"]');
+      return this.t('a11y_mode_discuss', { button: live ? live.textContent : this.t('live_start') });
+    }
+    const label = this.q('[data-region="practice-label"]');
+    return this.t('a11y_mode_next', { button: label ? label.textContent : this.t('practice_next') });
+  }
+
+  /** Correct, not correct or partly correct, in words. */
+  verdictText(correct, score) {
+    if (typeof score === 'number' && score > 0 && score < 100) {
+      return this.t('a11y_partial', { score: Math.round(score) });
+    }
+    return this.t(correct ? 'a11y_correct' : 'a11y_incorrect');
+  }
+
+  /** The learner's experience points and result as they are shown. */
+  scoreText() {
+    const parts = [];
+    const badge = this.q('[data-region="xp-badge"]');
+    const chip = this.q('[data-region="grade-chip"]');
+    [badge, chip].forEach((node) => {
+      if (node && !node.classList.contains('tarsus-hidden') && node.textContent.trim() !== '') {
+        parts.push(node.textContent.split('\u00a0').join(' ').trim());
+      }
+    });
+    return parts.join(', ');
+  }
+
+  /** The heading of a question card: "Question, Knowledge, easy". */
+  questionHeading(widget) {
+    const parts = [this.t('a11y_question')];
+    if (widget.taxonomy) {
+      parts.push(widget.taxonomy);
+    }
+    if (widget.difficulty) {
+      parts.push(widget.difficulty);
+    }
+    return parts.join(', ');
+  }
+
+  /**
+   * Keyboard focus on a new card, where reading starts: the slide's
+   * title, the question, the card's title or its text.
+   */
+  focusCard(card) {
+    if (!card) {
+      return;
+    }
+    const slide = card.querySelector('[data-region="slide"]:not(.tarsus-hidden)');
+    const scope = slide || card;
+    const heading = scope.querySelector('[data-region="question-heading"], .tarsus-learn-slide__title, .tarsus-card__title');
+    const body = scope.querySelector('.tarsus-practice-card__question, .tarsus-learn-slide__text, .tarsus-card__welcome-text');
+    focusOn(heading || body || scope);
+    if (heading && body) {
+      this.announce(readableText(body).trim());
+    }
+  }
+
+  /** The skip link: to the control the current mode starts with. */
+  focusComposer() {
+    const { mode } = this.state;
+    let target = null;
+    if (mode === 'ask') {
+      target = this.state.voiceInput ? this.q('[data-region="voice"] button:not(.tarsus-hidden):not([disabled])') : this.q('.tarsus-chat-input');
+    } else if (mode === 'discuss') {
+      target = this.q('[data-action="live-start"]');
+    } else {
+      target = this.q('[data-action="next"]');
+    }
+    focusOn(target || this.q('[data-region="composer"]'));
+  }
+
+  /** Check pressed before anything was chosen or filled in. */
+  missingAnswer(card) {
+    this.alert(this.t('a11y_answer_missing'));
+    let empty = null;
+    card.querySelectorAll('input:not([type="radio"]), textarea').forEach((input) => {
+      if (!empty && !input.disabled && input.value.trim() === '') {
+        empty = input;
+      }
+    });
+    focusOn(empty || card.querySelector('input[type="radio"]'));
+  }
+
+  flow() {
+    return this.q('[data-region="flow"]');
+  }
+
+  // --- scrolling -----------------------------------------------------
+
+  scrollPage(top) {
+    const self = this;
+    this.state.programmaticScroll = true;
+    this.scroller.scrollTo(Math.max(0, top));
+    window.setTimeout(() => {
+      self.state.programmaticScroll = false;
+      self.toggleJumpTop();
+    }, 150);
+  }
+
+  /** Scroll so the end of the feed shows above the composer. */
+  scrollToEnd() {
+    const flow = this.flow();
+    const dock = this.q('[data-region="composer"]');
+    if (!flow) {
+      return;
+    }
+    const bottom = this.scroller.offsetOf(flow) + flow.offsetHeight;
+    const visible = this.scroller.viewportHeight() - (dock ? dock.offsetHeight : 0);
+    this.scrollPage(bottom - visible + 8);
+  }
+
+  /** Scroll so a card's top sits just under the pinned progress bar. */
+  scrollToCard(card) {
+    if (!card) {
+      return;
+    }
+    let offset = this.navOffset;
+    const progress = this.q('[data-region="progress"]');
+    if (progress && !progress.classList.contains('tarsus-hidden')) {
+      offset += progress.offsetHeight + 10;
+    }
+    this.scrollPage(this.scroller.offsetOf(card) - offset - 16);
+  }
+
+  /** Run a change that adds content above the viewport, keeping the reader's place. */
+  keepViewport(change) {
+    const flow = this.flow();
+    const above = flow ? flow.getBoundingClientRect().top < this.scroller.viewportTop() : true;
+    const before = this.scroller.scrollHeight();
+    change();
+    if (above) {
+      this.scroller.scrollBy(this.scroller.scrollHeight() - before);
+    }
+  }
+
+  toggleJumpTop() {
+    const button = this.q('[data-action="jump-top"]');
+    if (!button) {
+      return;
+    }
+    const { top } = this.root.getBoundingClientRect();
+    show(button, top < this.scroller.viewportTop() + this.navOffset - 40);
+  }
+
+  nearFeedTop() {
+    const flow = this.flow();
+    if (!flow) {
+      return false;
+    }
+    const { top } = flow.getBoundingClientRect();
+    return top - this.scroller.viewportTop() - this.navOffset > -FEED_SCROLL_THRESHOLD;
+  }
+
+  /**
+   * Measure what the skin pins to the top of the scrolling area (ILIAS
+   * keeps the breadcrumbs there): the progress bar and the back-to-top
+   * button sit right under it, and scroll targets allow for it.
+   */
+  measureChrome() {
+    const top = this.scroller.viewportTop();
+    let offset = 0;
+    const nodes = document.querySelectorAll('.breadcrumbs, .breadcrumb, [class*="breadcrumb"], [class*="sticky"], header, nav');
+    nodes.forEach((node) => {
+      if (node.closest('.tarsus-app')) {
+        return;
+      }
+      const style = window.getComputedStyle(node);
+      if (style.position !== 'sticky' && style.position !== 'fixed') {
+        return;
+      }
+      const rect = node.getBoundingClientRect();
+      if (rect.height > 0 && rect.height < 160 && Math.abs(rect.top - top) <= 2) {
+        offset = Math.max(offset, rect.bottom - top);
+      }
+    });
+    this.navOffset = Math.round(offset);
+    this.root.style.setProperty('--tarsus-nav-offset', `${this.navOffset}px`);
+  }
+
+  // --- cards ---------------------------------------------------------
+
+  noticeCard(variant, title, html, fallbackTitleKey, id) {
+    let picture = 'welcome';
+    let region = 'tarsus-chat-card';
+    if (variant === 'complete') {
+      picture = 'success';
+      region = 'learn-complete';
+    } else if (variant === 'motivation') {
+      picture = 'motivation';
+      region = 'learn-motivation';
+    }
+    const image = this.config.images[picture];
+    const heading = title || (fallbackTitleKey ? this.t(fallbackTitleKey) : '');
+    const card = el('div', {
+      class: `tarsus-card tarsus-card--welcome${variant ? ` tarsus-card--${variant}` : ''}`,
+      'data-region': region,
+      'data-widget-id': id || null,
+    }, el('div', { class: 'tarsus-card__inner tarsus-center' }, [
+      el('div', { class: 'tarsus-welcome-art' }, el('img', { src: image, alt: '' })),
+      heading ? el('h3', { class: 'tarsus-card__title', text: heading }) : null,
+      el('div', { class: 'tarsus-card__welcome-text', html: html || '' }),
+    ]));
+    return card;
+  }
+
+  /**
+   * A question and its answer. meta: id and state of the answer widget
+   * (for its sources), sources (Tarsus named the bits it used), voice
+   * ({src, duration} of the learner's recording). The sources sit at the
+   * top right of the answer; "ask about this" belongs to learning stacks
+   * and quiz questions only.
+   */
+  exchangeCard(question, answerHtml, reply, pageHtml, givenMeta) {
+    const meta = givenMeta || {};
+    const body = el('div', { class: 'tarsus-card__answer-body', 'data-region': 'card-answer', html: answerHtml || '' });
+    if (pageHtml) {
+      // AI-driven interaction: the answer is an interactive page.
+      body.appendChild(this.frame(pageHtml, question));
+    }
+    const sources = meta.id && meta.sources && this.config.references
+      ? el('button', {
+        type: 'button',
+        class: 'tarsus-chip-btn',
+        'data-action': 'sources',
+        'data-widget-id': meta.id,
+        'data-state': meta.state || 'ask',
+        html: this.icon('sources'),
+      }, el('span', { text: this.t('sources_show') }))
+      : null;
+    const replied = reply ? el(
+      'div',
+      { class: 'tarsus-card__reply', 'aria-label': this.t('chat_reply_about', { title: reply }), html: this.icon('reply') },
+      el('span', { text: reply }),
+    ) : null;
+    const top = sources || replied ? el('div', { class: 'tarsus-card__top' }, [replied, sources]) : null;
+    let voice = null;
+    if (meta.voice && meta.voice.src) {
+      voice = el('div', { class: 'tarsus-card__voice' }, [
+        el(
+          'span',
+          { class: 'tarsus-card__voice-label', html: this.icon('mic') },
+          el('span', { text: this.t('voice_question') + (meta.voice.duration ? ` · ${clock(meta.voice.duration)}` : '') }),
+        ),
+        el('audio', {
+          class: 'tarsus-card__voice-audio', controls: true, preload: 'metadata', src: meta.voice.src,
+        }),
+        el('span', { class: 'tarsus-card__voice-note', text: this.t('voice_transcript_note') }),
+      ]);
+    }
+    return el(
+      'div',
+      {
+        class: 'tarsus-card', 'data-region': 'tarsus-chat-card', 'data-kind': 'exchange', 'data-widget-id': meta.id || null,
+      },
+      el('div', { class: 'tarsus-card__inner' }, [
+        top,
+        el('div', { class: 'tarsus-card__question' }, [
+          Chat.avatar(this.config.userAvatar, ''),
+          el('div', { class: 'tarsus-card__question-main' }, [
+            voice,
+            el('h3', { class: 'tarsus-card__question-text' }, [srText(`${this.t('a11y_you_asked')} `), question]),
+          ]),
+        ]),
+        el('hr', { class: 'tarsus-card__divider' }),
+        el('div', { class: 'tarsus-card__answer' }, [
+          Chat.avatar(this.config.robotAvatar, this.config.robotName),
+          el('div', { class: 'tarsus-card__answer-main' }, [body]),
+        ]),
+      ]),
+    );
+  }
+
+  static avatar(src, alt) {
+    if (!src) {
+      return el('span', { class: 'tarsus-card__avatar tarsus-card__avatar--empty', 'aria-hidden': 'true' });
+    }
+    return el('img', { class: 'tarsus-card__avatar', src, alt: alt || '' });
+  }
+
+  frame(html, title) {
+    const iframe = el('iframe', {
+      class: 'tarsus-frame__iframe',
+      sandbox: 'allow-scripts allow-forms allow-pointer-lock',
+      referrerpolicy: 'no-referrer',
+      loading: 'lazy',
+      title: title || this.t('frame_title'),
+    });
+    iframe.setAttribute('srcdoc', withReporter(html || ''));
+    const frame = el('div', { class: 'tarsus-frame', 'data-region': 'frame' }, [
+      iframe,
+      el('button', {
+        type: 'button',
+        class: 'tarsus-frame__enlarge',
+        'data-action': 'frame-enlarge',
+        title: this.t('frame_enlarge'),
+        'aria-label': this.t('frame_enlarge'),
+        html: this.icon('enlarge'),
+      }),
+    ]);
+    frame.tarsusHtml = html || '';
+    frame.tarsusTitle = title || '';
+    return frame;
+  }
+
+  openPage(html, title) {
+    const self = this;
+    let dialog = document.querySelector('.tarsus-lightbox--page');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.className = 'tarsus-lightbox tarsus-lightbox--page';
+      const close = el('button', {
+        type: 'button', class: 'tarsus-lightbox__close', 'aria-label': this.t('learn_image_close'), text: '×',
+      });
+      close.addEventListener('click', () => {
+        dialog.close();
+      });
+      dialog.addEventListener('close', () => {
+        const old = dialog.querySelector('iframe');
+        if (old) {
+          old.remove();
+        }
+      });
+      dialog.appendChild(close);
+      document.body.appendChild(dialog);
+    }
+    const old = dialog.querySelector('iframe');
+    if (old) {
+      old.remove();
+    }
+    const iframe = el('iframe', {
+      class: 'tarsus-lightbox__page',
+      sandbox: 'allow-scripts allow-forms allow-pointer-lock',
+      referrerpolicy: 'no-referrer',
+      title: title || self.t('frame_title'),
+    });
+    iframe.setAttribute('srcdoc', html || '');
+    dialog.appendChild(iframe);
+    dialog.setAttribute('aria-label', title || self.t('frame_title'));
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', '');
+      }
+    }
+  }
+
+  objectivesCard(item) {
+    const list = el('ol', { class: 'tarsus-learn-objectives' });
+    (item.objectives || []).forEach((objective, index) => {
+      list.appendChild(el('li', { class: `tarsus-learn-objectives__item${objective.done ? ' tarsus-learn-objectives__item--done' : ''}` }, [
+        el('span', { class: 'tarsus-learn-objectives__number', text: String(index + 1) }),
+        el('span', { class: 'tarsus-learn-objectives__text', text: objective.objective }),
+        objective.taxonomy ? el('span', { class: 'tarsus-badge tarsus-badge--light', text: objective.taxonomy }) : null,
+      ]));
+    });
+    return el(
+      'div',
+      { class: 'tarsus-card tarsus-card--welcome tarsus-card--objectives', 'data-region': 'learn-objectives' },
+      el('div', { class: 'tarsus-card__inner' }, [
+        el('div', { class: 'tarsus-welcome-art tarsus-center' }, el('img', { src: this.config.images.objectives, alt: '' })),
+        item.title ? el('h3', { class: 'tarsus-card__title tarsus-center', text: item.title }) : null,
+        el('div', { class: 'tarsus-card__welcome-text tarsus-center', html: item.message || '' }),
+        list,
+      ]),
+    );
+  }
+
+  /** The difficulty bars of a question (null when the grade is unknown). */
+  static difficulty(widget, extraClass) {
+    const level = widget.difficultylevel || 0;
+    if (!(level > 0)) {
+      return null;
+    }
+    const box = el('span', {
+      class: `tarsus-difficulty tarsus-difficulty--${level}${extraClass ? ` ${extraClass}` : ''}`,
+      title: widget.difficulty || '',
+      role: 'img',
+      'aria-label': widget.difficulty || '',
+    });
+    [1, 2, 3].forEach((bar) => {
+      box.appendChild(el('span', { class: `tarsus-difficulty__bar${bar <= level ? ' tarsus-difficulty__bar--filled' : ''}` }));
+    });
+    return box;
+  }
+
+  askButton() {
+    if (this.modes.indexOf('ask') === -1) {
+      return null;
+    }
+    return el('button', {
+      type: 'button',
+      class: 'tarsus-learn-ask',
+      'data-action': 'ask-about',
+      title: this.t('learn_ask_about'),
+      html: this.icon('reply'),
+    }, el('span', { text: this.t('learn_ask_about') }));
+  }
+
+  /** The inside of a question card: question, inputs, Check, score, feedback. */
+  practiceBody(widget) {
+    const self = this;
+    const inner = el('div', { class: 'tarsus-practice-card__inner' });
+    const qid = nextId('tarsus-question-');
+    inner.appendChild(el('div', { class: 'tarsus-practice-card__question', id: qid, html: widget.question || '' }));
+
+    const choices = widget.choices || [];
+    const variables = widget.variables || [];
+    const table = widget.table || [];
+
+    if (choices.length) {
+      const group = el('div', {
+        class: 'tarsus-practice-card__choices', 'data-region': 'choices', role: 'radiogroup', 'aria-labelledby': qid,
+      });
+      choices.forEach((choice) => {
+        group.appendChild(el('label', { class: 'tarsus-practice-choice', 'data-value': choice.value }, [
+          el('input', {
+            type: 'radio', class: 'tarsus-practice-choice__input', name: `practice-${widget.id}`, value: choice.value,
+          }),
+          inlineMarkdown('tarsus-practice-choice__label', choice.label),
+          el('span', { class: 'tarsus-practice-choice__clarification tarsus-hidden', 'data-region': 'clarification' }),
+        ]));
+      });
+      inner.appendChild(group);
+    } else if (variables.length) {
+      const vars = el('div', {
+        class: 'tarsus-practice-card__variables', 'data-region': 'variables', role: 'group', 'aria-labelledby': qid,
+      });
+      variables.forEach((name) => {
+        vars.appendChild(el('label', { class: 'tarsus-practice-variable' }, [
+          el('span', { class: 'tarsus-practice-variable__name', text: name }),
+          el('input', {
+            type: 'text',
+            class: 'tarsus-practice-variable__input tarsus-input',
+            'data-variable': name,
+            placeholder: self.t('practice_variable_placeholder'),
+            autocomplete: 'off',
+          }),
+        ]));
+      });
+      inner.appendChild(vars);
+    } else if (table.length) {
+      // A task table under the columns Tarsus named; a '?' cell is
+      // the learner's to fill in.
+      const columns = widget.columns || [];
+      const tbody = el('tbody');
+      table.forEach((row, r) => {
+        tbody.appendChild(el('tr', { class: 'tarsus-practice-table__row', 'data-row': String(r) }, row.map((cell, c) => el('td', { class: 'tarsus-practice-table__cell', 'data-col': String(c) }, cell.ask
+          ? el('input', {
+            type: 'text',
+            class: 'tarsus-practice-table__input tarsus-input',
+            'data-col': String(c),
+            autocomplete: 'off',
+            'aria-label': columns[c] || '',
+          })
+          : el('span', { class: 'tarsus-practice-table__value', text: cell.value })))));
+      });
+      inner.appendChild(el('div', { class: 'tarsus-practice-card__table-wrap' }, el('table', { class: 'tarsus-practice-table', 'data-region': 'table', 'aria-labelledby': qid }, [
+        el('thead', {}, el('tr', {}, columns.map((column) => el('th', { text: column })))),
+        tbody,
+      ])));
+    } else {
+      inner.appendChild(el('textarea', {
+        class: 'tarsus-practice-card__input tarsus-input',
+        rows: '3',
+        placeholder: this.t('practice_answer_placeholder'),
+        'aria-label': this.t('practice_answer_placeholder'),
+        'aria-describedby': qid,
+      }));
+    }
+
+    inner.appendChild(el(
+      'div',
+      { class: 'tarsus-practice-card__actions' },
+      el('button', { type: 'button', class: 'tarsus-btn tarsus-btn--primary tarsus-practice-check' }, [
+        el('span', { class: 'tarsus-spinner tarsus-spinner--light tarsus-practice-check__spinner tarsus-hidden', 'aria-hidden': 'true' }),
+        el('span', { text: this.t('practice_check') }),
+      ]),
+    ));
+    inner.appendChild(el('div', {
+      class: 'tarsus-practice-card__score tarsus-hidden',
+      'data-region': 'score',
+      role: 'meter',
+      'aria-valuemin': '0',
+      'aria-valuemax': '100',
+      'aria-valuenow': '0',
+      'aria-label': this.t('practice_score'),
+    }, [
+      el('div', { class: 'tarsus-practice-card__score-track' }, el('div', { class: 'tarsus-practice-card__score-fill', 'data-region': 'score-fill' })),
+      el('span', { class: 'tarsus-practice-card__score-value', 'data-region': 'score-value' }),
+    ]));
+    inner.appendChild(el('div', { class: 'tarsus-practice-card__feedback tarsus-hidden', 'data-region': 'feedback', tabindex: '-1' }));
+    return inner;
+  }
+
+  practiceCard(widget) {
+    const card = el('div', {
+      class: 'tarsus-card tarsus-practice-card',
+      'data-region': 'practice-card',
+      'data-state': 'practice',
+      'data-widget-id': widget.id,
+      'data-widget-type': widget.type,
+      'data-columns': (widget.table || []).length ? JSON.stringify(widget.columns || []) : null,
+    });
+    const band = el('div', { class: 'tarsus-card__band' });
+    const bars = Chat.difficulty(widget);
+    if (bars) {
+      band.appendChild(bars);
+    }
+    if (widget.taxonomy) {
+      band.appendChild(el('span', { class: 'tarsus-badge tarsus-badge--light', text: widget.taxonomy }));
+    }
+    const ask = this.askButton();
+    if (ask) {
+      band.appendChild(ask);
+    }
+    card.appendChild(el('h3', { class: 'tarsus-sr-only', 'data-region': 'question-heading', text: this.questionHeading(widget) }));
+    card.appendChild(band);
+    card.appendChild(this.practiceBody(widget));
+    return card;
+  }
+
+  stackCard(item) {
+    const self = this;
+    const slides = item.slides || [];
+    this.state.stacks[item.id] = slides;
+    const total = slides.length;
+
+    const card = el('div', {
+      class: 'tarsus-card tarsus-learn-card', 'data-region': 'learn-card', 'data-stack-id': item.id, 'data-total': String(total),
+    });
+    card.appendChild(el('h3', { class: 'tarsus-sr-only', text: this.t('a11y_learning_unit') }));
+    const band = el('div', { class: 'tarsus-card__band tarsus-learn-card__meta' });
+    band.innerHTML = '<svg class="tarsus-learn-ring" data-region="ring" viewBox="0 0 24 24" width="24" height="24" role="img"'
+            + ` aria-label="${escapeHtml(this.t('learn_slide_of', { current: 1, total }))}">`
+            + '<circle class="tarsus-learn-ring__track" cx="12" cy="12" r="9"></circle>'
+            + `<circle class="tarsus-learn-ring__fill" cx="12" cy="12" r="9" style="stroke-dashoffset: ${ringOffset(1, total)}"></circle></svg>`;
+
+    slides.forEach((slide, index) => {
+      if (slide.kind === 'question' && slide.question) {
+        const bars = Chat.difficulty(slide.question, index === 0 ? '' : 'tarsus-hidden');
+        if (bars) {
+          bars.setAttribute('data-region', 'slide-badge');
+          bars.setAttribute('data-index', String(index));
+          band.appendChild(bars);
+        }
+      }
+    });
+
+    const player = this.config.audio === false ? null : el('span', { class: 'tarsus-learn-player', 'data-region': 'audio-player', 'data-state': 'idle' }, [
+      el('button', {
+        type: 'button', class: 'tarsus-learn-player__toggle', 'data-action': 'audio-toggle', title: this.t('learn_audio'), 'aria-label': this.t('learn_audio'),
+      }, [
+        el('span', { 'data-region': 'audio-speaker', html: this.icon('audio') }),
+        el('span', { 'data-region': 'audio-play', class: 'tarsus-hidden', html: this.icon('audio_play') }),
+        el('span', { 'data-region': 'audio-pause', class: 'tarsus-hidden', html: this.icon('audio_pause') }),
+      ]),
+      el('span', { class: 'tarsus-learn-player__wave tarsus-hidden', 'data-region': 'audio-wave', 'aria-hidden': 'true' }),
+      el('audio', { 'data-region': 'audio', preload: 'auto' }),
+    ]);
+    if (player) {
+      band.appendChild(player);
+    }
+
+    slides.forEach((slide, index) => {
+      const label = slide.taxonomy || (slide.question && slide.question.taxonomy) || self.t('mode_build');
+      band.appendChild(el('span', {
+        class: `tarsus-badge tarsus-badge--light tarsus-learn-badge${index === 0 ? '' : ' tarsus-hidden'}`,
+        'data-region': 'slide-badge',
+        'data-index': String(index),
+        text: label,
+      }));
+    });
+    const ask = this.askButton();
+    if (ask) {
+      band.appendChild(ask);
+    }
+    card.appendChild(band);
+
+    const inner = el('div', { class: 'tarsus-learn-card__inner' });
+    slides.forEach((slide, index) => {
+      const node = el('div', {
+        class: `tarsus-learn-slide${index === 0 ? '' : ' tarsus-hidden'}`,
+        'data-region': 'slide',
+        'data-index': String(index),
+        'data-slide-id': slide.id || '',
+        'data-slide-title': slide.title || '',
+      });
+      if (slide.kind === 'question' && slide.question) {
+        const { question } = slide;
+        const qcard = el('div', {
+          class: 'tarsus-practice-card tarsus-practice-card--inslide',
+          'data-region': 'practice-card',
+          'data-state': 'learn',
+          'data-widget-id': question.id,
+          'data-widget-type': question.type,
+          'data-columns': (question.table || []).length ? JSON.stringify(question.columns || []) : null,
+        });
+        qcard.appendChild(el('h4', { class: 'tarsus-sr-only', 'data-region': 'question-heading', text: self.questionHeading(question) }));
+        qcard.appendChild(self.practiceBody(question));
+        node.appendChild(qcard);
+      } else if (slide.kind === 'html' && slide.html) {
+        // An interactive page (ai-driven interaction).
+        if (slide.title) {
+          node.appendChild(el('h4', { class: 'tarsus-learn-slide__title', text: slide.title }));
+        }
+        node.appendChild(self.frame(slide.html, slide.title));
+      } else {
+        if (slide.title) {
+          node.appendChild(el('h4', { class: 'tarsus-learn-slide__title', text: slide.title }));
+        }
+        // The picture goes where Tarsus puts it: above the text
+        // ("top") or beside it ("left", "right").
+        const position = ['top', 'left', 'right'].indexOf(slide.imageposition) !== -1 ? slide.imageposition : 'right';
+        const body = el('div', { class: `tarsus-learn-slide__body tarsus-learn-slide__body--${slide.image ? position : 'text'}` });
+        if (slide.image) {
+          body.appendChild(el('img', {
+            class: 'tarsus-learn-slide__image',
+            src: slide.image,
+            alt: '',
+            tabindex: '0',
+            role: 'button',
+            'data-action': 'enlarge',
+            'data-title': slide.title || '',
+            title: self.t('learn_image_enlarge'),
+            'aria-label': self.t('learn_image_enlarge') + (slide.title ? `: ${slide.title}` : ''),
+          }));
+        }
+        if (slide.text) {
+          body.appendChild(el('div', { class: 'tarsus-learn-slide__text', html: slide.text }));
+        }
+        node.appendChild(body);
+        if (slide.audio) {
+          node.appendChild(el('audio', {
+            class: 'tarsus-learn-slide__audio', controls: true, preload: 'none', src: slide.audio,
+          }));
+        }
+      }
+      inner.appendChild(node);
+    });
+    inner.appendChild(el('div', { class: 'tarsus-learn-card__nav' }, [
+      el('button', {
+        type: 'button', class: 'tarsus-btn tarsus-btn--sm tarsus-learn-nav', 'data-dir': '-1', disabled: true, text: this.t('learn_previous'),
+      }),
+      el('button', {
+        type: 'button', class: 'tarsus-btn tarsus-btn--sm tarsus-learn-nav', 'data-dir': '1', disabled: total < 2, text: this.t('learn_next'),
+      }),
+    ]));
+    card.appendChild(inner);
+    return card;
+  }
+
+  /** The cards of one learn item (objectives, stack, motivation, complete, message). */
+  learnCards(item) {
+    if (item.kind === 'complete') {
+      return [this.noticeCard('complete', item.title, item.text, 'learn_complete_title', item.id)];
+    }
+    if (item.kind === 'motivation') {
+      return [this.noticeCard('motivation', item.title, item.text, 'learn_motivation_title', item.id)];
+    }
+    if (item.kind === 'message') {
+      return [this.noticeCard('', item.title, item.text)];
+    }
+    if (item.kind === 'objectives') {
+      return [this.objectivesCard(item)];
+    }
+    return [this.stackCard(item)];
+  }
+
+  static processingCard() {
+    return el('div', { class: 'tarsus-card tarsus-processing', 'data-region': 'processing', 'aria-hidden': 'true' }, [
+      el('div', { class: 'tarsus-processing__row' }, [
+        el('span', { class: 'tarsus-processing__icon', 'data-region': 'icon' }),
+        el('span', { class: 'tarsus-processing__text', 'data-region': 'text' }),
+      ]),
+      el('div', { class: 'tarsus-processing__bar' }, el('div', { class: 'tarsus-processing__fill' })),
+    ]);
+  }
+
+  /** Show the processing indicator under the feed; returns {stop}. */
+  startProcessing(mode, firstRun) {
+    const self = this;
+    const flow = this.flow();
+    const steps = processingSequence(mode, firstRun);
+    const element = Chat.processingCard();
+    let timer = null;
+    let stopped = false;
+    if (!flow) {
+      return { stop: noop };
+    }
+    flow.appendChild(element);
+    const iconSlot = element.querySelector('[data-region="icon"]');
+    const textSlot = element.querySelector('[data-region="text"]');
+    const showStep = function (index) {
+      if (stopped) {
+        return;
+      }
+      iconSlot.innerHTML = self.icon(steps[index].icon, 'tarsus-icon tarsus-processing__glyph');
+      const glyph = iconSlot.querySelector('svg');
+      if (glyph) {
+        glyph.style.animationDuration = `${steps[index].spin}s`;
+      }
+      textSlot.textContent = self.t(steps[index].text);
+      if (index < steps.length - 1) {
+        timer = window.setTimeout(() => {
+          showStep(index + 1);
+        }, steps[index].duration);
+      }
+    };
+    showStep(0);
+    this.announce(this.t('a11y_working', { name: this.robotName() }));
+    this.scrollToEnd();
+    return {
+      stop() {
+        stopped = true;
+        if (timer) {
+          window.clearTimeout(timer);
+        }
+        if (element.parentNode) {
+          element.parentNode.removeChild(element);
+        }
+      },
+    };
+  }
+
+  // --- attaching -----------------------------------------------------
+
+  attach(card, before, noscroll) {
+    const flow = this.flow();
+    if (!flow || !card) {
+      return null;
+    }
+    if (before && before.parentNode === flow) {
+      this.keepViewport(() => {
+        flow.insertBefore(card, before);
+      });
+    } else {
+      flow.appendChild(card);
+      if (!noscroll) {
+        this.scrollToEnd();
+      }
+    }
+    typeset(card);
+    return card;
+  }
+
+  /** Freeze an answered question card: mark the pick, show the feedback. */
+  finalizePracticeCard(card, verdict) {
+    const self = this;
+    card.classList.add('tarsus-practice-card--answered');
+
+    const verdictByVariable = {};
+    (verdict.answers || []).forEach((entry) => {
+      verdictByVariable[entry.variable] = entry;
+    });
+    const givenByVariable = {};
+    (verdict.useranswers || []).forEach((entry) => {
+      givenByVariable[entry.variable] = entry.answer;
+    });
+    card.querySelectorAll('.tarsus-practice-variable__input').forEach((input) => {
+      const name = input.getAttribute('data-variable');
+      if (input.value === '' && givenByVariable[name] !== undefined) {
+        input.value = givenByVariable[name];
+      }
+      input.disabled = true;
+      const row = input.closest('.tarsus-practice-variable');
+      if (row && verdictByVariable[name] && !verdictByVariable[name].iscorrect) {
+        row.classList.add('tarsus-practice-variable--incorrect');
+        const nameNode = row.querySelector('.tarsus-practice-variable__name');
+        if (nameNode && !nameNode.querySelector('.tarsus-sr-only')) {
+          nameNode.appendChild(srText(` ${self.t('a11y_not_correct')}`));
+          row.appendChild(el('span', { class: 'tarsus-verdict-mark tarsus-verdict-mark--incorrect', 'aria-hidden': 'true', html: self.icon('close') }));
+        }
+      }
+    });
+
+    // A task table: the learner's cells back in place, every wrong one
+    // marked with the value of Tarsus's model table.
+    const userRows = verdict.usertable || [];
+    const modelRows = verdict.answertable || [];
+    card.querySelectorAll('.tarsus-practice-table__row').forEach((row) => {
+      const r = parseInt(row.getAttribute('data-row'), 10);
+      row.querySelectorAll('.tarsus-practice-table__input').forEach((input) => {
+        const c = parseInt(input.getAttribute('data-col'), 10);
+        if (input.value === '' && userRows[r]) {
+          input.value = userRows[r][c] || '';
+        }
+        input.disabled = true;
+        const model = modelRows[r] && modelRows[r][c];
+        if (model && model.verdict < 0) {
+          const cell = input.parentNode;
+          cell.classList.add('tarsus-practice-table__cell--incorrect');
+          cell.appendChild(el('span', { class: 'tarsus-practice-table__model', text: self.t('practice_correct_value', { value: model.value }) }));
+        }
+      });
+    });
+
+    let chosen = card.querySelector('input[type="radio"]:checked');
+    if (!chosen && verdict.useranswer) {
+      card.querySelectorAll('input[type="radio"]').forEach((input) => {
+        if (input.value === verdict.useranswer) {
+          input.checked = true;
+          chosen = input;
+        }
+      });
+    }
+    card.querySelectorAll('input').forEach((input) => {
+      input.disabled = true;
+    });
+
+    const textinput = card.querySelector('.tarsus-practice-card__input');
+    if (textinput) {
+      if (verdict.useranswer && textinput.value === '') {
+        textinput.value = verdict.useranswer;
+      }
+      textinput.disabled = true;
+    }
+
+    const check = card.querySelector('.tarsus-practice-check');
+    if (check) {
+      show(check, false);
+    }
+
+    if (chosen) {
+      const box = chosen.closest('.tarsus-practice-choice');
+      if (box) {
+        box.classList.add(verdict.correct ? 'tarsus-practice-choice--correct' : 'tarsus-practice-choice--incorrect');
+        const label = box.querySelector('.tarsus-practice-choice__label');
+        if (label && !box.querySelector('.tarsus-verdict-mark')) {
+          label.appendChild(srText(` ${self.t(verdict.correct ? 'a11y_your_answer_correct' : 'a11y_your_answer_incorrect')}`));
+          box.appendChild(el('span', {
+            class: `tarsus-verdict-mark tarsus-verdict-mark--${verdict.correct ? 'correct' : 'incorrect'}`,
+            'aria-hidden': 'true',
+            html: self.icon(verdict.correct ? 'check' : 'close'),
+          }));
+        }
+      }
+    }
+
+    const score = typeof verdict.score === 'number' ? verdict.score : -1;
+    const partial = score > 0 && score < 100;
+    const scoreBox = card.querySelector('[data-region="score"]');
+    if (scoreBox && partial) {
+      const rounded = Math.round(score);
+      scoreBox.querySelector('[data-region="score-fill"]').style.width = `${rounded}%`;
+      scoreBox.querySelector('[data-region="score-value"]').textContent = `${rounded} %`;
+      scoreBox.setAttribute('aria-valuenow', rounded);
+      show(scoreBox, true);
+    }
+
+    const feedback = card.querySelector('[data-region="feedback"]');
+    if (feedback && verdict.feedback) {
+      show(feedback, true);
+      let feedbackClass = 'tarsus-practice-card__feedback--incorrect';
+      if (partial) {
+        feedbackClass = 'tarsus-practice-card__feedback--partial';
+      } else if (verdict.correct) {
+        feedbackClass = 'tarsus-practice-card__feedback--correct';
+      }
+      feedback.classList.add(feedbackClass);
+      feedback.innerHTML = verdict.feedback;
+      typeset(feedback);
+      feedback.insertBefore(
+        el('h4', { class: 'tarsus-sr-only', 'data-region': 'verdict-heading', text: self.verdictText(verdict.correct, score) }),
+        feedback.firstChild,
+      );
+    }
+  }
+
+  // --- feed ----------------------------------------------------------
+
+  /** Build the cards of one feed page, oldest first. */
+  buildFeedCards(items) {
+    const self = this;
+    const flow = this.flow();
+    const built = [];
+    items.forEach((item) => {
+      let cards = [];
+      if (item.kind === 'message') {
+        cards = [self.noticeCard('', item.title, item.text)];
+      } else if (item.kind === 'exchange') {
+        cards = [self.exchangeCard(item.query, item.answer, '', item.html || '', { id: item.id, state: item.state, sources: item.sources })];
+      } else if (['objectives', 'stack', 'complete', 'motivation'].indexOf(item.kind) !== -1) {
+        cards = self.learnCards(item);
+      } else {
+        // A question already on the page (the newer half of a
+        // straddling stack) is not built twice.
+        if (item.id && flow && flow.querySelector(`[data-widget-id="${item.id}"]`)) {
+          return;
+        }
+        cards = [self.practiceCard(item)];
+      }
+      cards.forEach((card, index) => {
+        built.push({
+          card,
+          item,
+          replaces: index === 0 && card.matches('[data-region="learn-card"]') ? (item.replaces || null) : null,
+        });
+      });
+    });
+    return built;
+  }
+
+  /** Settle a card after it is in the flow: verdicts and formulas. */
+  settleFeedCard(entry) {
+    const { item } = entry;
+    if (item.kind === 'practice' && item.answered) {
+      this.finalizePracticeCard(entry.card, storedVerdict(item));
+    }
+    if (item.kind === 'stack') {
+      const self = this;
+      (item.slides || []).forEach((slide) => {
+        if (slide.kind !== 'question' || !slide.question || !slide.question.answered) {
+          return;
+        }
+        const card = entry.card.querySelector(`[data-widget-id="${slide.question.id}"]`);
+        if (card) {
+          self.finalizePracticeCard(card, storedVerdict(slide.question));
+        }
+      });
+    }
+    typeset(entry.card);
+  }
+
+  notePracticeHistory(items) {
+    const self = this;
+    items.forEach((item) => {
+      if (item.kind === 'practice') {
+        self.state.practiceStarted = true;
+      } else if (item.kind === 'objectives' || item.kind === 'stack' || item.kind === 'motivation' || item.kind === 'complete') {
+        self.state.learnStarted = true;
+      }
+    });
+    this.updateNextLabel();
+  }
+
+  loadFeed() {
+    const self = this;
+    const flow = this.flow();
+    if (!flow) {
+      return;
+    }
+    const older = flow.querySelector('[data-region="feed-older"]');
+    this.call('feed', { offset: 0 }).then((result) => {
+      if (result.status !== 'success') {
+        flow.innerHTML = '';
+        if (older) {
+          flow.appendChild(older);
+        }
+        if (result.status === 'noscope' || result.status === 'error' || result.status === 'blocked') {
+          self.alert(result.error || self.t('unexpected_error'));
+        }
+        return;
+      }
+      self.updateXp(result.progress);
+      self.state.feedOffset = self.config.pageSize;
+      self.state.feedHasMore = Boolean(result.hasmore);
+
+      const built = self.buildFeedCards(result.items || []);
+      flow.innerHTML = '';
+      if (older) {
+        flow.appendChild(older);
+      }
+      built.forEach((entry) => {
+        flow.appendChild(entry.card);
+        self.settleFeedCard(entry);
+      });
+      self.measureChrome();
+      self.scrollToEnd();
+      self.notePracticeHistory(result.items || []);
+      if (self.nearFeedTop()) {
+        self.loadOlderFeed();
+      }
+    }).catch((error) => {
+      flow.innerHTML = '';
+      if (older) {
+        flow.appendChild(older);
+      }
+      self.alert(error.message || self.t('unexpected_error'));
+    });
+  }
+
+  mergeStraddlingStack(flow, items) {
+    const last = items[items.length - 1];
+    if (!last || last.kind !== 'stack' || !this.state.stacks[last.id]) {
+      return items;
+    }
+    const shown = flow.querySelector(`[data-region="learn-card"][data-stack-id="${last.id}"]`);
+    if (!shown) {
+      return items;
+    }
+    const merged = {
+      ...last,
+      slides: (last.slides || []).concat(this.state.stacks[last.id]),
+      replaces: shown,
+    };
+    return items.slice(0, -1).concat([merged]);
+  }
+
+  loadOlderFeed() {
+    const self = this;
+    const flow = this.flow();
+    if (!flow || this.state.feedLoading || !this.state.feedHasMore) {
+      return;
+    }
+    this.state.feedLoading = true;
+    const older = flow.querySelector('[data-region="feed-older"]');
+    show(older, true);
+    const offset = this.state.feedOffset;
+
+    this.call('feed', { offset }).then((result) => {
+      if (result.status !== 'success') {
+        self.state.feedHasMore = false;
+        return;
+      }
+      const items = result.items || [];
+      self.state.feedOffset = offset + self.config.pageSize;
+      self.state.feedHasMore = Boolean(result.hasmore) && items.length > 0;
+
+      const merged = self.mergeStraddlingStack(flow, items);
+      const built = self.buildFeedCards(merged);
+      const anchor = older && older.nextSibling ? older.nextSibling : flow.firstChild;
+      self.keepViewport(() => {
+        built.forEach((entry) => {
+          if (entry.replaces) {
+            flow.replaceChild(entry.card, entry.replaces);
+          } else {
+            flow.insertBefore(entry.card, anchor);
+          }
+          self.settleFeedCard(entry);
+        });
+      });
+      self.notePracticeHistory(items);
+    }).catch(() => {
+      self.state.feedHasMore = false;
+    }).then(() => {
+      self.state.feedLoading = false;
+      show(older, false);
+    });
+  }
+
+  // --- figures -------------------------------------------------------
+
+  updateXp(progress) {
+    if (!progress) {
+      return;
+    }
+    this.state.progress = progress;
+    this.renderBadge();
+    this.renderProgressBar();
+  }
+
+  renderBadge() {
+    this.renderGrade();
+    const badge = this.q('[data-region="xp-badge"]');
+    if (!badge) {
+      return;
+    }
+    const { progress } = this.state;
+    const build = this.state.mode === 'build';
+    let earned = 0;
+    let total = 0;
+    if (progress) {
+      earned = build ? progress.earnedunits : progress.earnedxp;
+      total = build ? progress.totalunits : progress.totalxp;
+    }
+    if (this.state.mode === 'ask' || this.state.mode === 'discuss' || !(total > 0)) {
+      show(badge, false);
+      return;
+    }
+    show(badge, true);
+    badge.querySelector('[data-region="xp-earned"]').textContent = Math.round(earned * 100) / 100;
+    badge.querySelector('[data-region="xp-total"]').textContent = Math.round(total * 100) / 100;
+    badge.querySelector('[data-region="xp-unit"]').textContent = this.t(build ? 'learning_units' : 'xp');
+  }
+
+  /**
+   * The result in percent, as ILIAS records it: the experience points'
+   * share while Test knowledge is active, the learning units' otherwise.
+   */
+  renderGrade() {
+    const chip = this.q('[data-region="grade-chip"]');
+    if (!chip) {
+      return;
+    }
+    const { progress } = this.state;
+    const units = this.config.gradeBasis === 'units';
+    let earned = 0;
+    let total = 0;
+    if (progress) {
+      earned = units ? progress.earnedunits : progress.earnedxp;
+      total = units ? progress.totalunits : progress.totalxp;
+    }
+    if ((this.state.mode !== 'test' && this.state.mode !== 'build') || !(total > 0)) {
+      show(chip, false);
+      return;
+    }
+    chip.textContent = this.t('grade_chip', { percent: Math.round(Math.max(0, Math.min(1, earned / total)) * 100) });
+    show(chip, true);
+  }
+
+  renderProgressBar() {
+    const bar = this.q('[data-region="progress"]');
+    const fill = this.q('[data-region="progress-fill"]');
+    if (!bar || !fill) {
+      return;
+    }
+    if (this.state.mode === 'ask' || this.state.mode === 'discuss' || !this.state.progress) {
+      show(bar, false);
+      return;
+    }
+    const figure = this.state.mode === 'build' ? this.state.progress.learnprogress : this.state.progress.practiceprogress;
+    if (typeof figure !== 'number') {
+      show(bar, false);
+      return;
+    }
+    const percent = Math.max(0, Math.min(100, Math.round(figure)));
+    fill.style.width = `${percent}%`;
+    bar.setAttribute('aria-valuenow', percent);
+    bar.setAttribute('title', `${percent} %`);
+    show(bar, true);
+  }
+
+  // --- learning units: slides, pictures, narration -------------------
+
+  turnSlide(card, dir) {
+    const slides = Array.prototype.slice.call(card.querySelectorAll('[data-region="slide"]'));
+    const current = slides.findIndex((slide) => !slide.classList.contains('tarsus-hidden'));
+    const target = Math.max(0, Math.min(slides.length - 1, current + dir));
+    if (target === current) {
+      return;
+    }
+    const navFocused = document.activeElement && document.activeElement.classList.contains('tarsus-learn-nav') && card.contains(document.activeElement);
+    show(slides[current], false);
+    show(slides[target], true);
+    card.querySelectorAll('[data-region="slide-badge"]').forEach((badge) => {
+      show(badge, parseInt(badge.getAttribute('data-index'), 10) === target);
+    });
+    const ring = card.querySelector('[data-region="ring"]');
+    if (ring) {
+      ring.querySelector('.tarsus-learn-ring__fill').style.strokeDashoffset = ringOffset(target + 1, slides.length);
+      ring.setAttribute('aria-label', this.t('learn_slide_of', { current: target + 1, total: slides.length }));
+    }
+    card.querySelectorAll('.tarsus-learn-nav').forEach((button) => {
+      const stepDir = parseInt(button.getAttribute('data-dir'), 10);
+      button.disabled = (stepDir < 0 && target === 0)
+        || (stepDir > 0 && target === slides.length - 1);
+    });
+    typeset(slides[target]);
+    const where = this.t('learn_slide_of', { current: target + 1, total: slides.length });
+    const { activeElement } = document;
+    if (navFocused && (activeElement === document.body || activeElement.disabled)) {
+      // The button pressed is now at its end: reading goes on at the slide.
+      this.announce(where);
+      this.focusCard(card);
+      return;
+    }
+    const parts = [where];
+    slides[target].querySelectorAll('.tarsus-learn-slide__title, .tarsus-learn-slide__text, .tarsus-practice-card__question').forEach((part) => {
+      parts.push(readableText(part).trim());
+    });
+    this.announce(parts.join('. '));
+  }
+
+  openLightbox(src, title) {
+    let dialog = document.querySelector('.tarsus-lightbox');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.className = 'tarsus-lightbox';
+      const close = el('button', {
+        type: 'button', class: 'tarsus-lightbox__close', 'aria-label': this.t('learn_image_close'), text: '×',
+      });
+      const image = el('img', { class: 'tarsus-lightbox__image', alt: '' });
+      dialog.appendChild(close);
+      dialog.appendChild(image);
+      dialog.addEventListener('click', () => {
+        dialog.close();
+      });
+      document.body.appendChild(dialog);
+    }
+    dialog.querySelector('.tarsus-lightbox__image').src = src;
+    dialog.querySelector('.tarsus-lightbox__image').alt = title || '';
+    dialog.setAttribute('aria-label', title || this.t('learn_image_enlarge'));
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', '');
+      }
+    }
+  }
+
+  setAudioState(card, stateName) {
+    const player = card.querySelector('[data-region="audio-player"]');
+    if (!player) {
+      return;
+    }
+    player.setAttribute('data-state', stateName);
+    show(player.querySelector('[data-region="audio-speaker"]'), stateName === 'idle');
+    show(player.querySelector('[data-region="audio-play"]'), !(stateName === 'idle' || stateName === 'playing'));
+    show(player.querySelector('[data-region="audio-pause"]'), stateName === 'playing');
+    let key = 'learn_audio_play';
+    if (stateName === 'playing') {
+      key = 'learn_audio_pause';
+    } else if (stateName === 'idle') {
+      key = 'learn_audio';
+    }
+    const toggle = player.querySelector('[data-action="audio-toggle"]');
+    toggle.setAttribute('title', this.t(key));
+    toggle.setAttribute('aria-label', this.t(key));
+  }
+
+  static drawWave(card) {
+    const wave = card.querySelector('[data-region="audio-wave"]');
+    if (!wave || wave.childElementCount) {
+      return;
+    }
+    let seed = 0;
+    String(card.getAttribute('data-stack-id') || '').split('').forEach((ch) => {
+      seed = (seed * 31 + ch.charCodeAt(0)) % 2147483647;
+    });
+    for (let i = 0; i < 36; i += 1) {
+      seed = (seed * 48271) % 2147483647;
+      const bar = document.createElement('span');
+      bar.className = 'tarsus-learn-player__bar';
+      bar.style.height = `${25 + (seed % 75)}%`;
+      wave.appendChild(bar);
+    }
+    show(wave, true);
+  }
+
+  static paintWave(card, ratio) {
+    const bars = card.querySelectorAll('.tarsus-learn-player__bar');
+    const played = Math.round(ratio * bars.length);
+    bars.forEach((bar, index) => {
+      bar.classList.toggle('tarsus-learn-player__bar--played', index < played);
+    });
+  }
+
+  wireStackAudio(card) {
+    const self = this;
+    const audio = card.querySelector('[data-region="audio"]');
+    audio.addEventListener('play', () => {
+      self.setAudioState(card, 'playing');
+    });
+    audio.addEventListener('pause', () => {
+      self.setAudioState(card, 'ready');
+    });
+    audio.addEventListener('ended', () => {
+      self.setAudioState(card, 'ready');
+      Chat.paintWave(card, 0);
+    });
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration > 0) {
+        Chat.paintWave(card, Math.min(1, audio.currentTime / audio.duration));
+      }
+    });
+  }
+
+  fetchStackAudio(card) {
+    const self = this;
+    const audio = card.querySelector('[data-region="audio"]');
+    const player = card.querySelector('[data-region="audio-player"]');
+    if (!audio || !player || player.getAttribute('data-state') === 'loading') {
+      return;
+    }
+    this.setAudioState(card, 'loading');
+    this.call('audio', { stackid: card.getAttribute('data-stack-id') }).then((result) => {
+      if (result.status !== 'success' || !result.audio) {
+        self.setAudioState(card, 'idle');
+        self.alert(result.error || self.t('unexpected_error'));
+        return null;
+      }
+      audio.src = result.audio;
+      self.wireStackAudio(card);
+      Chat.drawWave(card);
+      self.setAudioState(card, 'ready');
+      return audio.play().catch(noop);
+    }).catch((error) => {
+      self.setAudioState(card, 'idle');
+      self.alert(error.message || self.t('unexpected_error'));
+    });
+  }
+
+  toggleStackAudio(card) {
+    const audio = card.querySelector('[data-region="audio"]');
+    if (!audio) {
+      return;
+    }
+    if (!audio.getAttribute('src')) {
+      this.fetchStackAudio(card);
+      return;
+    }
+    if (audio.paused) {
+      audio.play().catch(noop);
+    } else {
+      audio.pause();
+    }
+  }
+
+  // --- Start / Next --------------------------------------------------
+
+  /**
+   * Next is never locked here: Tarsus decides what comes (a new step, or
+   * the same widget again with HTTP 409).
+   */
+  static nextLocked() {
+    return false;
+  }
+
+  setNextBusy(busy) {
+    const button = this.q('[data-action="next"]');
+    const spinner = this.q('[data-region="next-spinner"]');
+    const icon = this.q('.tarsus-practice-next__icon');
+    if (button) {
+      button.disabled = busy || Chat.nextLocked();
+      button.setAttribute('data-busy', busy ? '1' : '0');
+    }
+    show(spinner, busy);
+    show(icon, !busy);
+  }
+
+  updateNextLabel() {
+    const button = this.q('[data-action="next"]');
+    if (button && button.getAttribute('data-busy') !== '1') {
+      button.disabled = Chat.nextLocked();
+    }
+    const label = this.q('[data-region="practice-label"]');
+    if (!label) {
+      return;
+    }
+    const started = this.state.mode === 'build' ? this.state.learnStarted : this.state.practiceStarted;
+    label.textContent = this.t(started ? 'practice_next' : 'practice_start');
+  }
+
+  handleLearnNext() {
+    const self = this;
+    const button = this.q('[data-action="next"]');
+    if (!button || button.disabled) {
+      return;
+    }
+    this.setNextBusy(true);
+    this.alert('');
+    const processing = this.startProcessing('build', !this.state.learnStarted);
+    const unlock = function () {
+      processing.stop();
+      self.setNextBusy(false);
+    };
+    this.call('learnNext', {}).then((result) => {
+      unlock();
+      if (result.status !== 'success' || !result.items || !result.items.length) {
+        self.alert(result.error || self.t('unexpected_error'));
+        button.focus();
+        return;
+      }
+      if (result.progress) {
+        self.updateXp(result.progress);
+      }
+      let first = null;
+      result.items.forEach((item) => {
+        self.learnCards(item).forEach((card) => {
+          // A widget Tarsus sent again (409) that is already on
+          // the page is shown there instead of a second time.
+          const shown = result.replay ? self.findShown(card) : null;
+          if (shown) {
+            Chat.flash(shown);
+            first = first || shown;
+            return;
+          }
+          self.attach(card, null, true);
+          first = first || card;
+        });
+      });
+      self.scrollToCard(first);
+      self.state.learnStarted = true;
+      self.updateNextLabel();
+      self.focusCard(first);
+    }).catch((error) => {
+      unlock();
+      self.alert(error.message || self.t('unexpected_error'));
+      button.focus();
+    });
+  }
+
+  handlePracticeNext() {
+    const self = this;
+    if (this.state.mode === 'build') {
+      this.handleLearnNext();
+      return;
+    }
+    const button = this.q('[data-action="next"]');
+    if (!button || button.disabled) {
+      return;
+    }
+    this.setNextBusy(true);
+    this.alert('');
+    const processing = this.startProcessing('test', !this.state.practiceStarted);
+    const unlock = function () {
+      processing.stop();
+      self.setNextBusy(false);
+    };
+    this.call('practiceNext', {}).then((result) => {
+      unlock();
+      if (result.status !== 'success' || !result.widgets || !result.widgets.length) {
+        self.alert(result.error || self.t('unexpected_error'));
+        button.focus();
+        return;
+      }
+      self.updateXp(result.progress);
+      let first = null;
+      result.widgets.forEach((widget) => {
+        const card = self.attach(self.practiceCard(widget), null, true);
+        first = first || card;
+      });
+      self.scrollToCard(first);
+      self.state.practiceStarted = true;
+      self.updateNextLabel();
+      self.focusCard(first);
+    }).catch((error) => {
+      unlock();
+      self.alert(error.message || self.t('unexpected_error'));
+      button.focus();
+    });
+  }
+
+  handlePracticeCheck(card) {
+    const self = this;
+    const check = card.querySelector('.tarsus-practice-check');
+    const spinner = card.querySelector('.tarsus-practice-check__spinner');
+    if (!check || check.disabled) {
+      return;
+    }
+    let answer = '';
+    const answers = [];
+    const table = [];
+    let columns = [];
+    try {
+      columns = JSON.parse(card.getAttribute('data-columns') || '[]');
+    } catch (e) {
+      columns = [];
+    }
+    const chosen = card.querySelector('input[type="radio"]:checked');
+    const textinput = card.querySelector('.tarsus-practice-card__input');
+    const variableInputs = card.querySelectorAll('.tarsus-practice-variable__input');
+    const tableRows = card.querySelectorAll('.tarsus-practice-table__row');
+    if (tableRows.length) {
+      let complete = true;
+      tableRows.forEach((row) => {
+        const cells = [];
+        row.querySelectorAll('.tarsus-practice-table__cell').forEach((cell) => {
+          const input = cell.querySelector('input');
+          const given = cell.querySelector('.tarsus-practice-table__value');
+          let value = '';
+          if (input) {
+            value = input.value.trim();
+          } else if (given) {
+            value = given.textContent.trim();
+          }
+          if (input && value === '') {
+            complete = false;
+          }
+          cells.push(value);
+        });
+        table.push(cells);
+      });
+      if (!complete) {
+        self.missingAnswer(card);
+        return;
+      }
+    } else if (variableInputs.length) {
+      variableInputs.forEach((input) => {
+        if (input.value.trim() !== '') {
+          answers.push({ variable: input.getAttribute('data-variable'), answer: input.value.trim() });
+        }
+      });
+      if (answers.length !== variableInputs.length) {
+        self.missingAnswer(card);
+        return;
+      }
+    } else if (chosen) {
+      answer = chosen.value;
+    } else if (textinput) {
+      answer = textinput.value.trim();
+    }
+    if (answer === '' && !answers.length && !table.length) {
+      this.missingAnswer(card);
+      return;
+    }
+    this.alert('');
+
+    check.disabled = true;
+    show(spinner, true);
+    this.call('practiceCheck', {
+      widgetid: card.getAttribute('data-widget-id'),
+      widgettype: card.getAttribute('data-widget-type'),
+      answer,
+      answers,
+      table,
+      columns,
+      state: card.getAttribute('data-state') || 'practice',
+    }).then((result) => {
+      show(spinner, false);
+      if (result.status !== 'success') {
+        check.disabled = false;
+        self.alert(result.error || self.t('unexpected_error'));
+        check.focus();
+        return;
+      }
+      self.finalizePracticeCard(card, {
+        correct: result.correct,
+        score: result.score,
+        feedback: result.feedback || result.answer || '',
+        useranswer: answer,
+        useranswers: answers,
+        answers: result.answers || [],
+        usertable: result.usertable || table,
+        answertable: result.answertable || [],
+      });
+      self.updateXp(result.progress);
+      self.scrollToEnd();
+      // Focus on the verdict (a heading); the feedback and the result are read out.
+      const feedbackBox = card.querySelector('[data-region="feedback"]');
+      const shown = feedbackBox && !feedbackBox.classList.contains('tarsus-hidden');
+      if (shown) {
+        focusOn(feedbackBox.querySelector('[data-region="verdict-heading"]') || feedbackBox);
+        self.announce(`${readableText(feedbackBox).trim()} ${self.scoreText()}`);
+      } else {
+        focusOn(card.querySelector('[data-region="question-heading"]') || card.querySelector('.tarsus-practice-card__question'));
+        self.announce(`${self.verdictText(result.correct, result.score)} ${self.scoreText()}`);
+      }
+    }).catch((error) => {
+      check.disabled = false;
+      show(spinner, false);
+      self.alert(error.message || self.t('unexpected_error'));
+      check.focus();
+    });
+  }
+
+  // --- modes, reply chip, asking -------------------------------------
+
+  setMode(mode, quiet) {
+    if (this.state.mode === 'discuss' && mode !== 'discuss' && this.state.live) {
+      // Leaving the live interaction ends the call; a call the
+      // learner already hung up needs no question.
+      if (this.state.live.getAttribute('data-call') !== 'ended' && !window.confirm(this.t('live_end_confirm'))) {
+        return;
+      }
+      this.endLive();
+    }
+    this.state.mode = mode;
+    this.qa('.tarsus-mode-switch__btn').forEach((btn) => {
+      const active = btn.getAttribute('data-mode') === mode;
+      btn.classList.toggle('tarsus-mode-switch__btn--active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    const ask = mode === 'ask';
+    const live = mode === 'discuss';
+    const spoken = ask && this.state.voiceInput;
+    const input = this.q('.tarsus-chat-input');
+    const submit = this.q('.tarsus-chat-submit');
+    const next = this.q('[data-action="next"]');
+    if (input) {
+      show(input, ask && !spoken);
+      input.disabled = !ask || spoken;
+    }
+    show(this.q('[data-region="voice"]'), spoken);
+    show(this.q('[data-action="voice-toggle"]'), ask && Boolean(this.config.voice));
+    show(this.q('[data-region="live-bar"]'), live);
+    show(submit, ask);
+    if (submit && ask) {
+      submit.disabled = spoken && this.voice.state !== 'ready';
+    }
+    show(next, !ask && !live);
+    const chip = this.q('[data-region="reply-chip"]');
+    show(chip, ask && Boolean(this.state.replyTo));
+    this.renderBadge();
+    this.renderProgressBar();
+    this.updateNextLabel();
+    if (!quiet) {
+      this.announce(`${this.t(`mode_${mode}`)}. ${this.modeHint(mode)}`);
+    }
+  }
+
+  setReply(reply) {
+    this.state.replyTo = reply && (reply.id || reply.stack) ? reply : null;
+    const chip = this.q('[data-region="reply-chip"]');
+    if (!chip) {
+      return;
+    }
+    const title = chip.querySelector('[data-region="reply-title"]');
+    if (title) {
+      title.textContent = this.state.replyTo ? this.state.replyTo.title : '';
+    }
+    show(chip, Boolean(this.state.replyTo) && this.state.mode === 'ask');
+  }
+
+  /**
+   * "Ask about this": a question about a whole learning unit refers to
+   * its stack, one about a question card or an answer to that widget.
+   */
+  askAbout(card) {
+    let reply = null;
+    if (card.matches('[data-region="practice-card"]')) {
+      const id = card.getAttribute('data-widget-id') || '';
+      const question = card.querySelector('.tarsus-practice-card__question');
+      reply = id ? { id, title: shorten(readableText(question), 90) } : null;
+    } else if (card.matches('[data-region="learn-card"]')) {
+      const stack = card.getAttribute('data-stack-id') || '';
+      const slide = card.querySelector('[data-region="slide"]:not(.tarsus-hidden)');
+      const label = slide ? (slide.getAttribute('data-slide-title') || '') : '';
+      reply = stack ? { stack, title: label !== '' ? label : this.t('learn_ask_about_unit') } : null;
+    } else {
+      const widget = card.getAttribute('data-widget-id') || '';
+      const asked = card.querySelector('.tarsus-card__question-text');
+      reply = widget ? { id: widget, title: shorten(readableText(asked), 90) } : null;
+    }
+    if (!reply) {
+      return;
+    }
+    this.setMode('ask', true);
+    this.setReply(reply);
+    this.announce(this.t('chat_reply_about', { title: reply.title }));
+    const input = this.q('.tarsus-chat-input');
+    if (input && !this.state.voiceInput) {
+      input.focus();
+    }
+  }
+
+  handleSubmit(event) {
+    const self = this;
+    event.preventDefault();
+    if (this.state.voiceInput) {
+      this.voiceSend();
+      return;
+    }
+    const input = this.q('.tarsus-chat-input');
+    const submit = this.q('.tarsus-chat-submit');
+    const spinner = this.q('[data-region="send-spinner"]');
+    if (!input || !submit) {
+      return;
+    }
+    const query = input.value.trim();
+    if (query === '') {
+      return;
+    }
+    // Read-only rather than disabled: the field keeps the keyboard focus
+    // (and a screen reader its place) while Tarsus answers.
+    input.readOnly = true;
+    input.setAttribute('aria-busy', 'true');
+    submit.disabled = true;
+    show(spinner, true);
+    this.alert('');
+    input.value = '';
+    Chat.autosize(input);
+    const reply = this.state.replyTo;
+
+    const processing = this.startProcessing('ask', false);
+    const unlock = function () {
+      processing.stop();
+      input.readOnly = false;
+      input.removeAttribute('aria-busy');
+      submit.disabled = false;
+      show(spinner, false);
+      input.focus();
+    };
+    this.call('ask', { query, replyto: reply && reply.id ? reply.id : '', replystack: reply && reply.stack ? reply.stack : '' }).then((result) => {
+      unlock();
+      if (result.status !== 'success') {
+        input.value = query;
+        Chat.autosize(input);
+        self.alert(result.error || self.t('unexpected_error'));
+        return;
+      }
+      (result.messages || []).forEach((message) => {
+        self.attach(self.noticeCard('', message.title, message.text), null, true);
+      });
+      const answered = self.attach(self.exchangeCard(
+        result.question || query,
+        result.answer,
+        reply ? reply.title : '',
+        result.html || '',
+        { id: result.widgetid, state: 'ask', sources: result.sources },
+      ), null, true);
+      self.setReply(null);
+      self.scrollToEnd();
+      self.announceAnswer(answered);
+    }).catch((error) => {
+      unlock();
+      input.value = query;
+      Chat.autosize(input);
+      self.alert(error.message || self.t('unexpected_error'));
+    });
+  }
+
+  static autosize(input) {
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(160, Math.max(38, input.scrollHeight))}px`;
+  }
+
+  // --- widgets sent again (409) ---------------------------------------
+
+  /** The card already on the page for a widget, unit or farewell, if any. */
+  findShown(card) {
+    const flow = this.flow();
+    if (!flow) {
+      return null;
+    }
+    const escape = window.CSS && window.CSS.escape ? window.CSS.escape : function (value) {
+      return String(value);
+    };
+    const stack = card.getAttribute('data-stack-id');
+    if (stack) {
+      return flow.querySelector(`[data-region="learn-card"][data-stack-id="${escape(stack)}"]`);
+    }
+    const id = card.getAttribute('data-widget-id');
+    if (id) {
+      return flow.querySelector(`[data-widget-id="${escape(id)}"]`);
+    }
+    const question = card.querySelector('[data-region="practice-card"][data-widget-id]');
+    if (question) {
+      const shown = flow.querySelector(`[data-region="practice-card"][data-widget-id="${escape(question.getAttribute('data-widget-id'))}"]`);
+      return shown ? (shown.closest('[data-region="learn-card"]') || shown) : null;
+    }
+    return null;
+  }
+
+  static flash(card) {
+    card.classList.remove('tarsus-card--flash');
+    // Laying the card out again lets the animation start over.
+    card.getBoundingClientRect();
+    card.classList.add('tarsus-card--flash');
+  }
+
+  // --- spoken questions ----------------------------------------------
+  //
+  // Ask a question can be spoken: the recording goes to Tarsus, which
+  // turns it into text and answers it; the text comes back as the
+  // question. Recording, pausing, listening back and discarding happen
+  // in the browser.
+
+  static voiceSupported() {
+    const { mediaDevices } = window.navigator;
+    return Boolean(mediaDevices && mediaDevices.getUserMedia && window.MediaRecorder);
+  }
+
+  voiceRegion() {
+    return this.q('[data-region="voice"]');
+  }
+
+  setVoiceInput(on) {
+    this.state.voiceInput = Boolean(on) && Boolean(this.config.voice);
+    const toggle = this.q('[data-action="voice-toggle"]');
+    if (toggle) {
+      const key = this.state.voiceInput ? 'voice_to_text' : 'voice_to_voice';
+      toggle.setAttribute('title', this.t(key));
+      toggle.setAttribute('aria-label', this.t(key));
+      toggle.querySelector('[data-region="voice-toggle-label"]').textContent = this.t(key);
+      show(toggle.querySelector('[data-region="voice-toggle-mic"]'), !this.state.voiceInput);
+      show(toggle.querySelector('[data-region="voice-toggle-text"]'), this.state.voiceInput);
+    }
+    if (!this.state.voiceInput) {
+      this.voiceDiscard();
+    } else {
+      this.setVoiceState(this.voice.state);
+    }
+    this.setMode(this.state.mode, true);
+  }
+
+  setVoiceState(name) {
+    const region = this.voiceRegion();
+    this.voice.state = name;
+    if (!region) {
+      return;
+    }
+    region.setAttribute('data-state', name);
+    const buttons = {
+      start: ['idle'],
+      pause: ['recording'],
+      resume: ['paused'],
+      stop: ['recording', 'paused'],
+      play: ['ready'],
+      discard: ['recording', 'paused', 'ready'],
+    };
+    Object.keys(buttons).forEach((button) => {
+      show(region.querySelector(`[data-action="voice-${button}"]`), buttons[button].indexOf(name) !== -1);
+    });
+    const label = {
+      idle: 'voice_question', recording: 'voice_recording', paused: 'voice_paused', ready: 'voice_ready',
+    }[name] || 'voice_question';
+    region.querySelector('[data-region="voice-state"]').textContent = this.t(label);
+    const submit = this.q('.tarsus-chat-submit');
+    if (submit && this.state.voiceInput && this.state.mode === 'ask') {
+      submit.disabled = name !== 'ready';
+    }
+  }
+
+  /** The longest recording: the configured limit, and what the server accepts. */
+  voiceLimit() {
+    let seconds = this.config.voiceMaxSeconds || 180;
+    if (this.config.voiceMaxBytes > 0) {
+      // Recorded at 32 kbit/s, about 4 KB per second; a tenth is kept
+      // for the rest of the request.
+      seconds = Math.min(seconds, Math.floor((this.config.voiceMaxBytes * 0.9) / 4000));
+    }
+    return Math.max(5, seconds);
+  }
+
+  renderVoiceTime() {
+    const region = this.voiceRegion();
+    if (region) {
+      region.querySelector('[data-region="voice-time"]').textContent = clock(this.voice.elapsed);
+    }
+  }
+
+  voiceStart() {
+    const self = this;
+    if (!Chat.voiceSupported()) {
+      this.alert(this.t('voice_unsupported'));
+      return;
+    }
+    this.alert('');
+    window.navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg'];
+      const { MediaRecorder } = window;
+      let type = '';
+      for (let i = 0; i < types.length; i += 1) {
+        if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(types[i])) {
+          type = types[i];
+          break;
+        }
+      }
+      let recorder;
+      try {
+        const options = type
+          ? { mimeType: type, audioBitsPerSecond: 32000 }
+          : { audioBitsPerSecond: 32000 };
+        recorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        recorder = new MediaRecorder(stream);
+      }
+      self.voice.stream = stream;
+      self.voice.recorder = recorder;
+      self.voice.chunks = [];
+      self.voice.blob = null;
+      self.voice.elapsed = 0;
+      recorder.addEventListener('dataavailable', (event) => {
+        if (event.data && event.data.size) {
+          self.voice.chunks.push(event.data);
+        }
+      });
+      recorder.addEventListener('stop', () => {
+        self.voiceRelease();
+        if (self.voice.discarding) {
+          self.voice.discarding = false;
+          return;
+        }
+        self.voice.blob = new Blob(self.voice.chunks, { type: recorder.mimeType || type || 'audio/webm' });
+        if (self.voice.url) {
+          URL.revokeObjectURL(self.voice.url);
+        }
+        self.voice.url = URL.createObjectURL(self.voice.blob);
+        self.voiceRegion().querySelector('[data-region="voice-audio"]').src = self.voice.url;
+        self.setVoiceState('ready');
+      });
+      recorder.start(1000);
+      self.voice.timer = window.setInterval(() => {
+        if (self.voice.state !== 'recording') {
+          return;
+        }
+        self.voice.elapsed += 1;
+        self.renderVoiceTime();
+        if (self.voice.elapsed >= self.voiceLimit()) {
+          self.alert(self.t('voice_limit', { seconds: self.voiceLimit() }));
+          self.voiceStop();
+        }
+      }, 1000);
+      self.renderVoiceTime();
+      self.setVoiceState('recording');
+    }).catch((error) => {
+      const name = error && error.name;
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        self.alert(self.t('mic_denied'));
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        self.alert(self.t('mic_notfound'));
+      } else {
+        self.alert(self.t('mic_failed'));
+      }
+    });
+  }
+
+  voicePause() {
+    const { recorder } = this.voice;
+    if (recorder && recorder.state === 'recording' && typeof recorder.pause === 'function') {
+      recorder.pause();
+      this.setVoiceState('paused');
+    }
+  }
+
+  voiceResume() {
+    const { recorder } = this.voice;
+    if (recorder && recorder.state === 'paused') {
+      recorder.resume();
+      this.setVoiceState('recording');
+    }
+  }
+
+  voiceStop() {
+    const { recorder } = this.voice;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    }
+  }
+
+  /** Let go of the microphone and the clock. */
+  voiceRelease() {
+    if (this.voice.timer) {
+      window.clearInterval(this.voice.timer);
+      this.voice.timer = null;
+    }
+    if (this.voice.stream) {
+      this.voice.stream.getTracks().forEach((track) => {
+        track.stop();
+      });
+      this.voice.stream = null;
+    }
+  }
+
+  voiceDiscard() {
+    const { recorder } = this.voice;
+    if (recorder && recorder.state !== 'inactive') {
+      this.voice.discarding = true;
+      recorder.stop();
+    }
+    this.voiceRelease();
+    this.voice.recorder = null;
+    this.voice.blob = null;
+    this.voice.chunks = [];
+    this.voice.elapsed = 0;
+    if (this.voice.url) {
+      URL.revokeObjectURL(this.voice.url);
+      this.voice.url = null;
+    }
+    const region = this.voiceRegion();
+    if (region) {
+      const audio = region.querySelector('[data-region="voice-audio"]');
+      audio.pause();
+      audio.removeAttribute('src');
+    }
+    this.renderVoiceTime();
+    this.setVoiceState('idle');
+  }
+
+  voicePlay() {
+    const audio = this.voiceRegion().querySelector('[data-region="voice-audio"]');
+    if (audio.getAttribute('src')) {
+      if (audio.paused) {
+        audio.currentTime = 0;
+        audio.play().catch(noop);
+      } else {
+        audio.pause();
+      }
+    }
+  }
+
+  voiceSend() {
+    const self = this;
+    if (!this.voice.blob || this.voice.state !== 'ready') {
+      return;
+    }
+    const { blob } = this.voice;
+    const duration = this.voice.elapsed;
+    // The answer card plays the recording back, so its address stays.
+    const { url } = this.voice;
+    this.voice.url = null;
+    this.voice.blob = null;
+    const reply = this.state.replyTo;
+    let extension = 'webm';
+    if (blob.type.indexOf('mp4') !== -1) {
+      extension = 'm4a';
+    } else if (blob.type.indexOf('ogg') !== -1) {
+      extension = 'ogg';
+    }
+    const form = new FormData();
+    form.append('payload', JSON.stringify({ replyto: reply && reply.id ? reply.id : '', replystack: reply && reply.stack ? reply.stack : '' }));
+    form.append('audio', blob, `question.${extension}`);
+
+    const audio = this.voiceRegion().querySelector('[data-region="voice-audio"]');
+    audio.pause();
+    audio.removeAttribute('src');
+    this.voice.elapsed = 0;
+    this.renderVoiceTime();
+    this.setVoiceState('idle');
+
+    const submit = this.q('.tarsus-chat-submit');
+    const spinner = this.q('[data-region="send-spinner"]');
+    if (submit) {
+      submit.disabled = true;
+    }
+    show(spinner, true);
+    this.alert('');
+    const processing = this.startProcessing('voice', false);
+    const unlock = function () {
+      processing.stop();
+      show(spinner, false);
+      self.setVoiceState(self.voice.state);
+    };
+    postForm(this.config.endpoints.askVoice, form, this.strings).then((result) => {
+      unlock();
+      if (result.status !== 'success') {
+        self.alert(result.error || self.t('unexpected_error'));
+        return;
+      }
+      (result.messages || []).forEach((message) => {
+        self.attach(self.noticeCard('', message.title, message.text), null, true);
+      });
+      const answered = self.attach(self.exchangeCard(
+        result.question || self.t('voice_question'),
+        result.answer,
+        reply ? reply.title : '',
+        result.html || '',
+        {
+          id: result.widgetid, state: 'ask', sources: result.sources, voice: { src: url, duration },
+        },
+      ), null, true);
+      self.setReply(null);
+      self.scrollToEnd();
+      self.announceAnswer(answered);
+    }).catch((error) => {
+      unlock();
+      self.alert(error.message || self.t('unexpected_error'));
+    });
+  }
+
+  // --- live interaction ----------------------------------------------
+  //
+  // Tarsus sends the whole call as one page (a genericLiveWidget). It runs
+  // in a sandboxed frame (see hostMic): the page cannot reach ILIAS, and
+  // its microphone is recorded here and handed over. The AI-made slides in
+  // it run in their own sandbox. The page tells when its call has expired.
+
+  setLiveLabel(key) {
+    const label = this.q('[data-region="live-label"]');
+    if (label) {
+      label.textContent = this.t(key);
+    }
+  }
+
+  startLive() {
+    const self = this;
+    const button = this.q('[data-action="live-start"]');
+    if (!button || button.disabled) {
+      return;
+    }
+    if (this.state.live) {
+      // "New conversation": the running one ends first.
+      this.endLive(true);
+    }
+    button.disabled = true;
+    show(this.q('[data-region="live-spinner"]'), true);
+    this.alert('');
+    this.call('discuss', {}).then((result) => {
+      button.disabled = false;
+      show(self.q('[data-region="live-spinner"]'), false);
+      if (result.status !== 'success' || !result.page) {
+        self.alert(result.error || self.t('unexpected_error'));
+        return;
+      }
+      const frame = el('iframe', {
+        class: 'tarsus-live__frame',
+        sandbox: 'allow-scripts allow-forms',
+        allow: 'microphone; autoplay',
+        title: self.t('live_title'),
+      });
+      self.state.liveMic = hostMic(frame, () => {
+        self.announceCall();
+      });
+      frame.setAttribute('srcdoc', withMicBridge(result.page));
+      const card = el('div', { class: 'tarsus-card tarsus-live', 'data-region': 'live-card' }, [
+        el('div', { class: 'tarsus-live__notice tarsus-hidden', 'data-region': 'live-notice', role: 'status' }),
+        frame,
+      ]);
+      self.state.live = card;
+      self.attach(card, null, true);
+      self.scrollToCard(card);
+      focusOn(frame);
+      self.setLiveLabel('live_new');
+    }).catch((error) => {
+      button.disabled = false;
+      show(self.q('[data-region="live-spinner"]'), false);
+      self.alert(error.message || self.t('unexpected_error'));
+    });
+  }
+
+  /** End the call; what the coach answered is saved by Tarsus and read back. */
+  endLive(keepFeed) {
+    const card = this.state.live;
+    this.state.live = null;
+    if (this.state.liveMic) {
+      this.state.liveMic.close();
+      this.state.liveMic = null;
+    }
+    if (card && card.parentNode) {
+      card.parentNode.removeChild(card);
+    }
+    this.setLiveLabel('live_start');
+    if (!keepFeed) {
+      this.loadFeed();
+    }
+  }
+
+  /**
+   * One call at a time in the browser, as on Tarsus: a call that starts
+   * in another tab ends the one here.
+   */
+  announceCall() {
+    const self = this;
+    if (!window.BroadcastChannel) {
+      return;
+    }
+    if (!this.callChannel) {
+      this.callTab = String(Date.now()) + String(Math.random()).slice(2);
+      this.callChannel = new BroadcastChannel('xtar-calls');
+      this.callChannel.onmessage = function (event) {
+        const { data } = event;
+        if (data && data.type === 'call-started' && data.tab !== self.callTab && self.state.live) {
+          self.endLive(false);
+        }
+      };
+    }
+    this.callChannel.postMessage({ type: 'call-started', tab: this.callTab });
+  }
+
+  onLiveMessage(event) {
+    const card = this.state.live;
+    const { data } = event;
+    if (!card || !data || typeof data !== 'object') {
+      return;
+    }
+    const frame = card.querySelector('iframe');
+    if (!frame || event.source !== frame.contentWindow) {
+      return;
+    }
+    if (data.type === 'genericLiveWidget:state') {
+      // The call page reports its state: Connecting, Connected, and
+      // Disconnected (hung up, or ended by the coach) or None (failed).
+      const ended = data.state === 'Disconnected' || data.state === 'None';
+      card.setAttribute('data-call', ended ? 'ended' : 'running');
+    }
+    if (data.type === 'genericLiveWidget:expired') {
+      const notice = card.querySelector('[data-region="live-notice"]');
+      notice.textContent = this.t('live_expired');
+      show(notice, true);
+      card.setAttribute('data-call', 'ended');
+      this.setLiveLabel('live_new');
+    }
+  }
+
+  // --- the panel sliding in from the right ---------------------------
+
+  openDrawer(title, wide) {
+    const drawer = this.q('[data-region="drawer"]');
+    if (!drawer) {
+      return el('div');
+    }
+    drawer.querySelector('[data-region="drawer-title"]').textContent = title;
+    const body = drawer.querySelector('[data-region="drawer-body"]');
+    body.innerHTML = '';
+    drawer.classList.toggle('tarsus-drawer--wide', Boolean(wide));
+    this.lastFocus = document.activeElement;
+    drawer.hidden = false;
+    window.requestAnimationFrame(() => {
+      drawer.classList.add('tarsus-drawer--open');
+      drawer.querySelector('.tarsus-drawer__panel').focus();
+    });
+    document.documentElement.classList.add('tarsus-drawer-lock');
+    return body;
+  }
+
+  closeDrawer() {
+    const drawer = this.q('[data-region="drawer"]');
+    if (!drawer || drawer.hidden) {
+      return;
+    }
+    drawer.classList.remove('tarsus-drawer--open');
+    window.setTimeout(() => {
+      if (!drawer.classList.contains('tarsus-drawer--open')) {
+        drawer.hidden = true;
+      }
+    }, 220);
+    document.documentElement.classList.remove('tarsus-drawer-lock');
+    if (this.lastFocus && typeof this.lastFocus.focus === 'function') {
+      this.lastFocus.focus();
+    }
+  }
+
+  drawerLoading(body) {
+    body.innerHTML = '';
+    body.appendChild(el('div', { class: 'tarsus-drawer__loading' }, [
+      el('span', { class: 'tarsus-spinner', 'aria-hidden': 'true' }),
+      el('span', { text: this.t('loading') }),
+    ]));
+  }
+
+  drawerError(body, message) {
+    body.innerHTML = '';
+    body.appendChild(el('p', { class: 'tarsus-drawer__error', role: 'alert', text: message || this.t('unexpected_error') }));
+  }
+
+  openSources(widgetid, state) {
+    const self = this;
+    const body = this.openDrawer(this.t('sources_title'));
+    this.drawerLoading(body);
+    this.call('references', { widgetid, state: state || 'ask' }).then((result) => {
+      if (result.status !== 'success') {
+        self.drawerError(body, result.error);
+        return;
+      }
+      body.innerHTML = '';
+      const bits = result.bits || [];
+      if (!bits.length) {
+        body.appendChild(el('p', { class: 'tarsus-muted', text: self.t('sources_none') }));
+        return;
+      }
+      body.appendChild(el('p', { class: 'tarsus-drawer__lead', text: self.t('sources_count', { count: bits.length }) }));
+      bits.forEach((bit) => {
+        body.appendChild(self.sourceItem(bit));
+      });
+      typeset(body);
+    }).catch((error) => {
+      self.drawerError(body, error.message);
+    });
+  }
+
+  /**
+   * One source, shown by its type: text, table, picture, transcript of
+   * audio or video, question.
+   */
+  sourceItem(bit) {
+    const type = SOURCE_TYPES.indexOf(bit.type) !== -1 ? bit.type : 'other';
+    const head = el('div', { class: 'tarsus-source__head' }, [
+      el('span', { class: 'tarsus-source__type', html: this.icon(SOURCE_ICONS[type] || 'file') }, el('span', { text: this.t(`source_type_${type}`) })),
+      bit.title ? el('span', { class: 'tarsus-source__title', text: bit.title }) : null,
+      bit.link ? el('a', {
+        class: 'tarsus-source__open', href: bit.link, target: '_top', html: this.icon('link'),
+      }, el('span', { text: this.t('sources_open') })) : null,
+    ]);
+    const content = el('div', { class: 'tarsus-source__content' });
+    if (type === 'table' && bit.rows && bit.rows.length) {
+      const { rows } = bit;
+      content.appendChild(el('div', { class: 'tarsus-source__table-wrap' }, el('table', { class: 'tarsus-source__table' }, [
+        el('thead', {}, el('tr', {}, rows[0].map((cell) => el('th', { text: cell })))),
+        el('tbody', {}, rows.slice(1).map((row) => el('tr', {}, row.map((cell) => el('td', { text: cell }))))),
+      ])));
+    } else if (type === 'image' && bit.image) {
+      content.appendChild(el('img', {
+        class: 'tarsus-source__image',
+        src: bit.image,
+        alt: bit.title || '',
+        tabindex: '0',
+        role: 'button',
+        'data-action': 'enlarge',
+        title: this.t('learn_image_enlarge'),
+        'aria-label': this.t('learn_image_enlarge') + (bit.title ? `: ${bit.title}` : ''),
+      }));
+    }
+    if ((type === 'audio' || type === 'video') && bit.text) {
+      content.appendChild(el('div', { class: 'tarsus-source__label', text: this.t('sources_transcript') }));
+    }
+    if (bit.text && type !== 'table') {
+      content.appendChild(el('div', { class: 'tarsus-source__text', html: bit.text }));
+    }
+    if (bit.subtitle) {
+      content.appendChild(el('div', { class: 'tarsus-source__subtitle', text: bit.subtitle }));
+    }
+    return el('article', { class: `tarsus-source tarsus-source--${type}` }, [head, content]);
+  }
+
+  // --- teacher: settings ---------------------------------------------
+
+  teacherCall(endpoint, payload) {
+    return post(this.config.teacher.endpoints[endpoint], payload, this.strings);
+  }
+
+  openSettingsPanel() {
+    const self = this;
+    const body = this.openDrawer(this.t('panel_settings'), true);
+    this.drawerLoading(body);
+    this.teacherCall('settings', {}).then((result) => {
+      if (result.status !== 'success') {
+        self.drawerError(body, result.error);
+        return;
+      }
+      body.innerHTML = '';
+      const form = el('form', { class: 'tarsus-settings', novalidate: true });
+      (result.sections || []).forEach((section) => {
+        const box = el('section', { class: 'tarsus-settings__section' }, [
+          el('h3', { class: 'tarsus-settings__title', text: section.title }),
+          section.help ? el('p', { class: 'tarsus-settings__help', text: section.help }) : null,
+        ]);
+        (section.fields || []).forEach((field) => {
+          box.appendChild(Chat.settingsField(field));
+        });
+        form.appendChild(box);
+      });
+      const status = el('span', { class: 'tarsus-settings__status', role: 'status' });
+      const save = el('button', { type: 'submit', class: 'tarsus-btn tarsus-btn--primary', text: self.t('settings_save') });
+      form.appendChild(el('div', { class: 'tarsus-settings__footer' }, [
+        save, status,
+        el('a', { class: 'tarsus-settings__full', href: self.config.teacher.settingsUrl, text: self.t('settings_open_full') }),
+      ]));
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        save.disabled = true;
+        status.textContent = self.t('settings_saving');
+        form.querySelectorAll('.tarsus-settings__error').forEach((node) => {
+          node.remove();
+        });
+        self.teacherCall('saveSettings', { values: Chat.settingsValues(form) }).then((saved) => {
+          save.disabled = false;
+          if (saved.status !== 'success') {
+            status.textContent = saved.error || self.t('form_invalid');
+            Object.keys(saved.errors || {}).forEach((name) => {
+              const field = form.querySelector(`[data-field="${name}"]`);
+              if (field) {
+                field.appendChild(el('div', { class: 'tarsus-settings__error', role: 'alert', text: saved.errors[name] }));
+              }
+            });
+            return;
+          }
+          status.textContent = saved.message || self.t('settings_saved');
+          // Modes and switches change the coach itself.
+          window.setTimeout(() => {
+            window.location.reload();
+          }, 700);
+        }).catch((error) => {
+          save.disabled = false;
+          status.textContent = error.message || self.t('unexpected_error');
+        });
+      });
+      body.appendChild(form);
+    }).catch((error) => {
+      self.drawerError(body, error.message);
+    });
+  }
+
+  static settingsField(field) {
+    const wrap = el('div', { class: `tarsus-settings__field tarsus-settings__field--${field.type}`, 'data-field': field.name });
+    const locked = Boolean(field.locked);
+    const label = el('div', { class: 'tarsus-settings__label', text: field.label });
+    if (field.type === 'checkbox') {
+      wrap.appendChild(el('label', { class: 'tarsus-settings__check' }, [
+        el('input', {
+          type: 'checkbox', name: field.name, checked: Boolean(field.value), disabled: locked,
+        }),
+        el('span', { class: 'tarsus-settings__label', text: field.label }),
+      ]));
+    } else if (field.type === 'radio' || field.type === 'cards') {
+      if (field.type === 'radio') {
+        wrap.appendChild(label);
+      }
+      const group = el('div', {
+        class: field.type === 'cards' ? 'tarsus-settings__cards' : 'tarsus-settings__radios',
+        role: 'radiogroup',
+        'aria-label': field.label,
+      });
+      (field.options || []).forEach((option) => {
+        group.appendChild(el('label', { class: field.type === 'cards' ? 'tarsus-settings__card' : 'tarsus-settings__radio' }, [
+          el('input', {
+            type: 'radio',
+            name: field.name,
+            value: option.value,
+            checked: String(field.value) === String(option.value),
+            disabled: Boolean(option.locked),
+          }),
+          el('span', { class: 'tarsus-settings__option' }, [
+            el('strong', { text: option.label }),
+            option.help ? el('span', { text: option.help }) : null,
+            option.lockedtext ? el('em', { text: option.lockedtext }) : null,
+          ]),
+        ]));
+      });
+      wrap.appendChild(group);
+    } else if (field.type === 'select') {
+      wrap.appendChild(label);
+      const select = el('select', { class: 'tarsus-input', name: field.name, 'aria-label': field.label });
+      (field.options || []).forEach((option) => {
+        select.appendChild(el('option', { value: option.value, text: option.label, selected: String(field.value) === String(option.value) }));
+      });
+      wrap.appendChild(select);
+    } else if (field.type === 'multi') {
+      wrap.appendChild(label);
+      const values = (field.value || []).map(String);
+      const list = el('div', { class: 'tarsus-settings__multi' });
+      (field.options || []).forEach((option) => {
+        list.appendChild(el('label', { class: 'tarsus-settings__check' }, [
+          el('input', { type: 'checkbox', value: option.value, checked: values.indexOf(String(option.value)) !== -1 }),
+          el('span', { text: option.label }),
+        ]));
+      });
+      wrap.appendChild(list);
+    } else {
+      wrap.appendChild(label);
+      const input = el('input', {
+        class: 'tarsus-input',
+        name: field.name,
+        type: field.type === 'number' ? 'number' : 'text',
+        value: field.value,
+        min: field.min,
+        max: field.max,
+        maxlength: field.maxlength,
+        'aria-label': field.label,
+      });
+      wrap.appendChild(field.suffix ? el('span', { class: 'tarsus-settings__suffixed' }, [input, el('span', { text: field.suffix })]) : input);
+    }
+    if (field.help) {
+      wrap.appendChild(el('div', { class: 'tarsus-settings__help', text: field.help }));
+    }
+    if (locked && field.lockedtext) {
+      wrap.appendChild(el('div', { class: 'tarsus-settings__locked', text: field.lockedtext }));
+    }
+    return wrap;
+  }
+
+  /** The panel's values; a locked switch sends nothing and keeps its value. */
+  static settingsValues(form) {
+    const values = {};
+    form.querySelectorAll('[data-field]').forEach((wrap) => {
+      const name = wrap.getAttribute('data-field');
+      if (wrap.classList.contains('tarsus-settings__field--multi')) {
+        values[name] = [];
+        wrap.querySelectorAll('input[type="checkbox"]').forEach((box) => {
+          if (box.checked) {
+            values[name].push(box.value);
+          }
+        });
+      } else if (wrap.classList.contains('tarsus-settings__field--checkbox')) {
+        const box = wrap.querySelector('input[type="checkbox"]');
+        if (box && !box.disabled) {
+          values[name] = box.checked;
+        }
+      } else if (wrap.classList.contains('tarsus-settings__field--radio') || wrap.classList.contains('tarsus-settings__field--cards')) {
+        const checked = wrap.querySelector('input[type="radio"]:checked');
+        if (checked) {
+          values[name] = checked.value;
+        }
+      } else {
+        const input = wrap.querySelector('input, select');
+        if (input) {
+          values[name] = input.value;
+        }
+      }
+    });
+    return values;
+  }
+
+  loadStats() {
+    const self = this;
+    return this.teacherCall('stats', {}).then((result) => {
+      if (result.status === 'success') {
+        self.state.stats = result;
+      }
+      return result;
+    });
+  }
+
+  openStatsPanel() {
+    const self = this;
+    const body = this.openDrawer(this.t('panel_stats'), true);
+    this.drawerLoading(body);
+    this.loadStats().then((result) => {
+      if (result.status !== 'success') {
+        self.drawerError(body, result.error);
+        return;
+      }
+      self.renderStats(body, result, '');
+    }).catch((error) => {
+      self.drawerError(body, error.message);
+    });
+  }
+
+  renderStats(body, result, group) {
+    const self = this;
+    body.innerHTML = '';
+    const all = result.learners || [];
+    const inGroup = (learner) => (learner.groups || []).map(String).indexOf(String(group)) !== -1;
+    const learners = all.filter((learner) => !group || inGroup(learner));
+
+    const tools = el('div', { class: 'tarsus-stats__tools' });
+    if ((result.groups || []).length) {
+      const select = el('select', { class: 'tarsus-input tarsus-stats__group', 'aria-label': this.t('stats_group') });
+      select.appendChild(el('option', { value: '', text: this.t('stats_group_all') }));
+      result.groups.forEach((entry) => {
+        select.appendChild(el('option', { value: String(entry.id), text: entry.title, selected: String(entry.id) === String(group) }));
+      });
+      select.addEventListener('change', () => {
+        self.renderStats(body, result, select.value);
+      });
+      tools.appendChild(select);
+    }
+    tools.appendChild(el(
+      'a',
+      { class: 'tarsus-btn tarsus-btn--sm tarsus-stats__export', href: this.config.teacher.exportUrl, html: this.icon('download') },
+      el('span', { text: this.t('stats_export') }),
+    ));
+    body.appendChild(tools);
+    if (result.warning) {
+      body.appendChild(el('p', { class: 'tarsus-drawer__warning', role: 'status', text: result.warning }));
+    }
+    if (!learners.length) {
+      body.appendChild(el('p', { class: 'tarsus-muted', text: this.t('stats_none') }));
+      return;
+    }
+
+    const members = learners.filter((learner) => learner.member);
+    const counted = members.length ? members : learners;
+    const started = counted.filter((learner) => learner.started);
+    const grades = started
+      .filter((learner) => learner.grade !== null && learner.grade !== undefined)
+      .map((learner) => learner.grade);
+    const completed = counted.filter((learner) => learner.status === LP_COMPLETED).length;
+    const inprogress = counted.filter((learner) => learner.status === LP_IN_PROGRESS).length;
+    const average = function (values) {
+      return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
+    };
+    const avgGrade = average(grades);
+    const avgProgress = average(started.map((learner) => learner.progress));
+
+    body.appendChild(el('div', { class: 'tarsus-stats__kpis' }, [
+      Chat.kpi(String(counted.length), this.t('stats_learners')),
+      Chat.kpi(avgGrade === null ? '–' : `${avgGrade} %`, this.t('stats_avg_grade')),
+      Chat.kpi(`${completed} / ${counted.length}`, this.t('stats_completed')),
+      Chat.kpi(avgProgress === null ? '–' : `${avgProgress} %`, this.t('stats_avg_progress')),
+    ]));
+
+    if (result.measurable !== false) {
+      body.appendChild(el('div', { class: 'tarsus-stats__charts' }, [
+        el('section', { class: 'tarsus-stats__chart' }, [
+          el('h3', { text: this.t('stats_distribution') }),
+          el('p', { class: 'tarsus-stats__chart-help', text: this.t('stats_distribution_help') }),
+          this.histogram(grades),
+        ]),
+        el('section', { class: 'tarsus-stats__chart' }, [
+          el('h3', { text: this.t('stats_status') }),
+          el('p', { class: 'tarsus-stats__chart-help', text: this.t('stats_status_help') }),
+          this.statusBar(
+            completed,
+            inprogress,
+            Math.max(0, counted.length - completed - inprogress),
+          ),
+        ]),
+      ]));
+    }
+
+    const head = el('tr', {}, [
+      el('th', { text: this.t('stats_col_name') }),
+      el('th', { text: this.t('stats_col_grade') }),
+      el('th', { text: this.t('stats_col_progress') }),
+      el('th', { text: this.t('stats_col_status') }),
+      el('th', { text: this.t('stats_col_build') }),
+      el('th', { text: this.t('stats_col_test') }),
+      el('th', { text: this.t('stats_col_last') }),
+      el('th', {}, srText(this.t('panel_history'))),
+    ]);
+    const rows = learners.map((learner) => {
+      const status = statusKey(learner.status);
+      return el('tr', {}, [
+        el('td', { class: 'tarsus-stats__name', text: learner.name }),
+        el('td', { class: 'tarsus-stats__grade', text: learner.grade === null || learner.grade === undefined ? '–' : `${Math.round(learner.grade)} %` }),
+        el('td', { text: `${Math.round(learner.progress || 0)} %` }),
+        el('td', {}, el('span', { class: `tarsus-pill tarsus-pill--${status}`, text: self.t(status) })),
+        el('td', {}, Chat.meter(learner.earnedunits, learner.totalunits, self.t('learning_units'), 'units')),
+        el('td', {}, Chat.meter(learner.earnedxp, learner.totalxp, self.t('xp'), 'xp')),
+        el('td', { class: 'tarsus-nowrap', text: learner.lastactivitylabel || '–' }),
+        el('td', {}, el('button', {
+          type: 'button',
+          class: 'tarsus-link-btn',
+          'data-action': 'history-open',
+          'data-userid': String(learner.userid),
+          'data-name': learner.name,
+          text: self.t('stats_history'),
+        })),
+      ]);
+    });
+    body.appendChild(el('div', { class: 'tarsus-stats__table-wrap' }, el('table', { class: 'tarsus-stats__table' }, [
+      el('thead', {}, head),
+      el('tbody', {}, rows),
+    ])));
+  }
+
+  static kpi(value, label) {
+    return el('div', { class: 'tarsus-stats__kpi' }, [
+      el('div', { class: 'tarsus-stats__kpi-value', text: value }),
+      el('div', { class: 'tarsus-stats__kpi-label', text: label }),
+    ]);
+  }
+
+  /** A small bar with "earned / total": shown, never used as the score. */
+  static meter(earned, total, unit, kind) {
+    const share = total > 0 ? Math.max(0, Math.min(1, earned / total)) : 0;
+    const round = function (value) {
+      return Math.round((value || 0) * 10) / 10;
+    };
+    return el('span', { class: `tarsus-meter tarsus-meter--${kind}` }, [
+      el('span', { class: 'tarsus-meter__track' }, el('span', { class: 'tarsus-meter__fill', style: `width:${Math.round(share * 100)}%` })),
+      el('span', { class: 'tarsus-meter__text', text: `${round(earned)} / ${round(total)} ${unit}` }),
+    ]);
+  }
+
+  /** How many learners reached which result, in ten bands of ten percent. */
+  histogram(grades) {
+    const counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    grades.forEach((grade) => {
+      counts[Math.min(9, Math.max(0, Math.floor(grade / 10)))] += 1;
+    });
+    const max = Math.max(1, Math.max.apply(null, counts));
+    const width = 560;
+    const height = 170;
+    const left = 30;
+    const base = 132;
+    const top = 12;
+    const band = (width - left - 8) / 10;
+    const bar = band - 6;
+    const root = svg('svg', {
+      viewBox: `0 0 ${width} ${height}`, role: 'img', class: 'tarsus-chart', 'aria-label': this.t('stats_distribution'),
+    });
+    [0, Math.ceil(max / 2), max].forEach((tick) => {
+      const y = base - (tick / max) * (base - top);
+      root.appendChild(svg('line', {
+        x1: left, x2: width - 4, y1: y, y2: y, class: 'tarsus-chart__grid',
+      }));
+      root.appendChild(svgText(left - 8, y + 4, String(tick), { class: 'tarsus-chart__axis', 'text-anchor': 'end' }));
+    });
+    counts.forEach((count, i) => {
+      const x = left + i * band + 3;
+      if (count > 0) {
+        const h = (count / max) * (base - top);
+        const y = base - h;
+        const r = Math.min(4, h);
+        const shape = svg('path', {
+          d: `M${x} ${base}V${y + r}a${r} ${r} 0 0 1 ${r} -${r}h${bar - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}V${base}z`,
+          class: 'tarsus-chart__bar',
+        });
+        const title = svg('title');
+        title.textContent = `${i * 10}–${(i + 1) * 10} %: ${count}`;
+        shape.appendChild(title);
+        root.appendChild(shape);
+      }
+      root.appendChild(svgText(x + bar / 2, base + 16, `${i * 10}–${(i + 1) * 10}`, { class: 'tarsus-chart__axis', 'text-anchor': 'middle' }));
+    });
+    return root;
+  }
+
+  /** Completed, in progress and not started, side by side in one bar. */
+  statusBar(completed, inprogress, notstarted) {
+    const parts = [
+      { count: completed, key: 'lp_completed', cls: 'completed' },
+      { count: inprogress, key: 'lp_in_progress', cls: 'progress' },
+      { count: notstarted, key: 'lp_not_attempted', cls: 'notstarted' },
+    ];
+    const self = this;
+    const bar = el('div', {
+      class: 'tarsus-status-bar',
+      role: 'img',
+      'aria-label': parts.map((part) => `${part.count} ${self.t(part.key)}`).join(', '),
+    });
+    parts.forEach((part) => {
+      if (part.count > 0) {
+        bar.appendChild(el('span', {
+          class: `tarsus-status-bar__part tarsus-status-bar__part--${part.cls}`,
+          style: `flex-grow:${part.count};flex-basis:0`,
+          title: `${part.count} ${self.t(part.key)}`,
+        }));
+      }
+    });
+    const legend = el('div', { class: 'tarsus-status-bar__legend' }, parts.map((part) => el('span', {}, [el('i', { class: `tarsus-status-bar__dot tarsus-status-bar__part--${part.cls}` }),
+      el('span', { text: `${part.count} ${self.t(part.key)}` })])));
+    return el('div', { class: 'tarsus-status' }, [bar, legend]);
+  }
+
+  // --- teacher: history (read only) ----------------------------------
+
+  openHistoryPanel(userid, name) {
+    const self = this;
+    const body = this.openDrawer(this.t('panel_history'), true);
+    if (userid) {
+      this.renderHistory(body, userid, name || '');
+      return;
+    }
+    // No learner chosen yet: pick one from the evaluation.
+    this.drawerLoading(body);
+    const list = this.state.stats ? Promise.resolve(this.state.stats) : this.loadStats();
+    list.then((result) => {
+      if (result.status !== 'success') {
+        self.drawerError(body, result.error);
+        return;
+      }
+      body.innerHTML = '';
+      const learners = (result.learners || []).slice()
+        .sort((a, b) => (b.started ? 1 : 0) - (a.started ? 1 : 0));
+      if (!learners.length) {
+        body.appendChild(el('p', { class: 'tarsus-muted', text: self.t('stats_none') }));
+        return;
+      }
+      const select = el('select', { class: 'tarsus-input tarsus-history__pick', 'aria-label': self.t('history_pick') });
+      select.appendChild(el('option', { value: '', text: self.t('history_pick') }));
+      learners.forEach((learner) => {
+        select.appendChild(el('option', { value: String(learner.userid), text: learner.name }));
+      });
+      const target = el('div', { class: 'tarsus-history__target' });
+      select.addEventListener('change', () => {
+        if (select.value) {
+          const { text } = select.options[select.selectedIndex];
+          self.renderHistory(target, parseInt(select.value, 10), text);
+        }
+      });
+      body.appendChild(el('div', { class: 'tarsus-stats__tools' }, select));
+      body.appendChild(target);
+    }).catch((error) => {
+      self.drawerError(body, error.message);
+    });
+  }
+
+  renderHistory(body, userid, name) {
+    const self = this;
+    body.innerHTML = '';
+    const header = el('div', { class: 'tarsus-history__head' }, [
+      el('h3', { class: 'tarsus-history__name', text: this.t('history_of', { name }) }),
+      el('span', { class: 'tarsus-history__badge', html: this.icon('taxonomy_understanding') }, el('span', { text: this.t('history_readonly') })),
+      this.state.stats ? el('button', {
+        type: 'button',
+        class: 'tarsus-link-btn',
+        'data-action': 'panel',
+        'data-panel': 'stats',
+        text: this.t('history_back'),
+      }) : null,
+    ]);
+    const side = el('div', { class: 'tarsus-history__side' });
+    const feed = el('div', { class: 'tarsus-history__feed', 'data-region': 'history-feed' });
+    body.appendChild(header);
+    body.appendChild(el('div', { class: 'tarsus-history' }, [side, feed]));
+
+    // The learner's figures and how they grew.
+    let learner = null;
+    ((this.state.stats && this.state.stats.learners) || []).forEach((entry) => {
+      if (entry.userid === userid) {
+        learner = entry;
+      }
+    });
+    if (learner) {
+      const status = statusKey(learner.status);
+      side.appendChild(el('div', { class: 'tarsus-history__figures' }, [
+        el('div', { class: 'tarsus-history__grade' }, [
+          el('span', { text: learner.grade === null || learner.grade === undefined ? '–' : `${Math.round(learner.grade)} %` }),
+          el('span', { class: `tarsus-pill tarsus-pill--${status}`, text: this.t(status) }),
+        ]),
+        el('div', { class: 'tarsus-history__row' }, [el('span', { text: this.t('stats_col_progress') }), el('span', { text: `${Math.round(learner.progress || 0)} %` })]),
+        el('div', { class: 'tarsus-history__row' }, [el('span', { text: this.t('stats_col_build') }), Chat.meter(learner.earnedunits, learner.totalunits, this.t('learning_units'), 'units')]),
+        el('div', { class: 'tarsus-history__row' }, [el('span', { text: this.t('stats_col_test') }), Chat.meter(learner.earnedxp, learner.totalxp, this.t('xp'), 'xp')]),
+        el('div', { class: 'tarsus-history__row' }, [el('span', { text: this.t('stats_col_last') }), el('span', { text: learner.lastactivitylabel || '–' })]),
+      ]));
+    }
+    const growth = el('section', { class: 'tarsus-history__growth' }, [el('h4', { text: this.t('history_growth') })]);
+    side.appendChild(growth);
+    this.teacherCall('analytics', { userid }).then((result) => {
+      if (result.status !== 'success') {
+        growth.appendChild(el('p', { class: 'tarsus-muted tarsus-small', text: result.error || self.t('unexpected_error') }));
+        return;
+      }
+      growth.appendChild(self.growthChart(result));
+    }).catch(noop);
+
+    let offset = 0;
+    const more = el('button', { type: 'button', class: 'tarsus-btn tarsus-btn--sm tarsus-history__more tarsus-hidden', text: this.t('history_more') });
+    const load = function () {
+      more.disabled = true;
+      const loading = el('div', { class: 'tarsus-drawer__loading' }, [el('span', { class: 'tarsus-spinner' }), el('span', { text: self.t('loading') })]);
+      feed.insertBefore(loading, feed.firstChild);
+      self.teacherCall('history', { userid, offset }).then((result) => {
+        loading.remove();
+        more.disabled = false;
+        if (result.status !== 'success') {
+          feed.insertBefore(el('p', { class: 'tarsus-drawer__error', text: result.error || self.t('unexpected_error') }), feed.firstChild);
+          return;
+        }
+        const items = result.items || [];
+        if (!items.length && offset === 0) {
+          feed.appendChild(el('p', { class: 'tarsus-muted', text: self.t('history_empty') }));
+        }
+        // Older pages go on top, as in the coach.
+        const anchor = more.nextSibling;
+        self.buildFeedCards(items).forEach((entry) => {
+          feed.insertBefore(entry.card, anchor);
+          self.settleFeedCard(entry);
+          Chat.readOnly(entry.card);
+        });
+        offset += self.config.pageSize;
+        show(more, Boolean(result.hasmore) && items.length > 0);
+      }).catch((error) => {
+        loading.remove();
+        more.disabled = false;
+        feed.insertBefore(el('p', { class: 'tarsus-drawer__error', text: error.message || self.t('unexpected_error') }), feed.firstChild);
+      });
+    };
+    more.addEventListener('click', load);
+    feed.appendChild(more);
+    load();
+  }
+
+  /** Nothing in the history can be answered, asked about or generated. */
+  static readOnly(card) {
+    card.classList.add('tarsus-card--readonly');
+    card.querySelectorAll('input, textarea, select').forEach((input) => {
+      input.disabled = true;
+    });
+    card.querySelectorAll('.tarsus-practice-check, [data-action="ask-about"], [data-action="sources"], [data-action="audio-toggle"]').forEach((button) => {
+      button.remove();
+    });
+  }
+
+  /** XP and learning units reached over time, in percent of all, on one axis. */
+  growthChart(data) {
+    const series = [
+      { points: data.xp || [], cls: 'xp', label: this.t('history_xp') },
+      { points: data.units || [], cls: 'units', label: this.t('history_units') },
+    ];
+    const start = data.start || 0;
+    const end = data.end || 1;
+    const width = 360;
+    const height = 210;
+    const left = 44;
+    const right = 14;
+    const top = 14;
+    const base = 176;
+    const x = function (t) {
+      const share = (Math.max(start, Math.min(end, t)) - start) / Math.max(1, end - start);
+      return left + share * (width - left - right);
+    };
+    const y = function (v) {
+      return base - (Math.max(0, Math.min(100, v)) / 100) * (base - top);
+    };
+    const root = svg('svg', {
+      viewBox: `0 0 ${width} ${height}`, role: 'img', class: 'tarsus-chart', 'aria-label': this.t('history_growth'),
+    });
+    [0, 50, 100].forEach((tick) => {
+      root.appendChild(svg('line', {
+        x1: left, x2: width - right, y1: y(tick), y2: y(tick), class: 'tarsus-chart__grid',
+      }));
+      root.appendChild(svgText(left - 8, y(tick) + 4, `${tick} %`, { class: 'tarsus-chart__axis', 'text-anchor': 'end' }));
+    });
+    const day = function (t) {
+      const date = new Date(t * 1000);
+      return `${date.getDate()}.${date.getMonth() + 1}.`;
+    };
+    root.appendChild(svgText(left, height - 8, day(start), { class: 'tarsus-chart__axis' }));
+    root.appendChild(svgText(width - right, height - 8, day(end), { class: 'tarsus-chart__axis', 'text-anchor': 'end' }));
+    let drawn = false;
+    series.forEach((entry) => {
+      const points = entry.points.filter((point) => point.x <= end);
+      if (!points.length) {
+        return;
+      }
+      drawn = true;
+      // A step line: a value holds until it changes, and the last one
+      // holds until today.
+      let d = '';
+      points.forEach((point, i) => {
+        d += (i === 0 ? 'M' : `H${x(point.x)}V`) + (i === 0 ? `${x(point.x)} ${y(point.y)}` : y(point.y));
+      });
+      d += `H${x(end)}`;
+      root.appendChild(svg('path', { d, class: `tarsus-chart__line tarsus-chart__line--${entry.cls}` }));
+      const last = points[points.length - 1];
+      const dot = svg('circle', {
+        cx: x(end), cy: y(last.y), r: 4, class: `tarsus-chart__dot tarsus-chart__line--${entry.cls}`,
+      });
+      const title = svg('title');
+      title.textContent = `${entry.label}: ${Math.round(last.y)} %`;
+      dot.appendChild(title);
+      root.appendChild(dot);
+    });
+    const legend = el('div', { class: 'tarsus-chart__legend' }, series.map((entry) => el('span', {}, [el('i', { class: `tarsus-chart__key tarsus-chart__line--${entry.cls}` }), el('span', { text: `${entry.label} ${entry.points.length ? `${Math.round(entry.points[entry.points.length - 1].y)} %` : '–'}` })])));
+    return el('div', { class: 'tarsus-growth' }, drawn ? [legend, root] : [el('p', { class: 'tarsus-muted tarsus-small', text: this.t('history_empty') })]);
+  }
+
+  // --- init ----------------------------------------------------------
+
+  init() {
+    const self = this;
+    const form = this.q('[data-region="composer"]');
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        self.handleSubmit(event);
+      });
+    }
+    const input = this.q('.tarsus-chat-input');
+    if (input) {
+      input.addEventListener('input', () => {
+        Chat.autosize(input);
+      });
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && self.state.replyTo) {
+          // Escape drops the reference to an earlier card.
+          self.setReply(null);
+          return;
+        }
+        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          if (form && typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+          } else {
+            self.handleSubmit(event);
+          }
+        }
+      });
+    }
+    this.qa('.tarsus-mode-switch__btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        self.setMode(btn.getAttribute('data-mode'));
+      });
+    });
+    const next = this.q('[data-action="next"]');
+    if (next) {
+      next.addEventListener('click', () => {
+        self.handlePracticeNext();
+      });
+    }
+
+    const initial = this.modes.indexOf('ask') !== -1 ? 'ask' : (this.modes[0] || 'ask');
+    this.setMode(initial, true);
+
+    this.root.addEventListener('click', (event) => {
+      const { target } = event;
+      if (!(target instanceof window.Element)) {
+        return;
+      }
+      const action = target.closest('[data-action]');
+      const name = action && self.root.contains(action) ? action.getAttribute('data-action') : '';
+      if (name === 'skip-input') {
+        event.preventDefault();
+        self.focusComposer();
+        return;
+      }
+      if (name === 'drawer-close') {
+        self.closeDrawer();
+        return;
+      }
+      if (name === 'sources') {
+        self.openSources(action.getAttribute('data-widget-id'), action.getAttribute('data-state'));
+        return;
+      }
+      if (name === 'panel' && self.config.teacher) {
+        const panel = action.getAttribute('data-panel');
+        if (panel === 'settings') {
+          self.openSettingsPanel();
+        } else if (panel === 'stats') {
+          self.openStatsPanel();
+        } else if (panel === 'history') {
+          self.openHistoryPanel(0, '');
+        }
+        return;
+      }
+      if (name === 'history-open' && self.config.teacher) {
+        self.openHistoryPanel(parseInt(action.getAttribute('data-userid'), 10), action.getAttribute('data-name') || '');
+        return;
+      }
+      if (name === 'live-start') {
+        self.startLive();
+        return;
+      }
+      if (name === 'voice-toggle') {
+        self.setVoiceInput(!self.state.voiceInput);
+        return;
+      }
+      if (name.indexOf('voice-') === 0) {
+        const voice = {
+          'voice-start': 'voiceStart',
+          'voice-pause': 'voicePause',
+          'voice-resume': 'voiceResume',
+          'voice-stop': 'voiceStop',
+          'voice-play': 'voicePlay',
+          'voice-discard': 'voiceDiscard',
+        }[name];
+        if (voice) {
+          self[voice]();
+        }
+        return;
+      }
+      const check = target.closest('.tarsus-practice-check');
+      if (check && self.root.contains(check)) {
+        const card = check.closest('[data-region="practice-card"]');
+        if (card) {
+          self.handlePracticeCheck(card);
+        }
+        return;
+      }
+      const nav = target.closest('.tarsus-learn-nav');
+      if (nav && self.root.contains(nav)) {
+        const learncard = nav.closest('[data-region="learn-card"]');
+        if (learncard) {
+          self.turnSlide(learncard, parseInt(nav.getAttribute('data-dir'), 10));
+        }
+        return;
+      }
+      const picture = target.closest('[data-action="enlarge"]');
+      if (picture && self.root.contains(picture)) {
+        self.openLightbox(picture.getAttribute('src'), picture.getAttribute('data-title') || picture.getAttribute('alt') || '');
+        return;
+      }
+      const enlarge = target.closest('[data-action="frame-enlarge"]');
+      if (enlarge && self.root.contains(enlarge)) {
+        const frame = enlarge.closest('[data-region="frame"]');
+        if (frame) {
+          self.openPage(frame.tarsusHtml || '', frame.tarsusTitle || '');
+        }
+        return;
+      }
+      const toggle = target.closest('[data-action="audio-toggle"]');
+      if (toggle && self.root.contains(toggle)) {
+        const togglecard = toggle.closest('[data-region="learn-card"]');
+        if (togglecard) {
+          self.toggleStackAudio(togglecard);
+        }
+        return;
+      }
+      const ask = target.closest('[data-action="ask-about"]');
+      if (ask && self.root.contains(ask)) {
+        const askcard = ask.closest('[data-region="practice-card"], [data-region="learn-card"], [data-kind="exchange"]');
+        if (askcard) {
+          self.askAbout(askcard);
+        }
+        return;
+      }
+      const clear = target.closest('[data-action="reply-clear"]');
+      if (clear && self.root.contains(clear)) {
+        self.setReply(null);
+        return;
+      }
+      const jump = target.closest('[data-action="jump-top"]');
+      if (jump && self.root.contains(jump)) {
+        self.scrollPage(0);
+        // The button hides at the top: focus goes to the first card.
+        const firstCard = self.flow() ? self.flow().querySelector('.tarsus-card') : null;
+        if (firstCard) {
+          self.focusCard(firstCard);
+        }
+      }
+    });
+    this.root.addEventListener('keydown', (event) => {
+      if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof window.Element && event.target.matches('[data-action="enlarge"]')) {
+        event.preventDefault();
+        self.openLightbox(event.target.getAttribute('src'), event.target.getAttribute('data-title') || event.target.getAttribute('alt') || '');
+      }
+    });
+    // The side panel is a dialog: Tab and Shift+Tab stay inside it.
+    this.root.addEventListener('keydown', (event) => {
+      const drawer = self.q('.tarsus-drawer');
+      if (event.key === 'Tab' && drawer && !drawer.hidden && drawer.contains(event.target)) {
+        trapTab(drawer.querySelector('.tarsus-drawer__panel'), event);
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        const lightbox = document.querySelector('dialog.tarsus-lightbox[open]');
+        if (!lightbox) {
+          self.closeDrawer();
+        }
+      }
+    });
+    window.addEventListener('message', (event) => {
+      self.onLiveMessage(event);
+    });
+    window.addEventListener('pagehide', () => {
+      self.voiceRelease();
+    });
+
+    this.measureChrome();
+    window.addEventListener('resize', () => {
+      self.measureChrome();
+    }, { passive: true });
+
+    this.scroller.listen(() => {
+      self.toggleJumpTop();
+      if (!self.state.programmaticScroll && self.nearFeedTop()) {
+        self.loadOlderFeed();
+      }
+    });
+
+    this.loadFeed();
+  }
+}
+
+/** Seconds as m:ss. */
+function clock(seconds) {
+  const whole = Math.max(0, Math.round(seconds || 0));
+  return `${Math.floor(whole / 60)}:${(`0${whole % 60}`).slice(-2)}`;
+}
+
+// --- interactive pages (ai-driven interaction) ----------------------
+//
+// The brain's HTML pages run in a sandboxed frame: scripts may run,
+// but the page has an opaque origin and no access to ILIAS, its
+// cookies or this document. A small reporter appended to the page
+// posts its height so the frame fits its content.
+
+// The content's real extent is the lowest edge of any element (a
+// document's scrollHeight never drops below the frame's own height, so
+// it could only ever grow the frame).
+const FRAME_REPORTER = '<script>(function(){var l=0;function r(){try{var b=document.body;if(!b){return;}var h=0,e=b.getElementsByTagName("*"),y=window.pageYOffset||0;'
+    + 'for(var i=0;i<e.length&&i<5000;i++){var c=e[i].getBoundingClientRect();if(c.bottom+y>h){h=c.bottom+y;}}'
+    + 'h=Math.ceil(h)+parseFloat(getComputedStyle(b).marginBottom||0)+8;'
+    + 'if(Math.abs(h-l)>2){l=h;parent.postMessage({type:"tarsus:height",height:h},"*");}}catch(x){}}'
+    + 'window.addEventListener("load",r);document.addEventListener("DOMContentLoaded",r);'
+    + 'if(window.ResizeObserver&&document.documentElement){new ResizeObserver(r).observe(document.documentElement);}setInterval(r,1500);})();</script>';
+
+function withReporter(html) {
+  const index = html.search(/<\/body\s*>/i);
+  if (index === -1) {
+    return html + FRAME_REPORTER;
+  }
+  return html.slice(0, index) + FRAME_REPORTER + html.slice(index);
+}
+
+// Tarsus's pages report their own height (genericWebWidget:resize);
+// once a page does, the reporter's figure is ignored for it.
+function sizeFrames(event) {
+  const { data } = event;
+  if (!data || typeof data !== 'object') {
+    return;
+  }
+  const own = data.type === 'genericWebWidget:resize';
+  if (!own && data.type !== 'tarsus:height') {
+    return;
+  }
+  const frames = document.querySelectorAll('.tarsus-frame__iframe, .tarsus-live__frame');
+  for (let i = 0; i < frames.length; i += 1) {
+    if (frames[i].contentWindow === event.source) {
+      if (!own && frames[i].getAttribute('data-sized') === 'page') {
+        return;
+      }
+      if (own) {
+        frames[i].setAttribute('data-sized', 'page');
+      }
+      const live = frames[i].classList.contains('tarsus-live__frame');
+      const height = Math.max(live ? 420 : 120, Math.min(2400, parseInt(data.height, 10) || 0));
+      frames[i].style.height = `${height}px`;
+      return;
+    }
+  }
+}
+if (!window.tarsusFrameSizer) {
+  window.tarsusFrameSizer = true;
+  window.addEventListener('message', sizeFrames);
+}
+
+// --- the live interaction's microphone ------------------------------
+//
+// Tarsus's call page runs in a sandboxed frame like Tarsus's other
+// pages: scripts may run, but the page has an opaque origin and no
+// access to ILIAS, its cookies or this document. Browsers give such a
+// page no microphone, so this document records for it (hostMic) and
+// hands the sound over through a message channel; the script below,
+// put first into the call page, stands in for getUserMedia there.
+
+const LIVE_MIC_BRIDGE = [
+  '(function() {',
+  '  "use strict";',
+  '  var port = null;',
+  '  var waiting = [];',
+  '  var session = null;',
+  '  var lastid = 0;',
+  '  var Context = window.AudioContext || window.webkitAudioContext;',
+  '  var fail = function(name, message) {',
+  '    try {',
+  '      return new DOMException(message, name);',
+  '    } catch (e) {',
+  '      var error = new Error(message);',
+  '      error.name = name;',
+  '      return error;',
+  '    }',
+  '  };',
+  '  var send = function(message) {',
+  '    if (port) {',
+  '      port.postMessage(message);',
+  '    } else {',
+  '      waiting.push(message);',
+  '    }',
+  '  };',
+  '  var finish = function(current, tell) {',
+  '    if (session === current) {',
+  '      session = null;',
+  '    }',
+  '    current.done = true;',
+  '    if (tell) {',
+  '      send({type: "stop", id: current.id});',
+  '    }',
+  '    if (current.ctx && current.ctx.state !== "closed") {',
+  '      current.ctx.close().catch(function() {',
+  '        return null;',
+  '      });',
+  '    }',
+  '  };',
+  '  var begin = function(current, rate) {',
+  '    var ctx = current.ctx;',
+  '    current.rate = rate || ctx.sampleRate;',
+  '    current.dest = ctx.createMediaStreamDestination();',
+  '    current.next = 0;',
+  '    current.dest.stream.getAudioTracks().forEach(function(track) {',
+  '      var stop = track.stop.bind(track);',
+  '      track.stop = function() {',
+  '        stop();',
+  '        if (!current.done) {',
+  '          finish(current, true);',
+  '        }',
+  '      };',
+  '    });',
+  '    current.resolve(current.dest.stream);',
+  '  };',
+  '  var play = function(current, buffer) {',
+  '    var pcm = new Float32Array(buffer);',
+  '    var ctx = current.ctx;',
+  '    if (!pcm.length || !current.dest || ctx.state === "closed") {',
+  '      return;',
+  '    }',
+  '    var audio = ctx.createBuffer(1, pcm.length, current.rate);',
+  '    audio.getChannelData(0).set(pcm);',
+  '    var source = ctx.createBufferSource();',
+  '    source.buffer = audio;',
+  '    source.connect(current.dest);',
+  '    var now = ctx.currentTime;',
+  '    if (current.next < now || current.next > now + 0.25) {',
+  '      current.next = now + 0.01;',
+  '    }',
+  '    source.start(current.next);',
+  '    current.next += audio.duration;',
+  '  };',
+  '  var receive = function(event) {',
+  '    var data = event.data;',
+  '    if (data instanceof ArrayBuffer) {',
+  '      if (session && session.dest) {',
+  '        play(session, data);',
+  '      }',
+  '      return;',
+  '    }',
+  '    if (!data || !session || data.id !== session.id) {',
+  '      return;',
+  '    }',
+  '    var current = session;',
+  '    if (data.type === "started") {',
+  '      begin(current, data.sampleRate);',
+  '    } else if (data.type === "failed") {',
+  '      finish(current, false);',
+  '      var name = data.name || "NotAllowedError";',
+  '      current.reject(fail(name, data.message || "The microphone is not available."));',
+  '    } else if (data.type === "ended") {',
+  '      finish(current, false);',
+  '    }',
+  '  };',
+  '  window.addEventListener("message", function(event) {',
+  '    var data = event.data;',
+  '    if (port || event.source !== window.parent || !data || data.type !== "tarsus:mic-port") {',
+  '      return;',
+  '    }',
+  '    if (!event.ports || !event.ports[0]) {',
+  '      return;',
+  '    }',
+  '    port = event.ports[0];',
+  '    port.onmessage = receive;',
+  '    waiting.splice(0).forEach(function(message) {',
+  '      port.postMessage(message);',
+  '    });',
+  '  });',
+  '  if (navigator.mediaDevices && Context) {',
+  '    navigator.mediaDevices.getUserMedia = function(constraints) {',
+  '      return new Promise(function(resolve, reject) {',
+  '        if (!constraints || !constraints.audio || constraints.video) {',
+  '          reject(fail("NotSupportedError", "Only the microphone is available here."));',
+  '          return;',
+  '        }',
+  '        if (session) {',
+  '          finish(session, true);',
+  '        }',
+  '        var ctx = null;',
+  '        try {',
+  '          ctx = new Context();',
+  '        } catch (e) {',
+  '          ctx = null;',
+  '        }',
+  '        if (!ctx) {',
+  '          reject(fail("NotReadableError", "Audio is not available in this browser."));',
+  '          return;',
+  '        }',
+  '        if (ctx.state === "suspended") {',
+  '          ctx.resume().catch(function() {',
+  '            return null;',
+  '          });',
+  '        }',
+  '        lastid += 1;',
+  '        session = {id: lastid, resolve: resolve, reject: reject, ctx: ctx, done: false};',
+  '        var audio = typeof constraints.audio === "object" ? constraints.audio : {};',
+  '        send({type: "start", id: lastid, audio: audio});',
+  '      });',
+  '    };',
+  '  }',
+  '  window.parent.postMessage({type: "tarsus:mic-hello"}, "*");',
+  '})();',
+].join('\n');
+/**
+ * The call page with the microphone bridge as its first script.
+ *
+ * @param {string} html The call page.
+ * @return {string}
+ */
+function withMicBridge(html) {
+  const script = `<script>${LIVE_MIC_BRIDGE}</script>`;
+  const start = html.slice(0, 4096).toLowerCase();
+  const head = start.indexOf('<head');
+  const after = head === -1 ? '' : start.charAt(head + 5);
+  let end = (after === '>' || after === ' ' || after === '\n' || after === '\r' || after === '\t') ? start.indexOf('>', head) + 1 : 0;
+  if (end <= 0) {
+    // No head: right after the doctype, so the page keeps its standards mode.
+    const doctype = start.indexOf('<!doctype');
+    end = doctype === -1 ? 0 : start.indexOf('>', doctype) + 1;
+  }
+  return html.slice(0, end) + script + html.slice(end);
+}
+
+/**
+ * Record for the sandboxed call page and hand the sound over. Only the
+ * given frame may ask, only for the microphone, and the recording stops
+ * with the call or when the frame goes away.
+ *
+ * @param {HTMLIFrameElement} frame The call page's frame.
+ * @param {Function} onstart Called when a call starts recording.
+ * @return {{close: Function, recording: Function}}
+ */
+function hostMic(frame, onstart) {
+  let port = null;
+  let current = null;
+  const CAPTURE = "registerProcessor('tarsus-host-mic', class extends AudioWorkletProcessor {"
+        + 'constructor() { super(); this.size = Math.round(sampleRate / 50); this.buf = new Float32Array(this.size); this.n = 0; }'
+        + 'process(inputs) { const ch = inputs[0] && inputs[0][0]; if (ch) { for (let i = 0; i < ch.length; i++) {'
+        + 'this.buf[this.n++] = ch[i]; if (this.n === this.size) { this.port.postMessage(this.buf.buffer, [this.buf.buffer]);'
+        + 'this.buf = new Float32Array(this.size); this.n = 0; } } } return true; } });';
+  const stopRecording = function (recording) {
+    if (!recording) {
+      return;
+    }
+    recording.closed = true;
+    try {
+      if (recording.node) {
+        recording.node.disconnect();
+      }
+    } catch (e) {
+      // Already gone.
+    }
+    if (recording.stream) {
+      recording.stream.getTracks().forEach((track) => {
+        track.stop();
+      });
+    }
+    if (recording.ctx && recording.ctx.state !== 'closed') {
+      recording.ctx.close().catch(() => null);
+    }
+  };
+
+  const forward = function (recording, buffer) {
+    if (!recording.closed && port && current === recording) {
+      port.postMessage(buffer, [buffer]);
+    }
+  };
+
+  const running = function (ctx) {
+    if (ctx.state === 'running') {
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        ctx.removeEventListener('statechange', check);
+        reject(new DOMException('The browser did not start the recording.', 'NotReadableError'));
+      }, 4000);
+      function check() {
+        if (ctx.state === 'running') {
+          window.clearTimeout(timer);
+          ctx.removeEventListener('statechange', check);
+          resolve();
+        }
+      }
+      ctx.addEventListener('statechange', check);
+      ctx.resume().catch(() => null);
+    });
+  };
+
+  const capture = function (recording) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    recording.ctx = ctx;
+    const source = ctx.createMediaStreamSource(recording.stream);
+    const quiet = ctx.createGain();
+    quiet.gain.value = 0;
+    quiet.connect(ctx.destination);
+    const older = function () {
+      const size = 1024;
+      const node = ctx.createScriptProcessor(size, 1, 1);
+      node.onaudioprocess = function (event) {
+        forward(recording, new Float32Array(event.inputBuffer.getChannelData(0)).buffer);
+      };
+      return node;
+    };
+    let worklet = null;
+    if (ctx.audioWorklet && window.AudioWorkletNode) {
+      const url = URL.createObjectURL(new Blob([CAPTURE], { type: 'text/javascript' }));
+      worklet = ctx.audioWorklet.addModule(url).then(() => {
+        URL.revokeObjectURL(url);
+        const node = new window.AudioWorkletNode(ctx, 'tarsus-host-mic');
+        node.port.onmessage = function (event) {
+          forward(recording, event.data);
+        };
+        return node;
+      }, () => {
+        // A strict content security policy may forbid it: the older node does the same.
+        URL.revokeObjectURL(url);
+        return older();
+      });
+    } else {
+      worklet = Promise.resolve(older());
+    }
+    return worklet.then((node) => {
+      recording.node = node;
+      source.connect(node);
+      node.connect(quiet);
+      return running(ctx);
+    }).then(() => ctx.sampleRate);
+  };
+
+  const start = function (id, audio) {
+    stopRecording(current);
+    const recording = {
+      id, stream: null, ctx: null, node: null, closed: false,
+    };
+    current = recording;
+    const constraints = {
+      audio: {
+        echoCancellation: audio.echoCancellation !== false,
+        noiseSuppression: audio.noiseSuppression !== false,
+        autoGainControl: audio.autoGainControl !== false,
+        channelCount: 1,
+      },
+    };
+    if (!window.navigator.mediaDevices || !window.navigator.mediaDevices.getUserMedia) {
+      port.postMessage({
+        type: 'failed', id, name: 'NotSupportedError', message: 'No microphone in this browser.',
+      });
+      return;
+    }
+    window.navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+      if (recording.closed) {
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
+        return null;
+      }
+      recording.stream = stream;
+      stream.getAudioTracks().forEach((track) => {
+        track.addEventListener('ended', () => {
+          if (current === recording) {
+            port.postMessage({ type: 'ended', id });
+            stopRecording(recording);
+            current = null;
+          }
+        });
+      });
+      return capture(recording).then((rate) => {
+        if (!recording.closed) {
+          port.postMessage({ type: 'started', id, sampleRate: rate });
+          if (onstart) {
+            onstart();
+          }
+        }
+        return rate;
+      });
+    }).catch((error) => {
+      if (current !== recording) {
+        return;
+      }
+      stopRecording(recording);
+      current = null;
+      port.postMessage({
+        type: 'failed',
+        id,
+        name: (error && error.name) || 'NotAllowedError',
+        message: (error && error.message) || '',
+      });
+    });
+  };
+
+  const receive = function (event) {
+    const { data } = event;
+    if (!data || typeof data !== 'object') {
+      return;
+    }
+    if (data.type === 'start' && typeof data.id === 'number') {
+      start(data.id, data.audio && typeof data.audio === 'object' ? data.audio : {});
+    } else if (data.type === 'stop' && current && data.id === current.id) {
+      stopRecording(current);
+      current = null;
+    }
+  };
+
+  const hello = function (event) {
+    if (port || event.source !== frame.contentWindow || !event.data || event.data.type !== 'tarsus:mic-hello') {
+      return;
+    }
+    const channel = new MessageChannel();
+    port = channel.port1;
+    port.onmessage = receive;
+    // The frame has an opaque origin, so no origin can be named; the
+    // message goes to this frame's window only.
+    frame.contentWindow.postMessage({ type: 'tarsus:mic-port' }, '*', [channel.port2]);
+  };
+  window.addEventListener('message', hello);
+
+  return {
+    close() {
+      window.removeEventListener('message', hello);
+      stopRecording(current);
+      current = null;
+      if (port) {
+        port.close();
+        port = null;
+      }
+    },
+    recording() {
+      return Boolean(current && current.stream && !current.closed);
+    },
+  };
+}
+
+function ringOffset(shown, total) {
+  const circumference = 2 * Math.PI * 9;
+  const fraction = total > 0 ? shown / total : 1;
+  return Math.round(circumference * (1 - fraction) * 100) / 100;
+}
+
+// --- verdicts ------------------------------------------------------
+
+function storedVerdict(item) {
+  return {
+    correct: item.correct,
+    score: item.score,
+    feedback: item.feedback,
+    useranswer: item.useranswer,
+    useranswers: item.useranswers || [],
+    answers: item.answers || [],
+    usertable: item.usertable || [],
+    answertable: item.answertable || [],
+  };
+}
+
+function shorten(text, max) {
+  const clean = (text || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) {
+    return clean;
+  }
+  const cut = clean.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${space > max / 2 ? cut.slice(0, space) : cut}…`;
+}
+
+// --- teacher: evaluation -------------------------------------------
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svg(tag, attrs, children) {
+  const node = document.createElementNS(SVG_NS, tag);
+  Object.keys(attrs || {}).forEach((key) => {
+    node.setAttribute(key, String(attrs[key]));
+  });
+  (children || []).forEach((child) => {
+    if (child) {
+      node.appendChild(child);
+    }
+  });
+  return node;
+}
+
+function svgText(x, y, text, attrs) {
+  const node = svg('text', { x, y, ...attrs || {} });
+  node.textContent = text;
+  return node;
+}
