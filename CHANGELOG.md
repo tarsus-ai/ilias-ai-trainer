@@ -3,7 +3,7 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
-## [2.2.0] – 2026-11-25
+## [2.2.0] – 2026-11-26
 
 The plugin follows ILIAS's development rules: forms, dialogs and buttons of ILIAS's UI framework, the coach's script as checked ES6 modules, calls to Tarsus through ILIAS's HTTP connection, uploads through ILIAS's upload service. Learners and teachers keep every function; a few screens look like the rest of ILIAS now.
 
