@@ -119,7 +119,7 @@ final class ManagerApi
             Ilias::log($e->getMessage());
             $error = Ilias::txt('transport_error');
         } catch (ConfigurationException $e) {
-            $error = Ilias::txt($e->langKey);
+            $error = Ilias::txt($e->lang_key);
         }
 
         return ['ok' => $error === '', 'error' => $error, 'row' => $this->present($resourceid)];
@@ -176,7 +176,7 @@ final class ManagerApi
             Ilias::log($e->getMessage());
             $error = Ilias::txt('transport_error');
         } catch (ConfigurationException $e) {
-            $error = Ilias::txt($e->langKey);
+            $error = Ilias::txt($e->lang_key);
         }
 
         // Deliveries that failed when content left the course have nowhere

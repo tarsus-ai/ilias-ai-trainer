@@ -2,7 +2,6 @@
 
 namespace TarsusIlias\Material;
 
-use TarsusIlias\Client\HttpClient;
 use TarsusIlias\Support\Ilias;
 
 /**
@@ -539,13 +538,5 @@ final class Resolver
             // No legacy definitions table: nothing to add.
         }
         return $definitions;
-    }
-
-    /**
-     * Copy a file bit into a temporary file (diagnostics).
-     */
-    public static function fileToTemp(Material $material): ?string
-    {
-        return HttpClient::copyToTemp((string) ($material->source['rid'] ?? ''));
     }
 }

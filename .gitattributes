@@ -11,3 +11,7 @@ docs/            export-ignore
 tests/           export-ignore
 phpunit.xml      export-ignore
 install.sh       export-ignore
+templates/js/package.json       export-ignore
+templates/js/package-lock.json  export-ignore
+templates/js/rollup.config.js   export-ignore
+templates/js/.eslintrc.json     export-ignore

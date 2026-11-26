@@ -20,7 +20,6 @@ root_create_xtar#:#Create Tarsus
 // Tabs and general
 tab_content#:#Learning companion
 tab_materials#:#Materials
-tab_learners#:#Learners
 tab_settings#:#Settings
 status#:#Status
 offline#:#Offline
@@ -29,7 +28,6 @@ online_info#:#Only online objects are shown to learners. Keep the object offline
 offline_notice#:#This object is offline: learners do not see it yet. Switch it online in the settings once materials are included.
 your_progress#:#Your progress
 total#:#total
-export_csv#:#Export as CSV
 unexpected_error#:#Something went wrong. Please try again.
 session_lost#:#Your session has expired. Please reload the page.
 permission_denied#:#You are not allowed to do this.
@@ -73,7 +71,6 @@ action_index#:#Index
 action_reindex#:#Re-index
 action_remove#:#Remove
 action_retry#:#Retry
-confirmremove_title#:#Remove from the brain?
 confirmremove_body#:#This material will be removed from the brain and will no longer be used to answer questions. You can re-index it again later.
 pager#:#Pages
 pager_previous#:#Previous
@@ -91,22 +88,13 @@ status_pendingreindex#:#Content changed
 status_pendingdeletion#:#Pending removal
 status_error#:#Error
 // Learners
-col_learner#:#Learner
 col_progress#:#Progress
 col_score#:#Result (%)
 col_lp_status#:#Learning progress
 col_last_activity#:#Last activity
 avg_progress#:#Average progress
-avg_score#:#Average score {score}
-n_learners#:#{count} learners
-n_completed#:#{count} completed
-n_inprogress#:#{count} in progress
-n_notstarted#:#{count} not started
 distribution#:#{completed} completed, {inprogress} in progress, {notstarted} not started
 histogram#:#Learners by progress
-learners_threshold#:#A learner counts as completed once the progress reaches {threshold} %.
-no_learners#:#No learner has used this object yet.
-not_member#:#not a member
 lp_completed#:#Completed
 lp_in_progress#:#In progress
 lp_not_attempted#:#Not started
@@ -183,9 +171,6 @@ practice_check#:#Check
 practice_answer_placeholder#:#Write your answer here...
 practice_nowidget#:#The assistant could not create a question of the selected types from the included materials. Try again, or ask your teacher to adjust the question types or the included materials.
 practice_variable_placeholder#:#Your answer
-practice_table_position#:#Position
-practice_table_rate#:#Rate
-practice_table_amount#:#Amount
 choice_true#:#True
 choice_false#:#False
 xp#:#XP
@@ -269,7 +254,6 @@ proc_learn_check#:#The learning cards are checked for clarity
 proc_learn_path_update#:#Your learning path is carried forward
 proc_learn_polish#:#Final polish of your learning unit
 // Plugin configuration
-cfg_title#:#Tarsus configuration
 cfg_tab_settings#:#Settings
 cfg_tab_brains#:#Brains
 cfg_tab_deletions#:#Deletions
@@ -303,6 +287,7 @@ robotdescription#:#Assistant description
 robotdescription_desc#:#A short description of the assistant, e.g. its role or instructions.
 robotavatar#:#Assistant avatar
 robotavatar_desc#:#The image shown next to the assistant's answers in the chat. Square images work best; the image is scaled down to 160 pixels.
+robotavatar_remove#:#Remove the current picture
 error_avatar#:#The avatar could not be read as an image (PNG, JPEG, GIF or WebP up to 2 MB).
 voice_mode#:#Voice selection
 voice_mode_desc#:#How the voice that reads learning units aloud is chosen.
@@ -428,6 +413,8 @@ no_limit#:#no limit
 notify_emails#:#Warning recipients
 notify_emails_desc#:#E-mail addresses (one per line or separated by commas) that receive a mail when {thresholds} of the limit are reached. Leave empty to notify the installation's administrator address ({admin}).
 error_email#:#"{email}" is not a valid e-mail address.
+error_minimum#:#Please enter {minimum} or more.
+error_price#:#Please enter a price of 0 or more, for example 0.05.
 limit_reduce_confirm#:#You are lowering the monthly limit from {old} to {new} AI credits. {used} credits are already used this month; once the new limit is reached, AI requests are refused until next month or until the limit is raised again. Continue?
 usage_remote#:#AI credits according to Tarsus
 usage_remote_none#:#not fetched yet (asked from Tarsus at most once a minute)
@@ -471,25 +458,6 @@ help_links_desc#:#One link per line as "Title | https://...". YouTube and Vimeo 
 help#:#Help
 help_title#:#Help & videos
 // Analytics
-tab_analytics#:#Analytics
-analytics_requests_month#:#requests this month
-analytics_credits_month#:#AI credits this month
-analytics_active_learners#:#active learners this month
-analytics_share#:#of this installation's credits this month
-analytics_budget#:#Monthly AI credits of this installation
-analytics_budget_note#:#All Tarsus objects of this installation share the monthly credits. The month resets on {reset}.
-analytics_chart_title#:#Requests per day, last 30 days
-analytics_chart_label#:#Requests per day over the last 30 days
-analytics_tooltip#:#{calls} requests, {credits} credits
-analytics_by_mode#:#By mode, last 30 days
-analytics_mode#:#Mode
-analytics_top_learners#:#Most active learners, last 30 days
-analytics_none#:#No requests yet.
-analytics_note#:#Figures come from this installation's own ledger with the brain's cost estimates; the brain's invoice may differ slightly.
-col_lastactivity#:#Last activity
-learners_readonly#:#Neither Test knowledge nor Build knowledge is active here (switched off, or not included in the plan), so this object has no score and no learning progress: it is a read-only activity.
-col_participation#:#Participation
-participated#:#Took part
 // Version 2: live interaction, spoken questions, sources, evaluation, history, thinking level
 mode_discuss#:#Live interaction
 discussenabled#:#Enable Live interaction
@@ -518,6 +486,7 @@ panel_settings#:#Settings
 panel_stats#:#Evaluation
 panel_history#:#History
 panel_close#:#Close
+dialog_cancel#:#Cancel
 loading#:#Loading …
 settings_save#:#Save
 settings_saving#:#Saving …
@@ -555,6 +524,7 @@ live_starting#:#Preparing the conversation …
 live_intro#:#Just talk to the AI trainer. The slides appear above, the answers stay in the history.
 live_expired#:#This live interaction has expired. “New conversation” starts a new one.
 live_end_confirm#:#The running conversation will end. Continue?
+live_end#:#End conversation
 live_title#:#Live interaction with the AI trainer
 sources_show#:#View sources
 sources_title#:#References
@@ -606,6 +576,7 @@ err_access#:#The AI trainer is not connected to Tarsus correctly. Please tell yo
 err_notindexed#:#The course materials are still being prepared. Please try again a little later.
 err_audio_nospeech#:#No speech could be heard in the recording. Please speak your question again.
 err_audio_format#:#The recording could not be read. Please record your question again.
+err_audio_refused#:#This ILIAS does not accept the recording as a file. Please ask your administrator to allow audio files (webm, ogg, m4a) for uploads.
 err_audio_transcribe#:#The recording could not be turned into text right now. Please try again in a moment.
 err_live_unavailable#:#The live interaction is not available right now.
 err_voice#:#Tarsus does not know the configured voice. Please tell support.

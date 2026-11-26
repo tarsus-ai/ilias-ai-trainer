@@ -1,0 +1,52 @@
+{
+  "root": true,
+  "extends": "airbnb-base",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "globals": {
+    "document": "readonly",
+    "window": "readonly",
+    "il": "writable"
+  },
+  "ignorePatterns": [
+    "**/dist/*",
+    "*.min.js"
+  ],
+  "rules": {
+    "no-use-before-define": [
+      "error",
+      "nofunc"
+    ],
+    "camelcase": [
+      "error",
+      {
+        "properties": "always",
+        "ignoreDestructuring": false,
+        "ignoreGlobals": false
+      }
+    ],
+    "func-names": [
+      "warn",
+      "never"
+    ],
+    "import/no-unresolved": 0,
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": true
+      }
+    ],
+    "import/extensions": [
+      "error",
+      "ignorePackages"
+    ],
+    "no-param-reassign": [
+      "error",
+      {
+        "props": false
+      }
+    ]
+  }
+}

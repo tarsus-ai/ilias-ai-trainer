@@ -38,6 +38,43 @@ final class Ilias
         return self::dic()->access();
     }
 
+    /**
+     * ILIAS's UI framework: the forms, buttons, dialogs and messages of
+     * the administration and settings screens.
+     */
+    public static function ui(): \ILIAS\DI\UIServices
+    {
+        return self::dic()->ui();
+    }
+
+    public static function refinery(): \ILIAS\Refinery\Factory
+    {
+        return self::dic()->refinery();
+    }
+
+    /**
+     * The current request, for the forms of the UI framework.
+     */
+    public static function request(): \Psr\Http\Message\ServerRequestInterface
+    {
+        return self::dic()->http()->request();
+    }
+
+    /**
+     * A check of a form field: $is_ok gets the value; $message is the text
+     * shown at the field, or a function of the value that returns it.
+     */
+    public static function check(callable $is_ok, $message): \ILIAS\Refinery\Constraint
+    {
+        if ($message instanceof \Closure) {
+            return self::refinery()->custom()->constraint(
+                $is_ok,
+                static fn($txt, $value): string => (string) $message($value)
+            );
+        }
+        return self::refinery()->custom()->constraint($is_ok, (string) $message);
+    }
+
     public static function tree(): \ilTree
     {
         return self::dic()->repositoryTree();
@@ -173,7 +210,8 @@ final class Ilias
     public static function log(string $message, string $level = 'warning'): void
     {
         try {
-            $logger = self::dic()->logger()->root();
+            // The plugin's own component logger (ILIAS 12 no longer has the root logger's accessor).
+            $logger = \ilLoggerFactory::getLogger(self::PLUGIN_ID);
             if ($level === 'error') {
                 $logger->error('Tarsus: ' . $message);
             } elseif ($level === 'info') {
@@ -190,19 +228,19 @@ final class Ilias
      * Whether a repository object (by ref id) is alive: in the tree and not
      * in the trash.
      */
-    public static function refAlive(int $refId): bool
+    public static function refAlive(int $ref_id): bool
     {
-        if ($refId <= 0) {
+        if ($ref_id <= 0) {
             return false;
         }
         try {
-            if (!\ilObject::_exists($refId, true)) {
+            if (!\ilObject::_exists($ref_id, true)) {
                 return false;
             }
-            if (\ilObject::_isInTrash($refId)) {
+            if (\ilObject::_isInTrash($ref_id)) {
                 return false;
             }
-            return self::tree()->isInTree($refId);
+            return self::tree()->isInTree($ref_id);
         } catch (\Throwable $e) {
             return false;
         }
@@ -212,16 +250,16 @@ final class Ilias
      * The repository container that scopes a Tarsus object's material: the
      * nearest course, else the nearest group, else the direct parent.
      */
-    public static function scopeContainer(int $refId): int
+    public static function scopeContainer(int $ref_id): int
     {
         $tree = self::tree();
         foreach (['crs', 'grp'] as $type) {
-            $found = (int) $tree->checkForParentType($refId, $type);
+            $found = (int) $tree->checkForParentType($ref_id, $type);
             if ($found > 0) {
                 return $found;
             }
         }
-        return (int) $tree->getParentId($refId);
+        return (int) $tree->getParentId($ref_id);
     }
 
     /**
@@ -326,20 +364,20 @@ final class Ilias
     }
 
     /**
-     * The POST body of the current request as an array.
-     *
-     * @return array<string, mixed>
+     * A field of the POST body as a string, '' when it is missing or no
+     * scalar: read through ILIAS's request wrapper and Refinery.
      */
-    public static function postBody(): array
+    public static function postString(string $name): string
     {
-        try {
-            $body = self::dic()->http()->request()->getParsedBody();
-            if (is_array($body)) {
-                return $body;
-            }
-        } catch (\Throwable $e) {
+        $post = self::dic()->http()->wrapper()->post();
+        if (!$post->has($name)) {
+            return '';
         }
-        return $_POST;
+        $refinery = self::dic()->refinery();
+        return $post->retrieve($name, $refinery->byTrying([
+            $refinery->kindlyTo()->string(),
+            $refinery->always(''),
+        ]));
     }
 
     /**
@@ -349,9 +387,8 @@ final class Ilias
      */
     public static function jsonPayload(): array
     {
-        $body = self::postBody();
-        $raw = $body['payload'] ?? '';
-        if (!is_string($raw) || $raw === '') {
+        $raw = self::postString('payload');
+        if ($raw === '') {
             return [];
         }
         $decoded = json_decode($raw, true);

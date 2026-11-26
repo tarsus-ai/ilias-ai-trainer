@@ -12,7 +12,7 @@
 $id = 'xtar';
 
 // Plugin version.
-$version = '2.1.2';
+$version = '2.2.0';
 
 // ILIAS releases this version runs on.
 $ilias_min_version = '9.0';

@@ -130,7 +130,7 @@ final class LearnerApi
         } catch (TransportException $e) {
             return self::result('error', Messages::forTransport($e, $context));
         } catch (ConfigurationException $e) {
-            return self::result('error', Ilias::txt($e->langKey));
+            return self::result('error', Ilias::txt($e->lang_key));
         }
         return $then(is_array($response) ? $response : []);
     }
@@ -675,7 +675,7 @@ final class LearnerApi
                 return self::result('error', Messages::forTransport($e, 'reset'));
             }
         } catch (ConfigurationException $e) {
-            return self::result('error', Ilias::txt($e->langKey));
+            return self::result('error', Ilias::txt($e->lang_key));
         }
         Scoring::clear($this->objid, $this->userId());
         return self::result('success');

@@ -15,7 +15,7 @@ namespace TarsusIlias\Client;
  * @author  Tarsus GmbH
  * @license GPL-3.0-or-later
  */
-class TransportException extends \RuntimeException
+class TransportException extends \TarsusIlias\TarsusException
 {
     /** @var int The HTTP status code (0 for a timeout / connection failure). */
     public int $httpstatus;

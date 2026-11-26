@@ -83,15 +83,9 @@ class HttpClient implements ClientInterface
 
     public function trackResource(array $resource): array
     {
-        [$path, $params, $tempfile] = $this->buildTrackRequest($resource);
+        [$path, $params, $uploading] = $this->buildTrackRequest($resource);
 
-        try {
-            $body = $this->send('POST', $path, $params, $tempfile !== null);
-        } finally {
-            if ($tempfile !== null && file_exists($tempfile)) {
-                @unlink($tempfile);
-            }
-        }
+        $body = $this->send('POST', $path, $params, $uploading);
 
         // A missing ack is tolerated; only an explicit false means the brain
         // never got the bytes. HTTP 2xx already carries the real signal.
@@ -1550,7 +1544,7 @@ class HttpClient implements ClientInterface
      * Pick the endpoint and form fields for one material payload.
      *
      * @param array<string, mixed> $resource
-     * @return array{0: string, 1: array<string, mixed>, 2: ?string} Path, form fields, temp file to clean up.
+     * @return array{0: string, 1: array<string, mixed>, 2: bool} Path, form fields, whether a file is uploaded.
      */
     private function buildTrackRequest(array $resource): array
     {
@@ -1564,7 +1558,7 @@ class HttpClient implements ClientInterface
         ];
 
         if ($type === BitType::URL) {
-            return ['access/track/url-bits', $common + ['url' => (string) ($resource['url'] ?? '')], null];
+            return ['access/track/url-bits', $common + ['url' => (string) ($resource['url'] ?? '')], false];
         }
 
         if ($type === BitType::DOCUMENT || $type === BitType::MEDIA) {
@@ -1574,31 +1568,32 @@ class HttpClient implements ClientInterface
         return [
             'access/track/text-bits',
             $common + ['text' => (string) ($resource['text'] ?? ''), 'title' => $title],
-            null,
+            false,
         ];
     }
 
     /**
-     * Build the multipart request for a document or media bit, copying the
-     * file out of the ILIAS resource storage into a temporary file.
+     * Build the multipart request for a document or media bit. The file is
+     * read where the ILIAS resource storage keeps it, as ILIAS itself does
+     * (the stream's own path); no copy is made.
      *
      * @param array<string, mixed> $resource
      * @param array<string, mixed> $common
-     * @return array{0: string, 1: array<string, mixed>, 2: string}
+     * @return array{0: string, 1: array<string, mixed>, 2: bool}
      */
     private function buildFileTrackRequest(array $resource, array $common, string $title, string $type): array
     {
-        $temppath = self::copyToTemp((string) ($resource['rid'] ?? ''));
-        if ($temppath === null) {
+        $filepath = self::storedFilePath((string) ($resource['rid'] ?? ''));
+        if ($filepath === null) {
             throw new TransportException(0, 'stored file for the resource no longer exists');
         }
 
         $mimetype = (string) ($resource['mimetype'] ?? 'application/octet-stream');
         $filename = (string) ($resource['filename'] ?? $title);
-        $curlfile = new \CURLFile($temppath, $mimetype !== '' ? $mimetype : 'application/octet-stream', $filename);
+        $curlfile = new \CURLFile($filepath, $mimetype !== '' ? $mimetype : 'application/octet-stream', $filename);
 
         if ($type === BitType::DOCUMENT) {
-            return ['access/track/document-bits', $common + ['document' => $curlfile], $temppath];
+            return ['access/track/document-bits', $common + ['document' => $curlfile], true];
         }
 
         $isaudio = strncmp($mimetype, 'audio/', 6) === 0;
@@ -1606,16 +1601,15 @@ class HttpClient implements ClientInterface
         return [
             $isaudio ? 'access/track/audio-bits' : 'access/track/video-bits',
             $common + ['title' => $title, ($isaudio ? 'audio_content' : 'video_content') => $curlfile],
-            $temppath,
+            true,
         ];
     }
 
     /**
-     * Copy a resource-storage file into a temporary file.
-     *
-     * @return string|null The temporary path, or null when the file is gone.
+     * Where the resource storage keeps a file's current revision, or null
+     * when it is gone.
      */
-    public static function copyToTemp(string $rid): ?string
+    public static function storedFilePath(string $rid): ?string
     {
         if ($rid === '' || $rid === '-') {
             return null;
@@ -1626,26 +1620,8 @@ class HttpClient implements ClientInterface
             if ($identification === null) {
                 return null;
             }
-            $stream = $storage->consume()->stream($identification)->getStream();
-            $temp = tempnam(sys_get_temp_dir(), 'xtar');
-            if ($temp === false) {
-                return null;
-            }
-            $out = fopen($temp, 'wb');
-            if ($out === false) {
-                return null;
-            }
-            $stream->rewind();
-            while (!$stream->eof()) {
-                $chunk = $stream->read(1048576);
-                if ($chunk === '') {
-                    break;
-                }
-                fwrite($out, $chunk);
-            }
-            fclose($out);
-            $stream->close();
-            return $temp;
+            $path = (string) $storage->consume()->stream($identification)->getStream()->getMetadata('uri');
+            return ($path !== '' && is_file($path)) ? $path : null;
         } catch (\Throwable $e) {
             Ilias::log('could not read file ' . $rid . ': ' . $e->getMessage());
             return null;
@@ -1704,30 +1680,23 @@ class HttpClient implements ClientInterface
             ? $baseurl . $path
             : $baseurl . self::API_PREFIX . $path;
 
-        $curl = curl_init($url);
-        if ($curl === false) {
-            throw new TransportException(0, 'could not initialise curl');
-        }
-        curl_setopt_array($curl, [
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $params,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
-            CURLOPT_TIMEOUT => $timeout ?? ($uploading ? self::UPLOAD_TIMEOUT : self::TIMEOUT),
-            CURLOPT_HTTPHEADER => ['Accept: application/json', 'Expect:'],
-            CURLOPT_USERAGENT => 'Tarsus-ILIAS/' . Ilias::pluginVersion(),
-        ]);
-        self::applyProxy($curl);
-
-        $response = curl_exec($curl);
-        $errno = curl_errno($curl);
-        $httpcode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        // No curl_close(): it does nothing since PHP 8.0 and is deprecated
-        // in PHP 8.5. The handle is freed when $curl goes out of scope.
-
-        if ($errno !== 0 || $response === false) {
+        // ILIAS's own curl wrapper: init() applies the proxy configured in
+        // ILIAS (Administration > Server > Proxy).
+        try {
+            $curl = new \ilCurlConnection($url);
+            $curl->init(true);
+            $curl->setOpt(CURLOPT_CUSTOMREQUEST, $method);
+            $curl->setOpt(CURLOPT_POST, true);
+            $curl->setOpt(CURLOPT_POSTFIELDS, $params);
+            $curl->setOpt(CURLOPT_RETURNTRANSFER, true);
+            $curl->setOpt(CURLOPT_FOLLOWLOCATION, false);
+            $curl->setOpt(CURLOPT_CONNECTTIMEOUT, self::CONNECT_TIMEOUT);
+            $curl->setOpt(CURLOPT_TIMEOUT, $timeout ?? ($uploading ? self::UPLOAD_TIMEOUT : self::TIMEOUT));
+            $curl->setOpt(CURLOPT_HTTPHEADER, ['Accept: application/json', 'Expect:']);
+            $curl->setOpt(CURLOPT_USERAGENT, 'Tarsus-ILIAS/' . Ilias::pluginVersion());
+            $response = (string) $curl->exec();
+            $httpcode = (int) $curl->getInfo(CURLINFO_HTTP_CODE);
+        } catch (\ilCurlConnectionException $e) {
             // Never echo the request: it carries the API key.
             throw new TransportException(0, 'connection failed calling ' . $path);
         }
@@ -1778,27 +1747,5 @@ class HttpClient implements ClientInterface
             unset($params['brain_id']);
         }
         return $params;
-    }
-
-    /**
-     * Route the call through the proxy configured in ILIAS, if any.
-     *
-     * @param \CurlHandle|resource $curl
-     */
-    private static function applyProxy($curl): void
-    {
-        try {
-            if (class_exists('ilProxySettings')) {
-                $proxy = \ilProxySettings::_getInstance();
-                if ($proxy->isActive() && $proxy->getHost() !== '') {
-                    curl_setopt($curl, CURLOPT_PROXY, $proxy->getHost());
-                    if ((int) $proxy->getPort() > 0) {
-                        curl_setopt($curl, CURLOPT_PROXYPORT, (int) $proxy->getPort());
-                    }
-                }
-            }
-        } catch (\Throwable $e) {
-            // No proxy configuration available: connect directly.
-        }
     }
 }

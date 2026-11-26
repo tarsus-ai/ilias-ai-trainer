@@ -20,7 +20,6 @@ root_create_xtar#:#Tarsus anlegen
 // Reiter und Allgemeines
 tab_content#:#Lernbegleiter
 tab_materials#:#Materialien
-tab_learners#:#Lernende
 tab_settings#:#Einstellungen
 status#:#Status
 offline#:#Offline
@@ -29,7 +28,6 @@ online_info#:#Nur Online-Objekte werden Lernenden angezeigt. Lassen Sie das Obje
 offline_notice#:#Dieses Objekt ist offline: Lernende sehen es noch nicht. Schalten Sie es in den Einstellungen online, sobald Materialien einbezogen sind.
 your_progress#:#Ihr Fortschritt
 total#:#gesamt
-export_csv#:#Als CSV exportieren
 unexpected_error#:#Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.
 session_lost#:#Ihre Sitzung ist abgelaufen. Bitte laden Sie die Seite neu.
 permission_denied#:#Dazu fehlt Ihnen die Berechtigung.
@@ -73,7 +71,6 @@ action_index#:#Indexieren
 action_reindex#:#Neu indexieren
 action_remove#:#Entfernen
 action_retry#:#Erneut versuchen
-confirmremove_title#:#Aus dem Brain entfernen?
 confirmremove_body#:#Dieses Material wird aus dem Brain entfernt und nicht mehr zur Beantwortung von Fragen verwendet. Sie können es später erneut indexieren.
 pager#:#Seiten
 pager_previous#:#Zurück
@@ -91,22 +88,13 @@ status_pendingreindex#:#Inhalt geändert
 status_pendingdeletion#:#Entfernung ausstehend
 status_error#:#Fehler
 // Lernende
-col_learner#:#Lernende/r
 col_progress#:#Fortschritt
 col_score#:#Ergebnis (%)
 col_lp_status#:#Lernfortschritt
 col_last_activity#:#Letzte Aktivität
 avg_progress#:#Ø Fortschritt
-avg_score#:#Ø Bewertung {score}
-n_learners#:#{count} Lernende
-n_completed#:#{count} abgeschlossen
-n_inprogress#:#{count} in Arbeit
-n_notstarted#:#{count} nicht begonnen
 distribution#:#{completed} abgeschlossen, {inprogress} in Arbeit, {notstarted} nicht begonnen
 histogram#:#Lernende nach Fortschritt
-learners_threshold#:#Lernende gelten als abgeschlossen, sobald ihr Fortschritt {threshold} % erreicht.
-no_learners#:#Noch niemand hat dieses Objekt genutzt.
-not_member#:#kein Mitglied
 lp_completed#:#Abgeschlossen
 lp_in_progress#:#In Arbeit
 lp_not_attempted#:#Nicht begonnen
@@ -183,9 +171,6 @@ practice_check#:#Prüfen
 practice_answer_placeholder#:#Schreibe hier deine Antwort...
 practice_nowidget#:#Der Assistent konnte aus den einbezogenen Materialien keine Frage der gewählten Typen erstellen. Versuche es erneut oder bitte deine Lehrkraft, die Fragetypen oder die Materialien anzupassen.
 practice_variable_placeholder#:#Deine Antwort
-practice_table_position#:#Position
-practice_table_rate#:#Satz
-practice_table_amount#:#Betrag
 choice_true#:#Wahr
 choice_false#:#Falsch
 xp#:#XP
@@ -269,7 +254,6 @@ proc_learn_check#:#Die Lernkarten werden auf Verständlichkeit geprüft
 proc_learn_path_update#:#Ihr Lernpfad wird fortgeschrieben
 proc_learn_polish#:#Letzter Feinschliff Ihrer Lerneinheit
 // Plugin-Konfiguration
-cfg_title#:#Tarsus-Konfiguration
 cfg_tab_settings#:#Einstellungen
 cfg_tab_brains#:#Brains
 cfg_tab_deletions#:#Löschungen
@@ -303,6 +287,7 @@ robotdescription#:#Beschreibung des Assistenten
 robotdescription_desc#:#Eine kurze Beschreibung des Assistenten, z. B. Rolle oder Anweisungen.
 robotavatar#:#Avatar des Assistenten
 robotavatar_desc#:#Das Bild neben den Antworten des Assistenten im Chat. Quadratische Bilder eignen sich am besten; das Bild wird auf 160 Pixel verkleinert.
+robotavatar_remove#:#Aktuelles Bild entfernen
 error_avatar#:#Der Avatar konnte nicht als Bild gelesen werden (PNG, JPEG, GIF oder WebP bis 2 MB).
 voice_mode#:#Stimmauswahl
 voice_mode_desc#:#Wie die Stimme gewählt wird, die Lerneinheiten vorliest.
@@ -428,6 +413,8 @@ no_limit#:#kein Limit
 notify_emails#:#Empfänger der Warnungen
 notify_emails_desc#:#E-Mail-Adressen (eine pro Zeile oder durch Kommas getrennt), die bei {thresholds} des Limits eine Mail erhalten. Leer lassen, um die Administrationsadresse der Installation zu benachrichtigen ({admin}).
 error_email#:#„{email}“ ist keine gültige E-Mail-Adresse.
+error_minimum#:#Bitte geben Sie {minimum} oder mehr ein.
+error_price#:#Bitte geben Sie einen Preis von 0 oder mehr ein, zum Beispiel 0,05.
 limit_reduce_confirm#:#Du senkst das monatliche Limit von {old} auf {new} KI-Credits. In diesem Monat sind bereits {used} Credits verbraucht; sobald das neue Limit erreicht ist, werden KI-Anfragen bis zum nächsten Monat oder bis zu einer Erhöhung abgelehnt. Fortfahren?
 usage_remote#:#KI-Credits laut Tarsus
 usage_remote_none#:#noch nicht abgerufen (wird höchstens einmal pro Minute bei Tarsus abgefragt)
@@ -471,25 +458,6 @@ help_links_desc#:#Ein Link pro Zeile als „Titel | https://…“. YouTube- und
 help#:#Hilfe
 help_title#:#Hilfe & Videos
 // Analysen
-tab_analytics#:#Analysen
-analytics_requests_month#:#Anfragen in diesem Monat
-analytics_credits_month#:#KI-Credits in diesem Monat
-analytics_active_learners#:#aktive Lernende in diesem Monat
-analytics_share#:#der Credits dieser Installation in diesem Monat
-analytics_budget#:#Monatliche KI-Credits dieser Installation
-analytics_budget_note#:#Alle Tarsus-Objekte dieser Installation teilen sich die monatlichen Credits. Der Monat beginnt am {reset} neu.
-analytics_chart_title#:#Anfragen pro Tag, letzte 30 Tage
-analytics_chart_label#:#Anfragen pro Tag in den letzten 30 Tagen
-analytics_tooltip#:#{calls} Anfragen, {credits} Credits
-analytics_by_mode#:#Nach Modus, letzte 30 Tage
-analytics_mode#:#Modus
-analytics_top_learners#:#Aktivste Lernende, letzte 30 Tage
-analytics_none#:#Noch keine Anfragen.
-analytics_note#:#Die Zahlen stammen aus dem eigenen Verbrauchsbuch dieser Installation mit den Kostenschätzungen des Brains; die Abrechnung des Brains kann geringfügig abweichen.
-col_lastactivity#:#Letzte Aktivität
-learners_readonly#:#Weder Wissen testen noch Wissen aufbauen ist hier aktiv (ausgeschaltet oder nicht im Plan enthalten), daher hat dieses Objekt weder Punktzahl noch Lernfortschritt: es ist eine reine Nachschlage-Aktivität.
-col_participation#:#Teilnahme
-participated#:#Teilgenommen
 // Version 2: Live-Interaktion, Spracheingabe, Quellen, Auswertung, Verlauf, Denkaufwand
 mode_discuss#:#Live-Interaktion
 discussenabled#:#Live-Interaktion aktivieren
@@ -518,6 +486,7 @@ panel_settings#:#Einstellungen
 panel_stats#:#Auswertung
 panel_history#:#Verlauf
 panel_close#:#Schließen
+dialog_cancel#:#Abbrechen
 loading#:#Wird geladen …
 settings_save#:#Speichern
 settings_saving#:#Wird gespeichert …
@@ -555,6 +524,7 @@ live_starting#:#Das Gespräch wird vorbereitet …
 live_intro#:#Sprechen Sie einfach mit dem KI-Trainer. Die Folien erscheinen oben, die Antworten bleiben im Verlauf.
 live_expired#:#Diese Live-Interaktion ist abgelaufen. Mit „Neues Gespräch“ starten Sie eine neue.
 live_end_confirm#:#Das laufende Gespräch wird beendet. Fortfahren?
+live_end#:#Gespräch beenden
 live_title#:#Live-Interaktion mit dem KI-Trainer
 sources_show#:#Quellen anschauen
 sources_title#:#Referenzen
@@ -606,6 +576,7 @@ err_access#:#Der KI-Trainer ist nicht richtig mit Tarsus verbunden. Bitte melden
 err_notindexed#:#Die Kursmaterialien werden noch vorbereitet. Bitte versuchen Sie es etwas später noch einmal.
 err_audio_nospeech#:#In der Aufnahme war keine Sprache zu hören. Bitte sprechen Sie Ihre Frage noch einmal.
 err_audio_format#:#Die Aufnahme konnte nicht gelesen werden. Bitte nehmen Sie Ihre Frage noch einmal auf.
+err_audio_refused#:#Dieses ILIAS nimmt die Aufnahme nicht als Datei an. Bitten Sie Ihre Administration, Audiodateien (webm, ogg, m4a) für Uploads zu erlauben.
 err_audio_transcribe#:#Die Aufnahme konnte gerade nicht in Text umgewandelt werden. Bitte versuchen Sie es gleich noch einmal.
 err_live_unavailable#:#Die Live-Interaktion ist gerade nicht verfügbar.
 err_voice#:#Die eingestellte Stimme ist bei Tarsus nicht bekannt. Bitte melden Sie das dem Support.

@@ -3,6 +3,27 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [2.2.0] – 2026-11-26
+
+The plugin follows ILIAS's development rules: forms, dialogs and buttons of ILIAS's UI framework, the coach's script as checked ES6 modules, calls to Tarsus through ILIAS's HTTP connection, uploads through ILIAS's upload service. Learners and teachers keep every function; a few screens look like the rest of ILIAS now.
+
+### Changed
+
+- **Settings** of the AI trainer, the **plugin configuration** and **Plan & credits** use ILIAS's standard forms (UI framework) with the same fields, defaults, locks and checks. A wrong entry is marked at its field. Lowering the monthly limit still asks first.
+- **Reset chat history** is a button above the coach that opens ILIAS's confirmation dialog; no extra page.
+- Ending a live conversation by switching the mode, and removing material, ask in a dialog of the coach instead of the browser's pop-up: the focus starts on *Cancel*, <kbd>Tab</kbd> stays inside, <kbd>Esc</kbd> cancels.
+- The assistant's picture is uploaded with ILIAS's file field; ILIAS keeps the upload until the configuration is saved and removes it afterwards.
+- Spoken questions go through ILIAS's upload service, so the installation's rules for uploads (blocked file types, virus scanner) apply. If an installation does not accept audio files, the learner is told so.
+- Calls to Tarsus use ILIAS's HTTP connection (ilCurlConnection) with ILIAS's proxy settings.
+- When an ILIAS user account is deleted, the scheduled task also erases the account's conversations in the brain and its figures in the plugin (see [PRIVACY.md](PRIVACY.md)).
+
+### For developers
+
+- The coach's script is written as ES6 modules in `templates/js/src`, checked with ILIAS's ESLint configuration (no findings) and bundled with Rollup into `templates/js/dist/tarsus.js`.
+- Exceptions derive from `ilException`, log entries go to ILIAS's log (component `xtar`), requests are read through ILIAS's request wrapper, the reload of the voices is protected by ILIAS's token, unused language entries are removed, and a [PRIVACY.md](PRIVACY.md) describes the personal data the plugin keeps.
+
+To update, run the installer command again – it also runs `composer du`, which ILIAS needs for this version's new upload of the assistant's picture – then click **Update** and **Refresh Languages** in the plugin list (*Administration › Extending ILIAS › Plugins*). Your settings, material and learners' figures are kept.
+
 ## [2.1.2] – 2026-11-25
 
 A security update: please install it.
@@ -187,6 +208,8 @@ First release for ILIAS 9, 10 and 11.
 - Default permissions seeded on first activation for course and group roles.
 - English and German.
 
+[2.2.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.2.0
+[2.1.2]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.1.2
 [2.1.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.1.1
 [2.1.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.1.0
 [2.0.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.0.1
