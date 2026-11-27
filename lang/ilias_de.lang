@@ -348,6 +348,7 @@ status_bucket#:#Ratenbegrenzung
 status_bucket_value#:#{tokens} Aufrufe im Bucket übrig (Kapazität {limit} pro Minute)
 status_test#:#Verbindung testen
 status_test_ok#:#Das Brain hat geantwortet: {count} Brain(s) erreichbar.
+status_test_access#:#Tarsus akzeptiert den API-Schlüssel, die Brain-ID oder den Lizenzschlüssel nicht. Kopieren Sie sie noch einmal aus der E-Mail von Tarsus – ohne Leerzeichen am Anfang oder Ende – und speichern Sie. Bleibt die Meldung, fragen Sie bei Tarsus nach, ob der Schlüssel freigeschaltet ist.
 status_index#:#Index-Übersicht
 status_index_none#:#Es wurde noch nichts indexiert.
 status_usage#:#Nutzung der letzten 24 Stunden

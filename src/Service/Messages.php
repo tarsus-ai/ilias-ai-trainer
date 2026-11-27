@@ -27,6 +27,20 @@ final class Messages
     ];
 
     /**
+     * Whether Tarsus refused the connection itself: it does not accept the
+     * API key, the brain ID or the license key.
+     */
+    public static function refusesAccess(TransportException $e): bool
+    {
+        foreach (self::ACCESS as $sentence) {
+            if ($e->says($sentence)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * @param string $context What was asked for: ask, voice, practice, check, learn, audio, discuss, references, statistics.
      */
     public static function forTransport(TransportException $e, string $context = ''): string

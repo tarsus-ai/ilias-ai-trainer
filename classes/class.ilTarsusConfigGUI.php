@@ -26,6 +26,7 @@ use TarsusIlias\Activity\Didactics;
 use TarsusIlias\Material\BitType;
 use TarsusIlias\Output\Html;
 use TarsusIlias\Output\Views;
+use TarsusIlias\Service\Messages;
 use TarsusIlias\Support\Budget;
 use TarsusIlias\Support\Config;
 use TarsusIlias\Support\Help;
@@ -1004,6 +1005,14 @@ class ilTarsusConfigGUI extends ilPluginConfigGUI implements ilCtrlSecurityInter
             $this->tpl->setOnScreenMessage('failure', $this->txt($e->lang_key), true);
         } catch (BlockedException $e) {
             $this->tpl->setOnScreenMessage('failure', $this->txt('guardrail_blocked_' . $e->reason), true);
+        } catch (TransportException $e) {
+            if (Messages::refusesAccess($e)) {
+                // Tarsus refuses the key, the brain or the license key: say so instead of "try again".
+                Ilias::log('test connection: ' . $e->getMessage() . ' - ' . $e->body);
+                $this->tpl->setOnScreenMessage('failure', $this->txt('status_test_access'), true);
+            } else {
+                $this->tpl->setOnScreenMessage('failure', $this->txt('transport_error') . ' ' . Html::e($e->getMessage()), true);
+            }
         } catch (Throwable $e) {
             $this->tpl->setOnScreenMessage('failure', $this->txt('transport_error') . ' ' . Html::e($e->getMessage()), true);
         }

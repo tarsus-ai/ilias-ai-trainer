@@ -348,6 +348,7 @@ status_bucket#:#Rate limit
 status_bucket_value#:#{tokens} calls left in the bucket (capacity {limit} per minute)
 status_test#:#Test connection
 status_test_ok#:#The brain answered: {count} brain(s) reachable.
+status_test_access#:#Tarsus does not accept the API key, the brain ID or the license key. Copy them again from the Tarsus e-mail – without spaces at the start or the end – and save. If the message stays, ask Tarsus whether the key is activated.
 status_index#:#Index map
 status_index_none#:#Nothing has been indexed yet.
 status_usage#:#Usage in the last 24 hours
