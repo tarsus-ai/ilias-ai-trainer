@@ -3,6 +3,17 @@
 All notable changes to the Tarsus plugin for ILIAS. The plugin follows
 [semantic versioning](https://semver.org/); the version is in `plugin.php`.
 
+## [2.2.1] – 2026-11-27
+
+Two small fixes.
+
+### Fixed
+
+- A picture now opens in the enlarged view also after an interactive page was enlarged before. Until now, the picture did not open until the page was reloaded.
+- **Test connection** (*Status* tab) says clearly when Tarsus does not accept the API key, the brain ID or the license key, and what to do. Until now, it said "Could not contact the brain. Please try again in a moment." – which did not help.
+
+To update, run the installer command again, then click **Update** and **Refresh Languages** in the plugin list (*Administration › Extending ILIAS › Plugins*). Your settings, material and learners' figures are kept.
+
 ## [2.2.0] – 2026-11-26
 
 The plugin follows ILIAS's development rules: forms, dialogs and buttons of ILIAS's UI framework, the coach's script as checked ES6 modules, calls to Tarsus through ILIAS's HTTP connection, uploads through ILIAS's upload service. Learners and teachers keep every function; a few screens look like the rest of ILIAS now.
@@ -208,6 +219,7 @@ First release for ILIAS 9, 10 and 11.
 - Default permissions seeded on first activation for course and group roles.
 - English and German.
 
+[2.2.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.2.1
 [2.2.0]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.2.0
 [2.1.2]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.1.2
 [2.1.1]: https://github.com/tarsus-ai/ilias-ai-trainer/releases/tag/v2.1.1
